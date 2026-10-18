@@ -20,7 +20,7 @@ export function loadConfig(): Config {
   const ttl = Number(process.env.JWT_TTL_SECONDS ?? 900);
   if (!Number.isInteger(ttl) || ttl <= 0 || ttl > 3600) throw new Error('JWT_TTL_SECONDS must be an integer between 1 and 3600');
   return {
-    port: Number(process.env.PORT ?? 3001),
+    port: Number(process.env.PORT ?? 4101),
     privateKey: readFileSync(resolve(required('JWT_PRIVATE_KEY_PATH')), 'utf8'),
     issuer: required('JWT_ISSUER'),
     audience: required('JWT_AUDIENCE'),

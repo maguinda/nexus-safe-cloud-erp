@@ -2,5 +2,5 @@
   "extends": "./tsconfig.json",
   "compilerOptions": { "rootDir": "src", "types": ["node"] },
   "include": ["src"],
-  "exclude": ["test", "prisma", "dist", "node_modules"]
+  "exclude": ["test", "prisma", "dist", "node_modules", "**/*.spec.ts"]
 }
