@@ -84,10 +84,15 @@ services:
       SEED_DEMO: ${SEED_DEMO:-false}
     secrets: [jwt_public]
 
+  web:
+    build: ./web
+    restart: unless-stopped
+
   gateway:
     image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
+      web: { condition: service_healthy }
       identity: { condition: service_healthy }
       projects: { condition: service_healthy }
       billing: { condition: service_healthy }
@@ -95,6 +100,7 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/gateway/web-headers.inc:/etc/nginx/conf.d/web-headers.inc:ro
 
 secrets:
   jwt_private:
