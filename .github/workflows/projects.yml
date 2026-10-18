@@ -1,0 +1,26 @@
+# Se activa SOLO si cambia este servicio (o su plantilla): publicar projects no reconstruye los demás.
+name: projects
+
+on:
+  pull_request:
+    paths:
+      - 'services/projects/**'
+      - '.github/workflows/projects.yml'
+      - '.github/workflows/ci-node-service.yml'
+      - 'infra/postgres/**'
+      - 'infra/keys/gen-keys.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'services/projects/**'
+      - '.github/workflows/projects.yml'
+      - '.github/workflows/ci-node-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-node-service.yml
+    with:
+      path: services/projects
