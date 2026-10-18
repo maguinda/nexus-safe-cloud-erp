@@ -1,0 +1,23 @@
+# dependencias y compilados
+node_modules/
+dist/
+build/
+coverage/
+
+# secretos: nunca van a Git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# base de datos y datos locales
+*.sqlite
+*.db
+pgdata/
+
+# sistema y editor
+.DS_Store
+.idea/
+.vscode/
+*.log
