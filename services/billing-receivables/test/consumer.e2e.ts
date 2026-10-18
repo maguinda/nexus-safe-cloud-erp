@@ -33,7 +33,10 @@ describe('MilestoneApproved consumer (e2e, real PostgreSQL and RabbitMQ)', () =>
     await app.init(); // arranca el consumidor
     conn = await connect(process.env.RABBITMQ_URL as string);
     ch = await conn.createChannel();
-    await waitUntil(async () => { try { await ch.checkQueue(QUEUE); return true; } catch { ch = await conn.createChannel(); return false; } });
+    // Con un RabbitMQ recién creado la cola aún no existe: consultarla en el canal principal lo cerraría con un 404.
+    // Se consulta en un canal desechable (con su propio manejo de error) hasta que el consumidor la cree.
+    const queueExists = async () => { const c = await conn.createChannel(); c.on('error', () => { /* 404 esperado mientras la cola no existe */ }); try { await c.checkQueue(QUEUE); await c.close(); return true; } catch { return false; } };
+    expect(await waitUntil(queueExists)).toBe(true);
   });
   beforeEach(async () => { await ch.purgeQueue(QUEUE); await ch.purgeQueue(DLQ); await resetState(prisma); });
   afterAll(async () => { await ch.purgeQueue(QUEUE); await ch.purgeQueue(DLQ); await resetState(prisma); await ch.close(); await conn.close(); await app.close(); await prisma.$disconnect(); });
