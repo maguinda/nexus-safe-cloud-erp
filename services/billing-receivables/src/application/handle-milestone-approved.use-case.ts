@@ -1,0 +1,36 @@
+import { Invoice } from '../domain/invoice';
+import { parseMilestoneApproved } from '../domain/milestone-approved';
+import { InboxUnitOfWork } from '../domain/ports';
+
+export type HandleResult = 'created' | 'duplicate' | 'already-invoiced';
+
+/**
+ * Idempotente: RabbitMQ entrega "al menos una vez", así que el mismo evento puede llegar dos veces.
+ * Dentro de una transacción se anota el eventId y se crea la factura; si algo falla, no queda ni lo uno ni lo otro
+ * y el reintento puede procesarlo completo. Además hay a lo sumo una factura por hito.
+ */
+export class HandleMilestoneApprovedUseCase {
+  constructor(private readonly uow: InboxUnitOfWork, private readonly clock: () => Date = () => new Date()) {}
+
+  async execute(raw: unknown): Promise<HandleResult> {
+    const event = parseMilestoneApproved(raw); // lanza InvalidEventError si el mensaje no cumple el contrato
+    return this.uow.run(async (tx) => {
+      if (!(await tx.markEventProcessed(event.eventId))) return 'duplicate';
+      if (await tx.invoiceExistsForMilestone(event.data.milestoneId)) return 'already-invoiced';
+      const invoice: Invoice = {
+        number: await tx.nextInvoiceNumber(),
+        milestoneId: event.data.milestoneId,
+        projectName: event.data.projectName,
+        milestoneName: event.data.milestoneName,
+        amountCop: event.data.amountCop,
+        status: 'draft',
+        createdAt: this.clock(),
+        issuedAt: null,
+        issuedBy: null,
+        sourceEventId: event.eventId,
+      };
+      await tx.insertInvoice(invoice);
+      return 'created';
+    });
+  }
+}
