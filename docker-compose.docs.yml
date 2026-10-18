@@ -1,0 +1,11 @@
+# Solo para la demo: publica Swagger de cada servicio en 127.0.0.1 (el gateway no lo expone).
+# Uso: docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d
+# Swagger: http://localhost:4101/docs (identity), :4102/docs (projects), :4103/docs (billing).
+# Para probar rutas protegidas: POST /auth/login, copia accessToken y pulsa "Authorize".
+services:
+  identity:
+    ports: ["127.0.0.1:4101:4101"]
+  projects:
+    ports: ["127.0.0.1:4102:4102"]
+  billing:
+    ports: ["127.0.0.1:4103:4103"]

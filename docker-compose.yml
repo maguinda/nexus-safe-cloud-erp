@@ -38,6 +38,70 @@ services:
       timeout: 5s
       retries: 20
 
+  identity:
+    build: ./services/identity-access
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://identity:${DB_IDENTITY_PASSWORD}@postgres:5432/identity
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-900}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      SEED_DEMO: ${SEED_DEMO:-false}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    secrets: [jwt_private]
+
+  projects:
+    build: ./services/projects
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://projects:${DB_PROJECTS_PASSWORD}@postgres:5432/projects
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      SEED_DEMO: ${SEED_DEMO:-false}
+    secrets: [jwt_public]
+
+  billing:
+    build: ./services/billing-receivables
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://billing:${DB_BILLING_PASSWORD}@postgres:5432/billing
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      SEED_DEMO: ${SEED_DEMO:-false}
+    secrets: [jwt_public]
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      identity: { condition: service_healthy }
+      projects: { condition: service_healthy }
+      billing: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+secrets:
+  jwt_private:
+    file: ./infra/keys/jwt-private.pem
+  jwt_public:
+    file: ./infra/keys/jwt-public.pem
+
 volumes:
   pgdata:
   rabbitdata:
