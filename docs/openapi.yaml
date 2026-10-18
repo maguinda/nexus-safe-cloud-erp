@@ -1,0 +1,257 @@
+openapi: 3.0.3
+info:
+  title: Nexus Safe-Cloud ERP - MVP API
+  version: 0.1.0
+  description: |
+    Draft contract for the MVP demo (Corte 2). Three services sit behind one gateway:
+    identity-access (auth), projects (projects and milestones) and billing-receivables (invoices).
+
+    **Zero Trust.** Every request except `POST /auth/login` must carry a JWT
+    (`Authorization: Bearer <token>`). The token is signed by identity-access (RS256) and each service
+    verifies it with the public key, so no service trusts another one by default.
+
+    **Roles.** `project_lead`, `billing_analyst`, `sales`. The role comes from the token and
+    is checked in the API on every request, not only hidden in the UI.
+
+    | Endpoint | project_lead | billing_analyst | sales |
+    |---|---|---|---|
+    | GET /projects, GET /projects/{id}/milestones | yes | yes | yes |
+    | POST /milestones/{id}/approve | yes | 403 | 403 |
+    | GET /invoices | yes | yes | 403 |
+    | PATCH /invoices/{number}/issue | 403 | yes | 403 |
+
+    **Eventual consistency.** Approving a milestone answers 200 right away. Billing creates the draft
+    invoice a moment later from the `MilestoneApproved` event (see docs/events.md), so it may not
+    appear in `GET /invoices` for a second or two.
+servers:
+  - url: http://localhost:8080
+    description: Local gateway (docker compose)
+tags:
+  - name: Auth
+    description: Owned by identity-access
+  - name: Projects
+    description: Owned by projects
+  - name: Invoices
+    description: Owned by billing-receivables
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Sign in and get a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: List projects with their approval progress
+      responses:
+        '200':
+          description: Projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /projects/{projectId}/milestones:
+    get:
+      tags: [Projects]
+      operationId: listMilestones
+      summary: List the milestones of a project
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Milestones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Milestone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /milestones/{milestoneId}/approve:
+    post:
+      tags: [Projects]
+      operationId: approveMilestone
+      summary: Approve a milestone (role project_lead)
+      description: |
+        In one database transaction the service marks the milestone as approved and writes the
+        `MilestoneApproved` event to its outbox table, then answers 200. A relay publishes the event
+        to RabbitMQ afterwards.
+      parameters:
+        - $ref: '#/components/parameters/MilestoneId'
+      responses:
+        '200':
+          description: Approved. The invoice is created asynchronously.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApproveResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The milestone was already approved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /invoices:
+    get:
+      tags: [Invoices]
+      operationId: listInvoices
+      summary: List invoices (roles project_lead and billing_analyst)
+      responses:
+        '200':
+          description: Invoices, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invoice' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /invoices/{invoiceNumber}/issue:
+    patch:
+      tags: [Invoices]
+      operationId: issueInvoice
+      summary: Issue a draft invoice (role billing_analyst)
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '200':
+          description: Issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The invoice is not a draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, example: p1 }
+    MilestoneId:
+      name: milestoneId
+      in: path
+      required: true
+      schema: { type: string, example: m2 }
+    InvoiceNumber:
+      name: invoiceNumber
+      in: path
+      required: true
+      schema: { type: string, example: INV-0103 }
+  responses:
+    BadRequest:
+      description: Invalid request body
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing, invalid, tampered or expired token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: The role in the token is not allowed to do this
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: The resource does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Role:
+      type: string
+      enum: [project_lead, billing_analyst, sales]
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: laura.rios@nexus.example }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    LoginResponse:
+      type: object
+      required: [accessToken, expiresIn, user]
+      properties:
+        accessToken: { type: string, description: Signed JWT }
+        expiresIn: { type: integer, description: Seconds until the token expires, example: 900 }
+        user:
+          type: object
+          required: [email, name, role]
+          properties:
+            email: { type: string, format: email }
+            name: { type: string, example: Laura Ríos }
+            role: { $ref: '#/components/schemas/Role' }
+    Project:
+      type: object
+      required: [id, name, client, milestonesApproved, milestonesTotal]
+      properties:
+        id: { type: string, example: p1 }
+        name: { type: string, example: Branch network upgrade }
+        client: { type: string, example: Banco Andino (example) }
+        milestonesApproved: { type: integer, example: 1 }
+        milestonesTotal: { type: integer, example: 3 }
+    Milestone:
+      type: object
+      required: [id, projectId, name, amountCop, status]
+      properties:
+        id: { type: string, example: m2 }
+        projectId: { type: string, example: p1 }
+        name: { type: string, example: Link redundancy design }
+        amountCop: { type: integer, description: Amount in Colombian pesos, example: 18500000 }
+        status: { type: string, enum: [pending, approved] }
+    ApproveResponse:
+      type: object
+      required: [milestone, eventId]
+      properties:
+        milestone: { $ref: '#/components/schemas/Milestone' }
+        eventId: { type: string, format: uuid, description: Id of the MilestoneApproved event written to the outbox }
+    Invoice:
+      type: object
+      required: [number, projectName, milestoneName, amountCop, status, createdAt]
+      properties:
+        number: { type: string, example: INV-0103 }
+        projectName: { type: string }
+        milestoneName: { type: string }
+        amountCop: { type: integer }
+        status: { type: string, enum: [draft, issued] }
+        createdAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [statusCode, error, message]
+      properties:
+        statusCode: { type: integer, example: 403 }
+        error: { type: string, example: Forbidden }
+        message: { type: string, example: Role sales cannot read invoices }
+        correlationId: { type: string, description: Id to follow the request across services }
