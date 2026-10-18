@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MilestoneStatus {
+  pending
+  approved
+}
+
+model Project {
+  id         String      @id
+  name       String
+  client     String
+  milestones Milestone[]
+
+  @@map("projects")
+}
+
+model Milestone {
+  id         String          @id
+  projectId  String          @map("project_id")
+  name       String
+  amountCop  Int             @map("amount_cop")
+  status     MilestoneStatus @default(pending)
+  approvedAt DateTime?       @map("approved_at")
+  approvedBy String?         @map("approved_by")
+  project    Project         @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+/// Evento guardado en la misma transacción que el cambio de negocio; un relay lo publica después.
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  aggregateId String    @map("aggregate_id")
+  type        String
+  routingKey  String    @map("routing_key")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+
+  /// Defensa extra: nunca dos eventos del mismo tipo para el mismo hito.
+  @@unique([aggregateId, type])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}
