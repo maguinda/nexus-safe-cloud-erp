@@ -1,3 +1,4 @@
+import { MAX_SUBTOTAL_COP } from './tax';
 import { InvalidEventError } from './errors';
 
 /** Contrato en docs/events.md. Los campos extra se ignoran (compatibilidad hacia adelante); los que faltan o son raros, no. */
@@ -31,7 +32,7 @@ export function parseMilestoneApproved(raw: unknown): MilestoneApprovedEvent {
   if (typeof d !== 'object' || d === null || Array.isArray(d)) throw new InvalidEventError('data must be an object');
   if (typeof d.milestoneId !== 'string' || !ID.test(d.milestoneId)) throw new InvalidEventError('milestoneId has an invalid format');
   if (typeof d.projectId !== 'string' || !ID.test(d.projectId)) throw new InvalidEventError('projectId has an invalid format');
-  if (!Number.isInteger(d.amountCop) || d.amountCop < 1 || d.amountCop > 2_000_000_000) throw new InvalidEventError('amountCop must be an integer between 1 and 2,000,000,000');
+  if (!Number.isInteger(d.amountCop) || d.amountCop < 1 || d.amountCop > MAX_SUBTOTAL_COP) throw new InvalidEventError(`amountCop must be an integer between 1 and ${MAX_SUBTOTAL_COP}`);
   if (typeof d.approvedBy !== 'string' || d.approvedBy.length > 254 || !EMAIL.test(d.approvedBy)) throw new InvalidEventError('approvedBy must be an email');
   return {
     eventId: e.eventId.toLowerCase(),

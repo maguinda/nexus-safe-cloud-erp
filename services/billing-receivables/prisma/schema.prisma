@@ -20,12 +20,18 @@ model Invoice {
   milestoneId   String        @unique @map("milestone_id")
   projectName   String        @map("project_name")
   milestoneName String        @map("milestone_name")
+  /// Subtotal (el monto del hito). IVA y total se calculan con la regla de dominio y la base verifica que cuadren.
   amountCop     Int           @map("amount_cop")
+  taxCop        Int           @map("tax_cop")
+  totalCop      Int           @map("total_cop")
   status        InvoiceStatus @default(draft)
   createdAt     DateTime      @default(now()) @map("created_at")
   issuedAt      DateTime?     @map("issued_at")
   issuedBy      String?       @map("issued_by")
   sourceEventId String?       @map("source_event_id") @db.Uuid
+  /// Trazabilidad hito -> factura: quién aprobó y cuándo (vienen en el evento).
+  approvedBy    String?       @map("approved_by")
+  approvedAt    DateTime?     @map("approved_at")
 
   @@index([createdAt])
   @@map("invoices")

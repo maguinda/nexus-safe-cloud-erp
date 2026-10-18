@@ -1,10 +1,16 @@
 import { InvoiceNotFoundError } from '../domain/errors';
 import { issue } from '../domain/invoice';
 import { InvoiceQueries, IssueUnitOfWork } from '../domain/ports';
+import { reconcile } from '../domain/reconciliation';
 
 export class ListInvoicesUseCase {
   constructor(private readonly queries: InvoiceQueries) {}
   execute() { return this.queries.list(); }
+}
+
+export class ReconcileInvoicesUseCase {
+  constructor(private readonly queries: InvoiceQueries) {}
+  async execute() { return reconcile(await this.queries.list()); }
 }
 
 export class IssueInvoiceUseCase {

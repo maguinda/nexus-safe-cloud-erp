@@ -52,6 +52,7 @@ describe('parseMilestoneApproved', () => {
     ['amount fractional', ev({}, { amountCop: 10.5 })],
     ['amount as string', ev({}, { amountCop: '100' })],
     ['amount absurdly large', ev({}, { amountCop: 9e15 })],
+    ['amount over the 1,000,000,000 cap (total would overflow an Int)', ev({}, { amountCop: 1_000_000_001 })],
     ['approvedBy not an email', ev({}, { approvedBy: 'laura' })],
     ['empty project name', ev({}, { projectName: '   ' })],
     ['project name too long', ev({}, { projectName: 'x'.repeat(201) })],
@@ -65,7 +66,7 @@ describe('HandleMilestoneApprovedUseCase', () => {
   it('creates a draft invoice with the next number from the event data', async () => {
     const db = fakeInbox();
     expect(await new HandleMilestoneApprovedUseCase(db.uow, () => NOW).execute(ev())).toBe('created');
-    expect(db.invoices).toEqual([expect.objectContaining({ number: 'INV-0103', milestoneId: 'm2', projectName: 'Branch network upgrade', milestoneName: 'Link redundancy design', amountCop: 18_500_000, status: 'draft', createdAt: NOW, issuedAt: null, sourceEventId: '6f1c2d9e-3b5a-4c71-9d2f-0a1b2c3d4e5f' })]);
+    expect(db.invoices).toEqual([expect.objectContaining({ number: 'INV-0103', milestoneId: 'm2', projectName: 'Branch network upgrade', milestoneName: 'Link redundancy design', amountCop: 18_500_000, taxCop: 3_515_000, totalCop: 22_015_000, approvedBy: 'laura.rios@nexus.example', status: 'draft', createdAt: NOW, issuedAt: null, sourceEventId: '6f1c2d9e-3b5a-4c71-9d2f-0a1b2c3d4e5f' })]);
   });
 
   it('ignores the same event delivered twice', async () => {
@@ -97,7 +98,7 @@ describe('HandleMilestoneApprovedUseCase', () => {
 });
 
 describe('IssueInvoiceUseCase', () => {
-  const draft: Invoice = { number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 5, status: 'draft', createdAt: NOW, issuedAt: null, issuedBy: null, sourceEventId: null };
+  const draft: Invoice = { number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 5, taxCop: 1, totalCop: 6, status: 'draft', approvedBy: null, approvedAt: null, createdAt: NOW, issuedAt: null, issuedBy: null, sourceEventId: null };
   const uowFor = (store: Map<string, Invoice>): IssueUnitOfWork => ({ run: (work) => work({ findForUpdate: async (n) => store.get(n) ?? null, save: async (i) => { store.set(i.number, i); } }) });
 
   it('issues a draft and records who and when', async () => {

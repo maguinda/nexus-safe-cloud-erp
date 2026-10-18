@@ -18,6 +18,7 @@ ok(lead.user?.role === 'project_lead' && bill.user?.role === 'billing_analyst' &
 if (failed) { console.log('No se pudo iniciar sesión; ¿corrió el seed (SEED_DEMO=true) y la pila está arriba?'); process.exit(1); }
 
 ok((await call('GET', '/invoices', { token: sales.token })).status === 403, 'Sales recibe 403 en /invoices');
+ok((await call('GET', '/invoices/reconciliation', { token: sales.token })).status === 403, 'Sales recibe 403 en /invoices/reconciliation');
 const projects = await call('GET', '/projects', { token: lead.token });
 ok(projects.status === 200 && projects.json.length === 3, 'Project lead ve los 3 proyectos');
 
@@ -44,7 +45,11 @@ while (!draft && Date.now() - t0 < 15000) {
   if (!draft) await new Promise((r) => setTimeout(r, 100));
 }
 ok(!!draft, `la factura borrador apareció sola ${draft ? `(${draft.number}, ${Date.now() - t0} ms después de aprobar)` : ''}`);
-ok(draft?.amountCop === target.amountCop, 'el monto de la factura es el del hito');
+const rec = (await call('GET', '/invoices/reconciliation', { token: bill.token })).json;
+const recRow = rec?.rows?.find((r) => r.invoiceNumber === draft?.number);
+ok(recRow?.milestoneId === target.id && recRow?.approvedBy === lead.user?.email && rec.summary.inconsistent === 0, 'la conciliación enlaza el hito con su factura y todo cuadra');
+ok(draft?.amountCop === target.amountCop, 'el subtotal de la factura es el monto del hito');
+ok(draft?.taxCop === Math.floor((target.amountCop * 19 + 50) / 100) && draft?.totalCop === draft?.amountCop + draft?.taxCop, 'la factura trae IVA 19 % y total que cuadran');
 
 ok((await call('PATCH', `/invoices/${draft.number}/issue`, { token: lead.token })).status === 403, 'Project lead NO puede emitir (403)');
 const issued = await call('PATCH', `/invoices/${draft.number}/issue`, { token: bill.token });
