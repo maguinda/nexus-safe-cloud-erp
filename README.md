@@ -12,6 +12,24 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
 | `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
 
+## Run the whole stack (containers + gateway)
+
+```sh
+sh infra/keys/gen-keys.sh                 # once: JWT key pair (git-ignored)
+cp .env.example .env                      # then change the passwords
+docker compose up -d --build              # postgres, rabbitmq, 3 services, nginx gateway
+./scripts/reset-demo.sh                   # demo data back to its initial state
+node scripts/e2e-flow.mjs                 # whole flow through the gateway
+```
+
+The only published port is the gateway, `127.0.0.1:8080`. Services have no published ports; the gateway exposes just
+`POST /auth/login`, `/projects`, `/milestones`, `/invoices`, `/health`. It does not authenticate: every service verifies the JWT again.
+For the demo, Swagger of each service: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`
+then http://localhost:4101/docs, :4102/docs, :4103/docs.
+
+Demo logins (password in `.env`, `DEMO_PASSWORD`): `laura.rios@nexus.example` (project lead),
+`andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales).
+
 ## Run the infrastructure locally
 
 ```sh
