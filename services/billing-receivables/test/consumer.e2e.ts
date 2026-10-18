@@ -46,7 +46,7 @@ describe('MilestoneApproved consumer (e2e, real PostgreSQL and RabbitMQ)', () =>
     publish(e);
     expect(await waitUntil(async () => (await invoiceCount()) === 1)).toBe(true);
     const inv = await prisma.invoice.findFirst({ where: { milestoneId: 't1' } });
-    expect(inv).toMatchObject({ number: 'INV-0103', status: 'draft', amountCop: 1_000_001, projectName: 'Branch network upgrade', milestoneName: 'Milestone 1', sourceEventId: e.eventId, issuedAt: null, issuedBy: null });
+    expect(inv).toMatchObject({ number: 'INV-0103', status: 'draft', amountCop: 1_000_001, taxCop: 190_000, totalCop: 1_190_001, approvedBy: 'laura.rios@nexus.example', projectName: 'Branch network upgrade', milestoneName: 'Milestone 1', sourceEventId: e.eventId, issuedAt: null, issuedBy: null });
   });
 
   it('ignores the same event delivered 20 times at once', async () => {

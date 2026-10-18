@@ -1,6 +1,7 @@
 import { Invoice } from '../domain/invoice';
 import { parseMilestoneApproved } from '../domain/milestone-approved';
 import { InboxUnitOfWork } from '../domain/ports';
+import { computeTotals } from '../domain/tax';
 
 export type HandleResult = 'created' | 'duplicate' | 'already-invoiced';
 
@@ -17,17 +18,22 @@ export class HandleMilestoneApprovedUseCase {
     return this.uow.run(async (tx) => {
       if (!(await tx.markEventProcessed(event.eventId))) return 'duplicate';
       if (await tx.invoiceExistsForMilestone(event.data.milestoneId)) return 'already-invoiced';
+      const { taxCop, totalCop } = computeTotals(event.data.amountCop);
       const invoice: Invoice = {
         number: await tx.nextInvoiceNumber(),
         milestoneId: event.data.milestoneId,
         projectName: event.data.projectName,
         milestoneName: event.data.milestoneName,
         amountCop: event.data.amountCop,
+        taxCop,
+        totalCop,
         status: 'draft',
         createdAt: this.clock(),
         issuedAt: null,
         issuedBy: null,
         sourceEventId: event.eventId,
+        approvedBy: event.data.approvedBy,
+        approvedAt: new Date(event.occurredAt),
       };
       await tx.insertInvoice(invoice);
       return 'created';

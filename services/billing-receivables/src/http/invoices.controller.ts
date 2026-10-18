@@ -11,7 +11,7 @@ export const LIST_INVOICES = 'LIST_INVOICES';
 export const ISSUE_INVOICE = 'ISSUE_INVOICE';
 
 /** Solo los campos del contrato (docs/openapi.yaml). */
-const toDto = (i: Invoice) => ({ number: i.number, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, status: i.status, createdAt: i.createdAt.toISOString() });
+const toDto = (i: Invoice) => ({ number: i.number, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString() });
 
 @ApiTags('Invoices')
 @ApiBearerAuth()

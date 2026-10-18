@@ -7,12 +7,17 @@ export interface Invoice {
   milestoneId: string;
   projectName: string;
   milestoneName: string;
+  /** Subtotal (monto del hito, antes de IVA). */
   amountCop: number;
+  taxCop: number;
+  totalCop: number;
   status: InvoiceStatus;
   createdAt: Date;
   issuedAt: Date | null;
   issuedBy: string | null;
   sourceEventId: string | null;
+  approvedBy: string | null;
+  approvedAt: Date | null;
 }
 
 /** Regla: una factura solo se emite una vez (draft -> issued). No muta el original. */
