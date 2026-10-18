@@ -1,0 +1,14 @@
+#!/bin/sh
+# Una base y un rol por servicio: ningún servicio puede leer la base de otro.
+set -e
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+  CREATE ROLE identity LOGIN PASSWORD '$DB_IDENTITY_PASSWORD';
+  CREATE DATABASE identity OWNER identity;
+  CREATE ROLE projects LOGIN PASSWORD '$DB_PROJECTS_PASSWORD';
+  CREATE DATABASE projects OWNER projects;
+  CREATE ROLE billing LOGIN PASSWORD '$DB_BILLING_PASSWORD';
+  CREATE DATABASE billing OWNER billing;
+  REVOKE CONNECT ON DATABASE identity FROM PUBLIC;
+  REVOKE CONNECT ON DATABASE projects FROM PUBLIC;
+  REVOKE CONNECT ON DATABASE billing FROM PUBLIC;
+EOSQL
