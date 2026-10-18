@@ -1,0 +1,46 @@
+import type { ApproveResponse, Invoice, LoginResponse, Milestone, Project } from './types';
+
+/** Error con la forma de docs/openapi.yaml (schema Error). */
+export class ApiError extends Error {
+  constructor(public status: number, message: string, public correlationId?: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export interface ApiClientOptions {
+  getToken: () => string | null;
+  /** Se llama cuando el servidor responde 401 a una petición autenticada (token vencido o inválido). */
+  onUnauthorized: () => void;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}
+
+export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = (...a) => fetch(...a) }: ApiClientOptions) {
+  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const token = getToken();
+    const res = await fetchImpl(baseUrl + path, {
+      method,
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    let json: any = null;
+    try { json = await res.json(); } catch { /* sin cuerpo JSON */ }
+    if (!res.ok) {
+      if (res.status === 401 && token) onUnauthorized();
+      const message = typeof json?.message === 'string' ? json.message : `Request failed (${res.status})`;
+      throw new ApiError(res.status, message, json?.correlationId);
+    }
+    return json as T;
+  }
+
+  return {
+    login: (email: string, password: string) => request<LoginResponse>('POST', '/auth/login', { email, password }),
+    projects: () => request<Project[]>('GET', '/projects'),
+    milestones: (projectId: string) => request<Milestone[]>('GET', `/projects/${encodeURIComponent(projectId)}/milestones`),
+    approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
+    invoices: () => request<Invoice[]>('GET', '/invoices'),
+    issue: (invoiceNumber: string) => request<Invoice>('PATCH', `/invoices/${encodeURIComponent(invoiceNumber)}/issue`),
+  };
+}
+export type Api = ReturnType<typeof createApi>;
