@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { sign } from 'jsonwebtoken';
 import { readFileSync } from 'fs';
 import request from 'supertest';
-import { bearer, OTHER_KEYS, token, unsigned, USERS } from './helpers';
+import { bearer, OTHER_KEYS, resetState, token, unsigned, USERS } from './helpers';
 
 process.env.RELAY_ENABLED = 'false'; // estas pruebas no necesitan RabbitMQ
 process.env.RATE_LIMIT = '100000';
@@ -19,7 +19,8 @@ describe('authentication and roles (e2e, real PostgreSQL)', () => {
     app = await createApp();
     await app.init();
   });
-  afterAll(async () => { await app.close(); await prisma.$disconnect(); });
+  beforeEach(() => resetState(prisma));
+  afterAll(async () => { await resetState(prisma); await app.close(); await prisma.$disconnect(); });
 
   describe('every protected route rejects bad tokens with 401', () => {
     const lead = USERS.lead;
