@@ -27,6 +27,8 @@ The only published port is the gateway, `127.0.0.1:8080`. Services have no publi
 For the demo, Swagger of each service: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`
 then http://localhost:4101/docs, :4102/docs, :4103/docs.
 
+The web app is served by the same gateway: open http://localhost:8080. Tests: `cd web && npm run test:e2e` (see `web/README.md`).
+
 Demo logins (password in `.env`, `DEMO_PASSWORD`): `laura.rios@nexus.example` (project lead),
 `andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales).
 

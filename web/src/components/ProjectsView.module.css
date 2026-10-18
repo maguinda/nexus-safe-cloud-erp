@@ -1,0 +1,12 @@
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); min-width: 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); }
+.kpi { display: block; font-size: var(--fs-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.row:hover td { background: var(--surface-2); }
+.selected td { background: var(--accent-soft); }
+.rowBtn { background: none; border: 0; padding: 4px 0; font-weight: 600; text-align: left; cursor: pointer; min-height: 32px; color: var(--fg); }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.flow li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); margin-top: 4px; }
+.done .dot { background: var(--ok); border-color: var(--ok); }
+.wait { color: var(--muted); }
