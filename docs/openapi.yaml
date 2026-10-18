@@ -18,6 +18,7 @@ info:
     | GET /projects, GET /projects/{id}/milestones | yes | yes | yes |
     | POST /milestones/{id}/approve | yes | 403 | 403 |
     | GET /invoices | yes | yes | 403 |
+    | GET /invoices/reconciliation | yes | yes | 403 |
     | PATCH /invoices/{number}/issue | 403 | yes | 403 |
 
     **Eventual consistency.** Approving a milestone answers 200 right away. Billing creates the draft
@@ -124,6 +125,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Invoice' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /invoices/reconciliation:
+    get:
+      tags: [Invoices]
+      operationId: reconcileInvoices
+      summary: Milestone-to-invoice reconciliation with tax totals (roles project_lead and billing_analyst)
+      responses:
+        '200':
+          description: One row per invoice linked to its milestone, plus totals
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reconciliation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /invoices/{invoiceNumber}/issue:
@@ -239,14 +253,46 @@ components:
         eventId: { type: string, format: uuid, description: Id of the MilestoneApproved event written to the outbox }
     Invoice:
       type: object
-      required: [number, projectName, milestoneName, amountCop, status, createdAt]
+      required: [number, projectName, milestoneName, amountCop, taxCop, totalCop, status, createdAt]
       properties:
         number: { type: string, example: INV-0103 }
         projectName: { type: string }
         milestoneName: { type: string }
-        amountCop: { type: integer }
+        amountCop: { type: integer, description: Subtotal (the milestone amount) before tax, example: 18500000 }
+        taxCop: { type: integer, description: 'IVA 19 %, whole pesos, rounded to the nearest peso (halves up)', example: 3515000 }
+        totalCop: { type: integer, description: subtotal + tax, example: 22015000 }
         status: { type: string, enum: [draft, issued] }
         createdAt: { type: string, format: date-time }
+    Reconciliation:
+      type: object
+      required: [rows, summary]
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            required: [milestoneId, invoiceNumber, status, subtotalCop, taxCop, totalCop, approvedBy, approvedAt, consistent]
+            properties:
+              milestoneId: { type: string }
+              invoiceNumber: { type: string }
+              status: { type: string, enum: [draft, issued] }
+              subtotalCop: { type: integer }
+              taxCop: { type: integer }
+              totalCop: { type: integer }
+              approvedBy: { type: string, nullable: true, description: Email of the project lead who approved the milestone }
+              approvedAt: { type: string, format: date-time, nullable: true }
+              consistent: { type: boolean, description: Stored tax and total equal a fresh calculation from the subtotal }
+        summary:
+          type: object
+          required: [invoices, draft, issued, subtotalCop, taxCop, totalCop, inconsistent]
+          properties:
+            invoices: { type: integer }
+            draft: { type: integer }
+            issued: { type: integer }
+            subtotalCop: { type: integer }
+            taxCop: { type: integer }
+            totalCop: { type: integer }
+            inconsistent: { type: integer }
     Error:
       type: object
       required: [statusCode, error, message]

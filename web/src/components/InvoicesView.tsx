@@ -58,7 +58,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
       <div className={ui.scroll}>
         <table className={ui.table}>
           <caption className={s.sr}>Invoices, newest first</caption>
-          <thead><tr><th>Invoice</th><th>Project</th><th>Milestone</th><th className={ui.num}>Amount (COP)</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+          <thead><tr><th>Invoice</th><th>Project</th><th>Milestone</th><th className={ui.num}>Subtotal (COP)</th><th className={ui.num}>IVA 19 %</th><th className={ui.num}>Total (COP)</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
           <tbody>
             {(invoices ?? []).map((i) => (
               <tr key={i.number}>
@@ -66,6 +66,8 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
                 <td>{i.projectName}</td>
                 <td>{i.milestoneName}</td>
                 <td className={ui.num}>{formatCop(i.amountCop)}</td>
+                <td className={ui.num}>{formatCop(i.taxCop)}</td>
+                <td className={ui.num}><strong>{formatCop(i.totalCop)}</strong></td>
                 <td><span className={ui[i.status]}>{i.status === 'draft' ? 'Draft' : 'Issued'}</span></td>
                 <td className={ui.muted}>{timeAgo(i.createdAt, now)}</td>
                 <td>{i.status === 'draft' && user?.role === 'billing_analyst'
