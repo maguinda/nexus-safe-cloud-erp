@@ -1,0 +1,94 @@
+import { randomUUID } from 'crypto';
+import { INestApplication } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+import { Channel, connect } from 'amqplib';
+import { resetState } from './helpers';
+
+process.env.CONSUMER_ENABLED = 'true';
+process.env.RATE_LIMIT = '100000';
+const EXCHANGE = 'erp.events';
+const ROUTING_KEY = 'project.milestone.approved';
+const QUEUE = 'q.billing';
+const DLQ = 'q.billing.dlq';
+
+const event = (n: number | string, over: any = {}, data: any = {}) => ({
+  eventId: randomUUID(), type: 'MilestoneApproved', occurredAt: new Date().toISOString(), correlationId: `corr-${String(n).padStart(8, '0')}`,
+  data: { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000 + Number(n || 0), approvedBy: 'laura.rios@nexus.example', ...data },
+  ...over,
+});
+
+describe('MilestoneApproved consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
+  let app: INestApplication;
+  const prisma = new PrismaClient();
+  let conn: Awaited<ReturnType<typeof connect>>;
+  let ch: Channel;
+  const publish = (body: unknown, raw = false) => ch.publish(EXCHANGE, ROUTING_KEY, raw ? (body as Buffer) : Buffer.from(JSON.stringify(body)), { persistent: true, contentType: 'application/json' });
+  const waitUntil = async (cond: () => Promise<boolean>, ms = 10_000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await cond()) return true; await new Promise((r) => setTimeout(r, 50)); } return false; };
+  const dlqCount = async () => (await ch.checkQueue(DLQ)).messageCount;
+  const invoiceCount = () => prisma.invoice.count({ where: { number: { notIn: ['INV-0101', 'INV-0102'] } } });
+
+  beforeAll(async () => {
+    const { createApp } = require('../src/app.factory');
+    app = await createApp();
+    await app.init(); // arranca el consumidor
+    conn = await connect(process.env.RABBITMQ_URL as string);
+    ch = await conn.createChannel();
+    await waitUntil(async () => { try { await ch.checkQueue(QUEUE); return true; } catch { ch = await conn.createChannel(); return false; } });
+  });
+  beforeEach(async () => { await ch.purgeQueue(QUEUE); await ch.purgeQueue(DLQ); await resetState(prisma); });
+  afterAll(async () => { await ch.purgeQueue(QUEUE); await ch.purgeQueue(DLQ); await resetState(prisma); await ch.close(); await conn.close(); await app.close(); await prisma.$disconnect(); });
+
+  it('creates a draft invoice from a MilestoneApproved event', async () => {
+    const e = event(1);
+    publish(e);
+    expect(await waitUntil(async () => (await invoiceCount()) === 1)).toBe(true);
+    const inv = await prisma.invoice.findFirst({ where: { milestoneId: 't1' } });
+    expect(inv).toMatchObject({ number: 'INV-0103', status: 'draft', amountCop: 1_000_001, projectName: 'Branch network upgrade', milestoneName: 'Milestone 1', sourceEventId: e.eventId, issuedAt: null, issuedBy: null });
+  });
+
+  it('ignores the same event delivered 20 times at once', async () => {
+    const e = event(2);
+    for (let i = 0; i < 20; i++) publish(e);
+    expect(await waitUntil(async () => (await invoiceCount()) >= 1)).toBe(true);
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(await invoiceCount()).toBe(1);
+    expect(await prisma.processedEvent.count()).toBe(1);
+    expect(await dlqCount()).toBe(0);
+  });
+
+  it('creates one invoice per milestone even if the approval is replayed under new event ids', async () => {
+    for (let i = 0; i < 6; i++) publish(event(3, {}, { milestoneId: 'replayed' }));
+    expect(await waitUntil(async () => (await prisma.processedEvent.count()) === 6)).toBe(true);
+    expect(await prisma.invoice.count({ where: { milestoneId: 'replayed' } })).toBe(1);
+    expect(await dlqCount()).toBe(0);
+  });
+
+  it('sends malformed messages to the dead-letter queue, creates nothing, and keeps working', async () => {
+    const poison: unknown[] = [
+      Buffer.from('this is not json'),
+      Buffer.from('[]'),
+      Buffer.from('{"type":"MilestoneApproved"}'),
+      Buffer.from(JSON.stringify(event(4, {}, { amountCop: -50 }))),
+      Buffer.from(JSON.stringify(event(5, { eventId: "1'; DROP TABLE invoices;--" }))),
+      Buffer.from(JSON.stringify(event(6, {}, { milestoneId: '../../etc/passwd' }))),
+      Buffer.from(JSON.stringify(event(7, {}, { projectName: 'x'.repeat(100_000) }))),
+    ];
+    for (const p of poison) publish(p, true);
+    expect(await waitUntil(async () => (await dlqCount()) === poison.length)).toBe(true);
+    expect(await invoiceCount()).toBe(0);
+    expect(await prisma.processedEvent.count()).toBe(0);
+    publish(event(8)); // el consumidor sigue vivo después de los mensajes basura
+    expect(await waitUntil(async () => (await invoiceCount()) === 1)).toBe(true);
+  });
+
+  it('turns 50 simultaneous different approvals into 50 invoices with unique consecutive numbers', async () => {
+    for (let i = 1; i <= 50; i++) publish(event(100 + i));
+    await waitUntil(async () => (await invoiceCount()) === 50, 20_000);
+    expect({ invoices: await invoiceCount(), processed: await prisma.processedEvent.count(), dlq: await dlqCount(), queued: (await ch.checkQueue(QUEUE)).messageCount }).toEqual({ invoices: 50, processed: 50, dlq: 0, queued: 0 });
+    const numbers = (await prisma.invoice.findMany({ where: { number: { notIn: ['INV-0101', 'INV-0102'] } }, select: { number: true } })).map((r) => r.number).sort();
+    expect(new Set(numbers).size).toBe(50);
+    expect(numbers[0]).toBe('INV-0103');
+    expect(numbers[49]).toBe('INV-0152');
+    expect(await dlqCount()).toBe(0);
+  }, 40_000);
+});

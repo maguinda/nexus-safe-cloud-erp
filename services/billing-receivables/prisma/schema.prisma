@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+}
+
+model Invoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  /// INV-0001... generado con la secuencia invoice_number_seq (ver la migración)
+  number        String        @unique
+  /// A lo sumo una factura por hito: invariante a nivel de base de datos.
+  milestoneId   String        @unique @map("milestone_id")
+  projectName   String        @map("project_name")
+  milestoneName String        @map("milestone_name")
+  amountCop     Int           @map("amount_cop")
+  status        InvoiceStatus @default(draft)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  issuedAt      DateTime?     @map("issued_at")
+  issuedBy      String?       @map("issued_by")
+  sourceEventId String?       @map("source_event_id") @db.Uuid
+
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+/// Bandeja de entrada: eventos ya procesados. Un evento repetido se ignora.
+model ProcessedEvent {
+  eventId     String   @id @map("event_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("processed_events")
+}
