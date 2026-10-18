@@ -1,0 +1,91 @@
+# Plantilla compartida (workflow reutilizable): cada servicio la llama con su carpeta.
+# Un equipo pequeño mantiene UNA configuración en vez de tres. Permisos de solo lectura, sin secretos.
+name: CI node service
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        description: Carpeta del servicio (por ejemplo services/projects)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.path }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ inputs.path }}/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: End-to-end tests (real PostgreSQL and RabbitMQ)
+    runs-on: ubuntu-latest
+    needs: unit
+    defaults:
+      run:
+        working-directory: ${{ inputs.path }}
+    env:
+      POSTGRES_USER: postgres
+      DB_IDENTITY_PASSWORD: changemeidentity1
+      DB_PROJECTS_PASSWORD: changemeprojects1
+      DB_BILLING_PASSWORD: changemebilling1
+      PGHOST: localhost
+      PGPASSWORD: ci-postgres-password
+      DEMO_PASSWORD: demo-password-1
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3.13
+        env:
+          RABBITMQ_DEFAULT_USER: erp
+          RABBITMQ_DEFAULT_PASS: changemerabbit1
+        ports: ["5672:5672"]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping" --health-interval 10s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ inputs.path }}/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Create the per-service databases and roles (same script as docker compose)
+        working-directory: .
+        run: sh infra/postgres/init/01-databases.sh
+      - name: Create the JWT key pair (never committed)
+        working-directory: .
+        run: sh infra/keys/gen-keys.sh
+      - run: cp .env.example .env
+      - name: Migrate and seed
+        run: |
+          set -a; . ./.env; set +a
+          npx prisma migrate deploy
+          npx ts-node prisma/seed.ts
+      - name: Run e2e tests
+        run: |
+          set -a; . ./.env; set +a
+          npm run test:e2e
