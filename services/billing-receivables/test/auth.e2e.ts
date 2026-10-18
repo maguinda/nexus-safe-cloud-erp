@@ -19,7 +19,7 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
   beforeEach(() => resetState(prisma));
   afterAll(async () => { await resetState(prisma); await app.close(); await prisma.$disconnect(); });
 
-  describe('bad tokens are rejected with 401 on both routes', () => {
+  describe('bad tokens are rejected with 401 on all routes', () => {
     const lead = USERS.lead;
     const bad: [string, string | undefined][] = [
       ['no token', undefined], ['empty bearer', 'Bearer '], ['basic scheme', 'Basic dXNlcjpwYXNz'], ['garbage', 'Bearer not.a.jwt'],
@@ -35,6 +35,7 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
     for (const [name, auth] of bad) {
       it(name, async () => {
         expect((await get('/invoices', auth)).status).toBe(401);
+        expect((await get('/invoices/reconciliation', auth)).status).toBe(401);
         expect((await patch('/invoices/INV-0103/issue', auth)).status).toBe(401);
       });
     }
@@ -62,6 +63,20 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
       await addDraft('INV-0103', 'm2');
       const res = await patch('/invoices/INV-0103/issue', bearer(token(USERS.sales))).set('x-role', 'billing_analyst').send({ role: 'billing_analyst', issuedBy: 'andres.mora@nexus.example' });
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('reconciliation', () => {
+    it('is allowed for project_lead and billing_analyst, forbidden for sales', async () => {
+      for (const u of [USERS.lead, USERS.billing]) expect((await get('/invoices/reconciliation', bearer(token(u)))).status).toBe(200);
+      expect((await get('/invoices/reconciliation', bearer(token(USERS.sales)))).status).toBe(403);
+    });
+    it('links milestones to invoices and the tax adds up', async () => {
+      await addDraft('INV-0103', 'm2');
+      const { body } = await get('/invoices/reconciliation', bearer(token(USERS.billing)));
+      expect(body.rows.map((r: any) => [r.milestoneId, r.invoiceNumber, r.consistent])).toEqual(
+        expect.arrayContaining([['m1', 'INV-0101', true], ['m4', 'INV-0102', true], ['m2', 'INV-0103', true]]));
+      expect(body.summary).toMatchObject({ invoices: 3, draft: 1, issued: 2, subtotalCop: 40_300_000, taxCop: 7_657_000, totalCop: 47_957_000, inconsistent: 0 });
     });
   });
 

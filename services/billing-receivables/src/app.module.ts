@@ -3,11 +3,11 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { HandleMilestoneApprovedUseCase } from './application/handle-milestone-approved.use-case';
-import { IssueInvoiceUseCase, ListInvoicesUseCase } from './application/invoices.use-cases';
+import { IssueInvoiceUseCase, ListInvoicesUseCase, ReconcileInvoicesUseCase } from './application/invoices.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { HealthController } from './http/health.controller';
-import { InvoicesController, ISSUE_INVOICE, LIST_INVOICES } from './http/invoices.controller';
+import { InvoicesController, ISSUE_INVOICE, LIST_INVOICES, RECONCILE_INVOICES } from './http/invoices.controller';
 import { MilestoneApprovedConsumer } from './infrastructure/milestone-approved-consumer';
 import { PrismaInvoiceQueries } from './infrastructure/prisma-invoice-queries';
 import { PrismaInboxUnitOfWork, PrismaIssueUnitOfWork } from './infrastructure/prisma-units-of-work';
@@ -24,6 +24,7 @@ let consumer: MilestoneApprovedConsumer | undefined;
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
+    { provide: RECONCILE_INVOICES, useFactory: () => new ReconcileInvoicesUseCase(new PrismaInvoiceQueries(prisma)) },
     { provide: LIST_INVOICES, useFactory: () => new ListInvoicesUseCase(new PrismaInvoiceQueries(prisma)) },
     { provide: ISSUE_INVOICE, useFactory: () => new IssueInvoiceUseCase(new PrismaIssueUnitOfWork(prisma)) },
   ],
