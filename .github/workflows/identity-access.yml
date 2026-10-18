@@ -1,0 +1,26 @@
+# Se activa SOLO si cambia este servicio (o su plantilla): publicar identity-access no reconstruye los demás.
+name: identity-access
+
+on:
+  pull_request:
+    paths:
+      - 'services/identity-access/**'
+      - '.github/workflows/identity-access.yml'
+      - '.github/workflows/ci-node-service.yml'
+      - 'infra/postgres/**'
+      - 'infra/keys/gen-keys.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'services/identity-access/**'
+      - '.github/workflows/identity-access.yml'
+      - '.github/workflows/ci-node-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-node-service.yml
+    with:
+      path: services/identity-access

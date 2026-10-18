@@ -1,0 +1,26 @@
+# Se activa SOLO si cambia este servicio (o su plantilla): publicar billing-receivables no reconstruye los demás.
+name: billing-receivables
+
+on:
+  pull_request:
+    paths:
+      - 'services/billing-receivables/**'
+      - '.github/workflows/billing-receivables.yml'
+      - '.github/workflows/ci-node-service.yml'
+      - 'infra/postgres/**'
+      - 'infra/keys/gen-keys.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'services/billing-receivables/**'
+      - '.github/workflows/billing-receivables.yml'
+      - '.github/workflows/ci-node-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-node-service.yml
+    with:
+      path: services/billing-receivables
