@@ -95,9 +95,10 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
       await addDraft('INV-0103', 'm2');
       const res = await get('/invoices', bearer(token(USERS.billing)));
       expect(res.body.map((i: any) => i.number)).toEqual(['INV-0103', 'INV-0102', 'INV-0101']);
-      expect(Object.keys(res.body[0]).sort()).toEqual(['amountCop', 'createdAt', 'milestoneName', 'number', 'projectName', 'status', 'taxCop', 'totalCop']);
+      expect(Object.keys(res.body[0]).sort()).toEqual(['amountCop', 'createdAt', 'dueDate', 'milestoneName', 'number', 'projectName', 'status', 'taxCop', 'totalCop']);
       expect(res.body[0].status).toBe('draft');
-      expect(res.body[1]).toMatchObject({ number: 'INV-0102', status: 'issued', amountCop: 9_800_000, taxCop: 1_862_000, totalCop: 11_662_000 });
+      expect(res.body[1]).toMatchObject({ number: 'INV-0102', status: 'issued', amountCop: 9_800_000, taxCop: 1_862_000, totalCop: 11_662_000, dueDate: '2026-11-14T15:00:00.000Z' });
+      expect(res.body[0].dueDate).toBeNull(); // el borrador no tiene vencimiento
     });
   });
 
@@ -114,6 +115,19 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
       expect(out).toHaveLength(1);
       expect(out[0]).toMatchObject({ aggregateId: 'INV-0103', type: 'InvoiceIssued', routingKey: 'billing.invoice.issued' });
       expect(out[0].payload).toMatchObject({ type: 'InvoiceIssued', data: { invoiceNumber: 'INV-0103', totalCop: 22_015_000, issuedBy: USERS.billing.email } });
+      // El vencimiento: exactamente 30 días después de la emisión, en la respuesta, en la base y en el evento.
+      const thirty = (from: Date) => new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + 30, from.getUTCHours(), from.getUTCMinutes(), from.getUTCSeconds(), from.getUTCMilliseconds()));
+      expect(row?.dueDate?.toISOString()).toBe(thirty(row!.issuedAt!).toISOString());
+      expect(res.body.dueDate).toBe(row!.dueDate!.toISOString());
+      expect((out[0].payload as any).data.dueDate).toBe(row!.dueDate!.toISOString());
+    });
+    it('the database itself refuses incoherent due dates (even if the code were wrong)', async () => {
+      const base = { projectName: 'P', milestoneName: 'M', amountCop: 1000, taxCop: 190, totalCop: 1190 };
+      const at = new Date('2026-10-18T10:00:00Z'), later = new Date('2026-11-17T10:00:00Z');
+      await expect(prisma.invoice.create({ data: { ...base, number: 'INV-9001', milestoneId: 'z1', status: 'issued', issuedAt: at, issuedBy: 'a@x.co' } })).rejects.toThrow(); // emitida sin vencimiento
+      await expect(prisma.invoice.create({ data: { ...base, number: 'INV-9002', milestoneId: 'z2', status: 'draft', dueDate: later } })).rejects.toThrow(); // borrador con vencimiento
+      await expect(prisma.invoice.create({ data: { ...base, number: 'INV-9003', milestoneId: 'z3', status: 'issued', issuedAt: later, issuedBy: 'a@x.co', dueDate: at } })).rejects.toThrow(); // vence antes de emitirse
+      await expect(prisma.invoice.create({ data: { ...base, number: 'INV-9004', milestoneId: 'z4', status: 'issued', issuedAt: at, issuedBy: 'a@x.co', dueDate: later } })).resolves.toBeTruthy(); // lo coherente sí entra
     });
     it('answers 409 for an invoice that is already issued', async () => {
       expect((await patch('/invoices/INV-0101/issue', bearer(token(USERS.billing)))).status).toBe(409);
