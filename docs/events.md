@@ -9,7 +9,7 @@ change; a relay publishes it afterwards, so a crash never loses an event. Consum
 
 - Published by: `projects`
 - Routing key: `project.milestone.approved`
-- Consumed by: `billing-receivables` (queue `q.billing`), which creates a draft invoice, and later `analytics`
+- Consumed by: `billing-receivables` (queue `q.billing`), which creates a draft invoice, and `analytics` (queue `q.analytics`)
 
 ```json
 {
@@ -36,7 +36,7 @@ Rules:
 
 - Published by: `billing-receivables` (through its own outbox, in the same transaction that creates the draft invoice)
 - Routing key: `billing.invoice.drafted`
-- Consumed by: `analytics` (planned)
+- Consumed by: `analytics` (queue `q.analytics`)
 - `correlationId` is the one of the `MilestoneApproved` event that originated the invoice, so one trace crosses projects, billing and analytics.
 
 ```json
@@ -62,7 +62,7 @@ Rules:
 
 - Published by: `billing-receivables` (outbox, same transaction that turns the draft into an issued invoice)
 - Routing key: `billing.invoice.issued`
-- Consumed by: `analytics` (planned)
+- Consumed by: `analytics` (queue `q.analytics`)
 - `correlationId` is the one of the HTTP request that issued the invoice.
 - Same `data` as `InvoiceDrafted` but with `issuedBy` (email of the billing analyst, taken from the token) instead of `approvedBy`.
 
@@ -72,3 +72,9 @@ Rules:
 - An invoice number produces at most one `InvoiceDrafted` and one `InvoiceIssued` (unique `(aggregate_id, type)` in the outbox).
 - A refused action (403, 409) publishes nothing.
 - Messages that were already waiting in the queue when a consumer starts are processed like any other (regression test `consumer-backlog.e2e.ts`).
+
+## Analytics consumer
+
+`analytics` has one queue, `q.analytics`, bound to the three routing keys above, with its own dead-letter queue `q.analytics.dlq`.
+RabbitMQ does not order events from different publishers, so the read model is built to give the **same result in any arrival order**
+(an issued invoice never goes back to draft) and to ignore repeated deliveries (it records every `eventId`).

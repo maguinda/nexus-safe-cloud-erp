@@ -3,7 +3,7 @@
 # (DOCS_HTTP_PORT), publicado solo en 127.0.0.1. El JWT sigue siendo obligatorio en toda ruta; lo que se pierde en ese puerto es
 # solo la capa mTLS. Sin este archivo esa puerta no existe.
 # Uso: docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d
-# Swagger: http://localhost:4101/docs (identity), :4102/docs (projects), :4103/docs (billing).
+# Swagger: http://localhost:4101/docs (identity), :4102/docs (projects), :4103/docs (billing), :4104/docs (analytics).
 # Para probar rutas protegidas: POST /auth/login, copia accessToken y pulsa "Authorize".
 services:
   identity:
@@ -15,3 +15,6 @@ services:
   billing:
     environment: { DOCS_HTTP_PORT: "4203" }
     ports: ["127.0.0.1:4103:4203"]
+  analytics:
+    environment: { DOCS_HTTP_PORT: "4204" }
+    ports: ["127.0.0.1:4104:4204"]

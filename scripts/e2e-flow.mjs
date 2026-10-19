@@ -72,6 +72,17 @@ ok((await call('POST', `/milestones/${target.id}/approve`, { token: lead.token }
 await new Promise((r) => setTimeout(r, 1000));
 ok((await call('GET', '/invoices', { token: bill.token })).json.length === before + 1, 'no se creó una segunda factura');
 
+// Analytics: el tablero del gerente se arma solo con eventos (aprobado -> borrador -> emitida), sin llamar a los demás servicios.
+let dash = null;
+for (let i = 0; i < 60 && !(dash?.projects?.some((p) => p.issuedTotalCop > 0) && dash?.recentActivity?.some((a) => a.kind === 'InvoiceIssued' && a.message.includes(draft.number))); i++) {
+  dash = (await call('GET', '/dashboard', { token: manager.token })).json; if (!(dash?.recentActivity?.some((a) => a.kind === 'InvoiceIssued' && a.message.includes(draft.number)))) await new Promise((r) => setTimeout(r, 100));
+}
+ok(dash?.recentActivity?.some((a) => a.kind === 'InvoiceIssued' && a.message.includes(draft.number)), `el dashboard del gerente refleja la factura emitida ${draft.number} (modelo de lectura por eventos)`);
+ok(dash?.totals?.issued?.totalCop === dash?.totals?.issued?.subtotalCop + dash?.totals?.issued?.taxCop && dash.totals.approvedCop > 0, 'el dashboard suma subtotal + IVA = total');
+ok(dash?.freshness?.lastEventLagMs != null && dash.freshness.lastEventLagMs < 60000, `frescura: el último evento llegó ${dash?.freshness?.lastEventLagMs} ms después de ocurrir (meta ≤ 60 s)`);
+for (const [nombre, u] of [['Project lead', lead], ['Billing analyst', bill], ['Sales', sales]]) ok((await call('GET', '/dashboard', { token: u.token })).status === 403, `${nombre} NO ve el dashboard (403)`);
+ok((await call('GET', '/dashboard')).status === 401, 'dashboard sin token -> 401');
+
 const parts = lead.token.split('.');
 const tampered = `${parts[0]}.${Buffer.from(JSON.stringify({ sub: 'x', email: 'a@b.co', role: 'billing_analyst', iss: 'identity-access', aud: 'erp-api', exp: 9999999999 })).toString('base64url')}.${parts[2]}`;
 ok((await call('GET', '/invoices', { token: tampered })).status === 401, 'token alterado -> 401');

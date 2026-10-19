@@ -1,0 +1,56 @@
+// Base de Analytics: SOLO modelos de lectura armados con eventos. Ningún otro servicio la lee ni la escribe.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+}
+
+/// Una fila por hito. Cada tipo de evento escribe sus propios campos y la fusión no depende del orden de llegada.
+model MilestoneFact {
+  milestoneId   String         @id @map("milestone_id")
+  projectId     String?        @map("project_id")
+  projectName   String         @map("project_name")
+  milestoneName String         @map("milestone_name")
+  /// Subtotal aprobado (antes de IVA).
+  amountCop     Int            @map("amount_cop")
+  approvedBy    String?        @map("approved_by")
+  approvedAt    DateTime?      @map("approved_at")
+  invoiceNumber String?        @map("invoice_number")
+  invoiceStatus InvoiceStatus? @map("invoice_status")
+  taxCop        Int?           @map("tax_cop")
+  totalCop      Int?           @map("total_cop")
+  draftedAt     DateTime?      @map("drafted_at")
+  issuedAt      DateTime?      @map("issued_at")
+  updatedAt     DateTime       @default(now()) @map("updated_at")
+
+  @@index([projectName])
+  @@map("milestone_facts")
+}
+
+/// Lista de actividad reciente: cuándo ocurrió cada evento y cuándo llegó (de ahí sale el «retraso» del tablero).
+model ActivityEntry {
+  eventId    String   @id @map("event_id") @db.Uuid
+  kind       String
+  message    String
+  occurredAt DateTime @map("occurred_at")
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  @@index([occurredAt])
+  @@map("activity_entries")
+}
+
+/// Bandeja de entrada: eventos ya procesados. Un evento repetido se ignora.
+model ProcessedEvent {
+  eventId     String   @id @map("event_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("processed_events")
+}

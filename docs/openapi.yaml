@@ -10,7 +10,7 @@ info:
     (`Authorization: Bearer <token>`). The token is signed by identity-access (RS256) and each service
     verifies it with the public key, so no service trusts another one by default.
 
-    **Roles.** `project_lead`, `billing_analyst`, `sales`, `manager`. The manager reads only the Analytics dashboard: every other route answers 403 to it. The role comes from the token and
+    **Roles.** `project_lead`, `billing_analyst`, `sales`, `manager`. The manager reads only the Analytics dashboard (`GET /dashboard`): every other route answers 403 to it, and the dashboard answers 403 to every other role. The role comes from the token and
     is checked in the API on every request, not only hidden in the UI.
 
     | Endpoint | project_lead | billing_analyst | sales | manager |
@@ -21,6 +21,7 @@ info:
     | GET /invoices | yes | yes | 403 | 403 |
     | GET /invoices/reconciliation | yes | yes | 403 | 403 |
     | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
+    | GET /dashboard | 403 | 403 | 403 | yes |
 
     **Eventual consistency.** Approving a milestone answers 200 right away. Billing creates the draft
     invoice a moment later from the `MilestoneApproved` event (see docs/events.md), so it may not
@@ -182,6 +183,22 @@ paths:
               schema: { $ref: '#/components/schemas/Reconciliation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Consolidated dashboard from the Analytics read models (role manager)
+      description: |
+        Built only from business events (MilestoneApproved, InvoiceDrafted, InvoiceIssued); no other service is called.
+        Known limit: pending milestones are not shown, because projects does not publish an event when a milestone is created.
+      responses:
+        '200':
+          description: Totals, a per-project table and the recent activity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /invoices/{invoiceNumber}/issue:
     patch:
       tags: [Invoices]
@@ -319,6 +336,55 @@ components:
         totalCop: { type: integer, description: subtotal + tax, example: 22015000 }
         status: { type: string, enum: [draft, issued] }
         createdAt: { type: string, format: date-time }
+    Dashboard:
+      type: object
+      required: [asOf, freshness, totals, projects, recentActivity]
+      properties:
+        asOf: { type: string, format: date-time }
+        freshness:
+          type: object
+          required: [lastEventAt, lastEventLagMs, eventsProcessed]
+          properties:
+            lastEventAt: { type: string, format: date-time, nullable: true, description: When the newest event occurred }
+            lastEventLagMs: { type: integer, nullable: true, description: Milliseconds between the event occurring and the dashboard receiving it (target at most 60000) }
+            eventsProcessed: { type: integer }
+        totals:
+          type: object
+          required: [milestonesApproved, approvedCop, waitingForInvoice, draft, issued]
+          properties:
+            milestonesApproved: { type: integer }
+            approvedCop: { type: integer, description: Sum of the approved subtotals }
+            waitingForInvoice:
+              type: object
+              properties: { count: { type: integer }, cop: { type: integer } }
+            draft:
+              type: object
+              properties: { count: { type: integer }, totalCop: { type: integer, description: Draft invoices with IVA } }
+            issued:
+              type: object
+              properties: { count: { type: integer }, subtotalCop: { type: integer }, taxCop: { type: integer }, totalCop: { type: integer } }
+        projects:
+          type: array
+          description: One row per project, largest approved amount first
+          items:
+            type: object
+            required: [projectName, milestonesApproved, approvedCop, waitingForInvoice, draftTotalCop, issuedTotalCop]
+            properties:
+              projectName: { type: string }
+              milestonesApproved: { type: integer }
+              approvedCop: { type: integer }
+              waitingForInvoice: { type: integer, description: Approved milestones without an invoice yet }
+              draftTotalCop: { type: integer }
+              issuedTotalCop: { type: integer }
+        recentActivity:
+          type: array
+          description: The latest events, newest first
+          items:
+            type: object
+            properties:
+              at: { type: string, format: date-time }
+              kind: { type: string, enum: [MilestoneApproved, InvoiceDrafted, InvoiceIssued] }
+              message: { type: string }
     Reconciliation:
       type: object
       required: [rows, summary]
