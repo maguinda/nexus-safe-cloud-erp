@@ -7,3 +7,6 @@ export class MilestoneNotFoundError extends Error {
 export class MilestoneAlreadyApprovedError extends Error {
   constructor(id: string) { super(`Milestone ${id} is already approved`); this.name = 'MilestoneAlreadyApprovedError'; }
 }
+export class InvalidInputError extends Error {
+  constructor(message: string) { super(message); this.name = 'InvalidInputError'; }
+}

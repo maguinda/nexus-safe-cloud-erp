@@ -1,5 +1,6 @@
 import { MilestoneApprovedEvent } from './events';
 import { Milestone } from './milestone';
+import { Project } from './project';
 
 export interface ProjectSummary {
   id: string;
@@ -26,4 +27,11 @@ export interface TransactionScope {
 
 export interface UnitOfWork {
   run<T>(work: (tx: TransactionScope) => Promise<T>): Promise<T>;
+}
+
+/** Altas: crear proyectos e hitos. */
+export interface ProjectCommands {
+  insertProject(p: Project): Promise<void>;
+  /** false si el proyecto no existe. */
+  insertMilestone(m: Milestone): Promise<boolean>;
 }
