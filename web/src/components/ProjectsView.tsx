@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
+import { AddMilestoneForm, NewProjectForm } from './CreateForms';
 import { formatCop } from '../lib/format';
 import type { Invoice, Milestone, Project } from '../lib/types';
 import { ROLE_LABEL } from '../lib/types';
@@ -69,6 +70,7 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
   const sel = projects.find((p) => p.id === selected);
   const pending = Object.values(milestones).flat().filter((m) => m.status === 'pending').length;
   const canApprove = user?.role === 'project_lead';
+  const canCreate = canApprove; // crear proyectos e hitos también es del project_lead (la API lo exige)
 
   return (
     <div className={s.stack}>
@@ -77,6 +79,8 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
         <div className={ui.card}><small className={ui.muted}>Milestones pending approval</small><strong className={s.kpi}>{pending}</strong></div>
         <div className={ui.card}><small className={ui.muted}>Draft invoices</small><strong className={s.kpi}>{drafts ?? '—'}</strong></div>
       </div>
+
+      {canCreate && <NewProjectForm api={api} onCreated={(p) => { setSelected(p.id); toast(`Project “${p.name}” created`); void load(); }} />}
 
       <section aria-labelledby="proj-h">
         <h2 id="proj-h" className={ui.h2}>Projects</h2>
@@ -121,6 +125,8 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
           </div>
         </section>
       )}
+
+      {canCreate && sel && <AddMilestoneForm api={api} project={sel} onCreated={(m) => { toast(`Milestone “${m.name}” added`); void load(); }} />}
 
       <section className={ui.card} aria-labelledby="flow-h" aria-live="polite">
         <h2 id="flow-h" className={ui.h2}>What happens after “Approve milestone”</h2>

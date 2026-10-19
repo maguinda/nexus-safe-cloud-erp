@@ -38,6 +38,8 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     login: (email: string, password: string) => request<LoginResponse>('POST', '/auth/login', { email, password }),
     projects: () => request<Project[]>('GET', '/projects'),
     milestones: (projectId: string) => request<Milestone[]>('GET', `/projects/${encodeURIComponent(projectId)}/milestones`),
+    createProject: (name: string, client: string) => request<Project>('POST', '/projects', { name, client }),
+    createMilestone: (projectId: string, name: string, amountCop: number) => request<Milestone>('POST', `/projects/${encodeURIComponent(projectId)}/milestones`, { name, amountCop }),
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
     invoices: () => request<Invoice[]>('GET', '/invoices'),
     issue: (invoiceNumber: string) => request<Invoice>('PATCH', `/invoices/${encodeURIComponent(invoiceNumber)}/issue`),

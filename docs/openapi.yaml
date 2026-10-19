@@ -16,6 +16,7 @@ info:
     | Endpoint | project_lead | billing_analyst | sales | manager |
     |---|---|---|---|---|
     | GET /projects, GET /projects/{id}/milestones | yes | yes | yes | 403 |
+    | POST /projects, POST /projects/{id}/milestones | yes | 403 | 403 | 403 |
     | POST /milestones/{id}/approve | yes | 403 | 403 | 403 |
     | GET /invoices | yes | yes | 403 | 403 |
     | GET /invoices/reconciliation | yes | yes | 403 | 403 |
@@ -71,6 +72,24 @@ paths:
                 items: { $ref: '#/components/schemas/Project' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: Create a project (role project_lead)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectRequest' }
+      responses:
+        '201':
+          description: Created. The server makes the id; the project starts with no milestones.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /projects/{projectId}/milestones:
     get:
       tags: [Projects]
@@ -86,6 +105,27 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Milestone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Projects]
+      operationId: createMilestone
+      summary: Add a pending milestone to a project (role project_lead)
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMilestoneRequest' }
+      responses:
+        '201':
+          description: Created. It always starts as pending; the server makes the id.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Milestone' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -229,6 +269,20 @@ components:
             email: { type: string, format: email }
             name: { type: string, example: Laura Ríos }
             role: { $ref: '#/components/schemas/Role' }
+    CreateProjectRequest:
+      type: object
+      required: [name, client]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120, example: Warehouse Wi-Fi rollout }
+        client: { type: string, minLength: 1, maxLength: 120, example: Nexus Safe-Cloud }
+    CreateMilestoneRequest:
+      type: object
+      required: [name, amountCop]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120, example: Site survey and design }
+        amountCop: { type: integer, minimum: 1, maximum: 1000000000, description: 'Whole pesos before VAT. Billing refuses more than 1,000,000,000.', example: 12000000 }
     Project:
       type: object
       required: [id, name, client, milestonesApproved, milestonesTotal]

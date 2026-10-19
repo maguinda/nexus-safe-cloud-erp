@@ -3,12 +3,14 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { ApproveMilestoneUseCase } from './application/approve-milestone.use-case';
+import { CreateMilestoneUseCase, CreateProjectUseCase } from './application/create.use-cases';
 import { ListMilestonesUseCase, ListProjectsUseCase } from './application/queries.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { HealthController } from './http/health.controller';
-import { APPROVE_MILESTONE, LIST_MILESTONES, LIST_PROJECTS, ProjectsController } from './http/projects.controller';
+import { APPROVE_MILESTONE, CREATE_MILESTONE, CREATE_PROJECT, LIST_MILESTONES, LIST_PROJECTS, ProjectsController } from './http/projects.controller';
 import { OutboxRelay } from './infrastructure/outbox-relay';
+import { PrismaProjectCommands } from './infrastructure/prisma-project-commands';
 import { PrismaProjectQueries } from './infrastructure/prisma-project-queries';
 import { PrismaUnitOfWork } from './infrastructure/prisma-unit-of-work';
 
@@ -26,6 +28,8 @@ let relay: OutboxRelay | undefined;
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
     { provide: LIST_PROJECTS, useFactory: () => new ListProjectsUseCase(new PrismaProjectQueries(prisma)) },
     { provide: LIST_MILESTONES, useFactory: () => new ListMilestonesUseCase(new PrismaProjectQueries(prisma)) },
+    { provide: CREATE_PROJECT, useFactory: () => new CreateProjectUseCase(new PrismaProjectCommands(prisma)) },
+    { provide: CREATE_MILESTONE, useFactory: () => new CreateMilestoneUseCase(new PrismaProjectCommands(prisma)) },
     { provide: APPROVE_MILESTONE, useFactory: () => new ApproveMilestoneUseCase(new PrismaUnitOfWork(prisma)) },
   ],
 })

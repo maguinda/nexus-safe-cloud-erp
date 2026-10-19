@@ -47,7 +47,10 @@ describe('outbox relay -> RabbitMQ (e2e, real PostgreSQL and RabbitMQ)', () => {
     expect(msg.properties.messageId).toBe(res.body.eventId);
     expect(msg.properties.headers?.['x-correlation-id']).toBe('trace-relay-0001');
     expect(body).toMatchObject({ eventId: res.body.eventId, type: 'MilestoneApproved', correlationId: 'trace-relay-0001', data: { milestoneId: 'm5', projectName: 'Retail POS integration', amountCop: 14_200_000, approvedBy: USERS.lead.email } });
-    const row = await prisma.outboxEvent.findUnique({ where: { id: res.body.eventId } });
+    // La marca se guarda al confirmar la transacción del relay, un instante DESPUÉS de que el mensaje llega: se espera, no se lee de inmediato.
+    const end = Date.now() + 5000;
+    let row = await prisma.outboxEvent.findUnique({ where: { id: res.body.eventId } });
+    while (row?.publishedAt == null && Date.now() < end) { await new Promise((r) => setTimeout(r, 25)); row = await prisma.outboxEvent.findUnique({ where: { id: res.body.eventId } }); }
     expect(row?.publishedAt).not.toBeNull();
   });
 

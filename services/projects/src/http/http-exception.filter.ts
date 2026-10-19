@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { MilestoneAlreadyApprovedError, MilestoneNotFoundError, ProjectNotFoundError } from '../domain/errors';
+import { InvalidInputError, MilestoneAlreadyApprovedError, MilestoneNotFoundError, ProjectNotFoundError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (docs/openapi.yaml, schema Error). */
 @Catch()
@@ -18,6 +18,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     if (err instanceof ProjectNotFoundError || err instanceof MilestoneNotFoundError) {
       statusCode = 404; error = 'Not Found'; message = err.message;
+    } else if (err instanceof InvalidInputError) {
+      statusCode = 400; error = 'Bad Request'; message = err.message;
     } else if (err instanceof MilestoneAlreadyApprovedError) {
       statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof HttpException) {
