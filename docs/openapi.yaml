@@ -10,7 +10,7 @@ info:
     (`Authorization: Bearer <token>`). The token is signed by identity-access (RS256) and each service
     verifies it with the public key, so no service trusts another one by default.
 
-    **Roles.** `project_lead`, `billing_analyst`, `sales`, `manager`. The manager reads only the Analytics dashboard (`GET /dashboard`): every other route answers 403 to it, and the dashboard answers 403 to every other role. The role comes from the token and
+    **Roles.** `project_lead`, `billing_analyst`, `sales`, `manager`. The manager reads the Analytics dashboard (`GET /dashboard`) and administers users (`/users`): every other route answers 403 to it, and those routes answer 403 to every other role. The role comes from the token and
     is checked in the API on every request, not only hidden in the UI.
 
     | Endpoint | project_lead | billing_analyst | sales | manager |
@@ -22,6 +22,12 @@ info:
     | GET /invoices/reconciliation | yes | yes | 403 | 403 |
     | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
     | GET /dashboard | 403 | 403 | 403 | yes |
+    | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
+
+    **User administration.** Only a manager can list users, create one (with a role and an initial password) and change a role.
+    The API re-reads the caller's role in the database, so a manager demoted a moment ago loses access even if their token has not expired.
+    You cannot change your own role and the last manager can never lose the role. A new role applies from the next sign-in (tokens last 15 minutes).
+    Passwords: 12 characters at least, 72 bytes at most, not containing the email, at least 4 different characters. They are stored only as a bcrypt hash and never returned.
 
     **Eventual consistency.** Approving a milestone answers 200 right away. Billing creates the draft
     invoice a moment later from the `MilestoneApproved` event (see docs/events.md), so it may not
@@ -32,6 +38,8 @@ servers:
 tags:
   - name: Auth
     description: Owned by identity-access
+  - name: Users
+    description: Owned by identity-access (manager only)
   - name: Projects
     description: Owned by projects
   - name: Invoices
@@ -58,6 +66,70 @@ paths:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: List users (manager only)
+      responses:
+        '200':
+          description: Users, oldest first. Never includes passwords or hashes.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/User' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Create a user with a role and an initial password (manager only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: That email is already registered (any letter case)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { description: Too many requests }
+  /users/{id}/role:
+    patch:
+      tags: [Users]
+      operationId: changeUserRole
+      summary: Change a user's role (manager only; not your own; never the last manager)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangeRoleRequest' }
+      responses:
+        '200':
+          description: The user with the new role (unchanged if it already had that role). Applies from the next sign-in.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: You cannot change your own role, or this would remove the last manager
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /projects:
     get:
       tags: [Projects]
@@ -416,6 +488,30 @@ components:
             taxCop: { type: integer }
             totalCop: { type: integer }
             inconsistent: { type: integer }
+    User:
+      type: object
+      required: [id, email, name, role, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email, description: Always lower case, example: carlos.perez@nexus.example }
+        name: { type: string, minLength: 1, maxLength: 120, example: Carlos Pérez }
+        role: { type: string, enum: [project_lead, billing_analyst, sales, manager] }
+        createdAt: { type: string, format: date-time }
+    CreateUserRequest:
+      type: object
+      required: [email, name, role, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        name: { type: string, minLength: 1, maxLength: 120, description: Trimmed; inner spaces collapsed; no control characters }
+        role: { type: string, enum: [project_lead, billing_analyst, sales, manager] }
+        password: { type: string, minLength: 12, maxLength: 128, description: 'At most 72 bytes in UTF-8 (bcrypt limit); must not contain the email or its name part; at least 4 different characters' }
+    ChangeRoleRequest:
+      type: object
+      required: [role]
+      additionalProperties: false
+      properties:
+        role: { type: string, enum: [project_lead, billing_analyst, sales, manager] }
     Error:
       type: object
       required: [statusCode, error, message]

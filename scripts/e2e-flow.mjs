@@ -83,6 +83,29 @@ ok(dash?.freshness?.lastEventLagMs != null && dash.freshness.lastEventLagMs < 60
 for (const [nombre, u] of [['Project lead', lead], ['Billing analyst', bill], ['Sales', sales]]) ok((await call('GET', '/dashboard', { token: u.token })).status === 403, `${nombre} NO ve el dashboard (403)`);
 ok((await call('GET', '/dashboard')).status === 401, 'dashboard sin token -> 401');
 
+// --- Administración de usuarios: solo el gerente, y por el gateway ---
+const NEW_PW = 'Flow-Passw0rd-2026';
+const newEmail = `flow.vendedor.${Date.now()}@nexus.example`;
+ok((await call('GET', '/users', { token: sales.token })).status === 403, 'Sales NO lista usuarios (403)');
+ok((await call('POST', '/users', { token: lead.token, body: { email: newEmail, name: 'X', role: 'manager', password: NEW_PW } })).status === 403, 'Project lead NO crea usuarios (403)');
+ok((await call('GET', '/users')).status === 401, 'listar usuarios sin token -> 401');
+const userList = await call('GET', '/users', { token: manager.token });
+ok(userList.status === 200 && userList.json.length >= 4 && !JSON.stringify(userList.json).match(/hash|\$2[aby]\$|password/i), 'el gerente lista usuarios y no aparece ningún hash ni contraseña');
+const createdUser = await call('POST', '/users', { token: manager.token, body: { email: newEmail.toUpperCase(), name: '  Flow   Vendedor ', role: 'sales', password: NEW_PW } });
+ok(createdUser.status === 201 && createdUser.json.email === newEmail && createdUser.json.name === 'Flow Vendedor' && createdUser.json.role === 'sales', 'el gerente crea un vendedor (201; email en minúsculas y nombre normalizado)');
+const asSales = await call('POST', '/auth/login', { body: { email: newEmail, password: NEW_PW } });
+ok(asSales.status === 200 && asSales.json.user.role === 'sales', 'el vendedor nuevo inicia sesión con rol sales');
+ok((await call('GET', '/invoices', { token: asSales.json.accessToken })).status === 403 && (await call('GET', '/users', { token: asSales.json.accessToken })).status === 403, 'y se comporta como Sales: sin facturas ni usuarios (403)');
+ok((await call('POST', '/users', { token: manager.token, body: { email: newEmail, name: 'Otra', role: 'sales', password: NEW_PW } })).status === 409, 'un email repetido (aunque cambien las mayúsculas) -> 409');
+ok((await call('POST', '/users', { token: manager.token, body: { email: `flow.debil.${Date.now()}@nexus.example`, name: 'Débil', role: 'sales', password: 'corta' } })).status === 400, 'una contraseña débil -> 400');
+ok((await call('POST', '/users', { token: manager.token, body: { email: `flow.extra.${Date.now()}@nexus.example`, name: 'Extra', role: 'sales', password: NEW_PW, passwordHash: 'x' } })).status === 400, 'un campo de más (passwordHash) -> 400');
+const dianaId = userList.json.find((u) => u.email === 'diana.vega@nexus.example')?.id;
+ok((await call('PATCH', `/users/${dianaId}/role`, { token: manager.token, body: { role: 'sales' } })).status === 409, 'el gerente NO puede cambiar su propio rol (409)');
+const changed = await call('PATCH', `/users/${createdUser.json?.id}/role`, { token: manager.token, body: { role: 'billing_analyst' } });
+ok(changed.status === 200 && changed.json.role === 'billing_analyst', 'el gerente cambia el rol del vendedor a billing_analyst (200)');
+ok((await call('POST', '/auth/login', { body: { email: newEmail, password: NEW_PW } })).json?.user?.role === 'billing_analyst', 'el nuevo rol vale desde el siguiente inicio de sesión');
+// Ojo: el gateway deja pasar 6 inicios de sesión seguidos por IP (1 + ráfaga de 5); este flujo usa exactamente 6.
+
 const parts = lead.token.split('.');
 const tampered = `${parts[0]}.${Buffer.from(JSON.stringify({ sub: 'x', email: 'a@b.co', role: 'billing_analyst', iss: 'identity-access', aud: 'erp-api', exp: 9999999999 })).toString('base64url')}.${parts[2]}`;
 ok((await call('GET', '/invoices', { token: tampered })).status === 401, 'token alterado -> 401');
