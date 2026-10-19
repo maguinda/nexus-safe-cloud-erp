@@ -49,6 +49,6 @@ export class InvoicesController {
   async issue(@Param('invoiceNumber', new InvoiceNumberPipe()) number: string, @Req() req: Request) {
     // Quién emite sale del token verificado, nunca del cuerpo de la petición.
     const user = (req as any).user as AuthUser;
-    return toDto(await this.issueInvoice.execute(number, user.email));
+    return toDto(await this.issueInvoice.execute(number, user.email, (req as any).correlationId));
   }
 }

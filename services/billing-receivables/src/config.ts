@@ -8,6 +8,8 @@ export interface Config {
   audience: string;
   rabbitUrl: string;
   consumerEnabled: boolean;
+  outboxPollMs: number;
+  relayEnabled: boolean;
 }
 
 function required(name: string): string {
@@ -25,5 +27,7 @@ export function loadConfig(): Config {
     audience: required('JWT_AUDIENCE'),
     rabbitUrl: required('RABBITMQ_URL'),
     consumerEnabled: process.env.CONSUMER_ENABLED !== 'false',
+    outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
+    relayEnabled: process.env.RELAY_ENABLED !== 'false',
   };
 }
