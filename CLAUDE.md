@@ -4,7 +4,7 @@ Repositorio **privado**: https://github.com/maguinda/nexus-safe-cloud-erp (monor
 Contexto, decisiones y stack: ver el `CLAUDE.md` de la carpeta padre y `../corte_2/`. Alcance del MVP aprobado por Marlon el 2026-10-18 = el boceto `../corte_2/boceto_mvp.html`; no agregar módulos sin que él lo pida.
 
 ## Estado (2026-10-19, tarde)
-MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 24 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15), servicio Analytics y su API de dashboard (#19), pantalla del dashboard (este cambio), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
+MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 25 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15), servicio Analytics y su API de dashboard (#19), pantalla del dashboard (este cambio), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
 
 | Pieza | Qué es | Puerto |
 |---|---|---|
