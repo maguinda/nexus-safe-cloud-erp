@@ -336,6 +336,7 @@ components:
         totalCop: { type: integer, description: subtotal + tax, example: 22015000 }
         status: { type: string, enum: [draft, issued] }
         createdAt: { type: string, format: date-time }
+        dueDate: { type: string, format: date-time, nullable: true, description: 'Issue date + 30 calendar days (UTC). null while the invoice is a draft; set when it is issued.', example: '2026-11-17T10:00:00.000Z' }
     Dashboard:
       type: object
       required: [asOf, freshness, totals, projects, recentActivity]

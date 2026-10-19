@@ -1,6 +1,9 @@
 const cop = new Intl.NumberFormat('es-CO');
 export const formatCop = (n: number): string => cop.format(n);
 
+/** Fecha de calendario en UTC (la misma zona en que el servidor calcula el vencimiento), p. ej. «17 Nov 2026». */
+export const formatDay = (iso: string): string => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
 export function timeAgo(iso: string, nowMs = Date.now()): string {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return '—';

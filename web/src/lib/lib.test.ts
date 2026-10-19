@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createApi } from './api';
-import { formatCop, mmss, timeAgo } from './format';
+import { formatCop, formatDay, mmss, timeAgo } from './format';
 import { decodeClaims, secondsLeft } from './jwt';
 
 const b64u = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -87,5 +87,16 @@ describe('api client', () => {
     const f = vi.fn().mockReturnValue(ok({}));
     await createApi({ getToken: () => 't', onUnauthorized: vi.fn(), fetchImpl: f as any }).approve('m2/../../invoices');
     expect(f.mock.calls[0][0]).toBe('/milestones/m2%2F..%2F..%2Finvoices/approve');
+  });
+});
+
+describe('formatDay (UTC calendar day)', () => {
+  it.each([
+    ['2026-11-17T10:00:00.000Z', '17 Nov 2026'],
+    ['2027-01-14T09:30:00.000Z', '14 Jan 2027'],
+    ['2028-02-29T00:00:00.000Z', '29 Feb 2028'],
+    ['2026-11-17T23:59:59.999Z', '17 Nov 2026'], // el día no salta por la zona horaria del navegador
+  ])('%s -> %s', (iso, expected) => {
+    expect(formatDay(iso)).toBe(expected);
   });
 });

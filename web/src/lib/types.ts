@@ -7,7 +7,7 @@ export interface LoginResponse { accessToken: string; expiresIn: number; user: U
 export interface Project { id: string; name: string; client: string; milestonesApproved: number; milestonesTotal: number }
 export interface Milestone { id: string; projectId: string; name: string; amountCop: number; status: 'pending' | 'approved' }
 export interface ApproveResponse { milestone: Milestone; eventId: string }
-export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string }
+export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null }
 
 export interface DashboardProject { projectName: string; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
 export interface Dashboard {
