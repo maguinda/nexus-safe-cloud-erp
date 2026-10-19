@@ -35,7 +35,7 @@ describe('POST /auth/login (e2e, real PostgreSQL)', () => {
   });
 
   it('returns each demo role', async () => {
-    for (const [email, role] of [['andres.mora@nexus.example', 'billing_analyst'], ['camila.soto@nexus.example', 'sales']]) {
+    for (const [email, role] of [['andres.mora@nexus.example', 'billing_analyst'], ['camila.soto@nexus.example', 'sales'], ['diana.vega@nexus.example', 'manager']]) {
       const res = await login({ email, password: process.env.DEMO_PASSWORD });
       expect(res.body.user.role).toBe(role);
     }

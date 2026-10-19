@@ -54,6 +54,15 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
       expect(res.body).toEqual(expect.objectContaining({ statusCode: 403, correlationId: expect.any(String) }));
       expect(JSON.stringify(res.body)).not.toMatch(/INV-/); // el 403 no deja ver ninguna factura
     });
+    it('the manager gets 403 on every route and sees no invoice: the manager only reads the Analytics dashboard', async () => {
+      await addDraft('INV-0103', 'm2');
+      const t = bearer(token(USERS.manager));
+      for (const res of [await get('/invoices', t), await get('/invoices/reconciliation', t), await patch('/invoices/INV-0103/issue', t)]) {
+        expect(res.status).toBe(403);
+        expect(JSON.stringify(res.body)).not.toMatch(/INV-0|Branch network/);
+      }
+      expect((await prisma.invoice.findUnique({ where: { number: 'INV-0103' } }))?.status).toBe('draft');
+    });
     it('only billing_analyst can issue; others get 403 and the draft stays a draft', async () => {
       await addDraft('INV-0103', 'm2');
       for (const u of [USERS.lead, USERS.sales]) expect((await patch('/invoices/INV-0103/issue', bearer(token(u)))).status).toBe(403);

@@ -25,7 +25,7 @@ node scripts/e2e-flow.mjs                              # flujo de punta a punta 
 cd web && npm run test:e2e                             # navegador (necesita `npx playwright install chromium webkit` una vez)
 docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d   # además publica Swagger en 127.0.0.1:4101-4103/docs (solo demo)
 ```
-Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), todos `@nexus.example`.
+Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), diana.vega@ (manager, solo leerá el dashboard de Analytics: 403 en el resto), todos `@nexus.example`.
 
 ## Trampas aprendidas
 - Colima (motor de contenedores) solo comparte `$HOME` con su VM: un repo/clon fuera de tu carpeta personal no puede montar las llaves.

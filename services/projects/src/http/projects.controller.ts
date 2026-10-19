@@ -25,12 +25,14 @@ export class ProjectsController {
   ) {}
 
   @Get('projects')
+  @Roles('project_lead', 'billing_analyst', 'sales')
   @ApiOperation({ summary: 'List projects with their approval progress' })
   projects() {
     return this.listProjects.execute();
   }
 
   @Get('projects/:projectId/milestones')
+  @Roles('project_lead', 'billing_analyst', 'sales')
   @ApiOperation({ summary: 'List the milestones of a project' })
   @ApiResponse({ status: 404, description: 'Project not found' })
   async milestones(@Param('projectId', new IdPipe()) projectId: string) {

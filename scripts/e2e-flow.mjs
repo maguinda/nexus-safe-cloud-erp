@@ -13,8 +13,10 @@ const login = async (email) => { const r = await call('POST', '/auth/login', { b
 const lead = await login('laura.rios@nexus.example');
 const bill = await login('andres.mora@nexus.example');
 const sales = await login('camila.soto@nexus.example');
+const manager = await login('diana.vega@nexus.example');
 ok(lead.status === 200 && bill.status === 200 && sales.status === 200, 'login de los 3 roles');
-ok(lead.user?.role === 'project_lead' && bill.user?.role === 'billing_analyst' && sales.user?.role === 'sales', 'cada login trae su rol');
+ok(lead.user?.role === 'project_lead' && bill.user?.role === 'billing_analyst' && sales.user?.role === 'sales' && manager.user?.role === 'manager', 'cada login trae su rol');
+for (const [ruta, metodo] of [['/projects', 'GET'], ['/invoices', 'GET'], ['/invoices/reconciliation', 'GET'], ['/milestones/m2/approve', 'POST']]) ok((await call(metodo, ruta, { token: manager.token })).status === 403, `El gerente recibe 403 en ${metodo} ${ruta}`);
 if (failed) { console.log('No se pudo iniciar sesión; ¿corrió el seed (SEED_DEMO=true) y la pila está arriba?'); process.exit(1); }
 
 ok((await call('GET', '/invoices', { token: sales.token })).status === 403, 'Sales recibe 403 en /invoices');
