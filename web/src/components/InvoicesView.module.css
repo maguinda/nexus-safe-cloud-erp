@@ -1,17 +1,80 @@
-.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); min-width: 0; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-
-.toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; }
-.search { flex: 1 1 240px; max-width: 420px; min-width: 0; }
-.count { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; margin-left: auto; }
-.dueCell { display: grid; gap: 2px; justify-items: start; }
-.empty { border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--sp-5) var(--sp-4); display: grid; gap: var(--sp-2); justify-items: start; }
-.empty strong { font-size: var(--fs-md); }
-
-.sortChips { display: none; }
-@media (max-width: 640px) {
-  .sortChips { display: flex; flex-wrap: wrap; flex: 1 1 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
-  .sortChips > button { flex: 1 1 auto; padding: 0 6px; font-size: 12px; white-space: nowrap; } /* button: gana a .segBtn sin depender del orden de las hojas */
-  .search { max-width: none; } .count { margin-left: 0; }
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  min-width: 0;
 }
-@media (max-width: 640px) { .invCards td { align-items: center; } }
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+.search {
+  flex: 1 1 240px;
+  max-width: 420px;
+  min-width: 0;
+}
+.count {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+.dueCell {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--sp-5) var(--sp-4);
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+.empty strong {
+  font-size: var(--fs-md);
+}
+
+.sortChips {
+  display: none;
+}
+@media (max-width: 640px) {
+  .sortChips {
+    display: flex;
+    flex-wrap: wrap;
+    flex: 1 1 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .sortChips > button {
+    flex: 1 1 auto;
+    padding: 0 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  } /* button: gana a .segBtn sin depender del orden de las hojas */
+  .search {
+    max-width: none;
+  }
+  .count {
+    margin-left: 0;
+  }
+}
+@media (max-width: 640px) {
+  .invCards td {
+    align-items: center;
+  }
+}
