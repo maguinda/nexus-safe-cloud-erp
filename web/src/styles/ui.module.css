@@ -43,6 +43,9 @@
 .mono { font-family: var(--mono); font-size: var(--fs-sm); }
 
 .card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--sp-3) var(--sp-4); }
+/* Tarjeta de formulario: separa título, campos, aviso y botón con el mismo hueco. Pieza completa (no depende de .card). */
+.formCard { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-3); }
+.formCard > h2, .formCard > h3 { margin: 0; }
 .panelError { border: 1px solid var(--bad); background: var(--bad-soft); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: 6px; }
 .panelError strong { color: var(--bad); font-size: var(--fs-lg); }
 .h2 { font-size: var(--fs-md); font-weight: 600; margin: 0 0 var(--sp-2); }

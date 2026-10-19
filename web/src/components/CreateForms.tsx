@@ -30,7 +30,7 @@ export function NewProjectForm({ api, onCreated }: { api: Api; onCreated: (p: Pr
   }
 
   return (
-    <form onSubmit={submit} noValidate aria-labelledby="new-project-h" className={ui.card}>
+    <form onSubmit={submit} noValidate aria-labelledby="new-project-h" className={ui.formCard}>
       <h2 id="new-project-h" className={ui.h2}>New project</h2>
       <div className={ui.formGrid}>
         <label className={ui.field}>
@@ -74,7 +74,7 @@ export function AddMilestoneForm({ api, project, onCreated }: { api: Api; projec
   }
 
   return (
-    <form onSubmit={submit} noValidate aria-labelledby="add-ms-h" className={ui.card}>
+    <form onSubmit={submit} noValidate aria-labelledby="add-ms-h" className={ui.formCard}>
       <h3 id="add-ms-h" className={ui.h2}>Add a milestone to {project.name}</h3>
       <div className={ui.formGrid}>
         <label className={ui.field}>
