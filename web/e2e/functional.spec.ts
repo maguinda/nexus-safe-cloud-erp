@@ -214,15 +214,117 @@ test('the creation forms validate before sending anything', async ({ page }) => 
   expect(posts).toBe(0); // nada llegó al servidor
 });
 
-test('the manager sees the dashboard and nothing else', async ({ page }) => {
+test('the manager sees the dashboard and the users tab, and nothing else', async ({ page }) => {
   await openAs(page, 'manager');
   await expect(page.getByText('Manager', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Users' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Projects' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Invoices' })).toHaveCount(0);
   await expect(page.getByText('Approved milestones')).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Branch network upgrade' })).toBeVisible(); // datos de demostración (m1 y m4)
   await expect(page.getByText(/Live/)).toBeVisible();
+});
+
+const PW = 'Qa-Passw0rd-long!';
+const roleButton = (page: any, name: string) => page.getByRole('group', { name: 'Role', exact: true }).getByRole('button', { name, exact: true });
+
+test('the manager creates two salespeople who can sign in, and changes a role', async ({ page }) => {
+  await openAs(page, 'manager');
+  await page.getByRole('button', { name: 'Users' }).click();
+  await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Diana Vega/ }).getByText('You', { exact: true })).toBeVisible(); // la propia fila no tiene «Change role»
+  await expect(page.getByRole('row', { name: /Laura Ríos/ }).getByRole('button', { name: /Change role/ })).toBeVisible();
+  for (const [email, name] of [['qa.carlos@nexus.example', 'Carlos Pérez'], ['qa.ana@nexus.example', 'Ana María Gómez']]) {
+    await expect(roleButton(page, 'Sales')).toHaveAttribute('aria-pressed', 'true'); // por omisión: Sales
+    await page.getByLabel('Email').fill(`  ${email.toUpperCase()}  `); // se normaliza: minúsculas y sin espacios
+    await page.getByLabel('Full name').fill(name);
+    await page.getByLabel('Initial password').fill(PW);
+    await page.getByRole('button', { name: 'Create user' }).click();
+    await expect(page.getByRole('status').filter({ hasText: `${name} created as Sales` })).toBeVisible();
+    await expect(page.getByRole('row', { name: new RegExp(email.replace('.', '\\.')) })).toBeVisible();
+    await expect(page.getByLabel('Email')).toHaveValue(''); // el formulario queda limpio para el siguiente
+  }
+  // El vendedor nuevo inicia sesión de verdad (otra pestaña: la sesión es por pestaña) y se comporta como Sales.
+  const other = await page.context().newPage();
+  await other.goto('/');
+  await other.getByLabel('Email').fill('qa.carlos@nexus.example');
+  await other.getByLabel('Password').fill(PW);
+  await other.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(other.getByText('Sales', { exact: true }).first()).toBeVisible();
+  await expect(other.getByRole('button', { name: 'Users' })).toHaveCount(0);
+  await expect(other.getByText('Read only for Sales').first()).toBeVisible();
+  await other.close();
+  // Cambio de rol de otra persona: panel aparte, aviso de que vale desde el siguiente inicio de sesión.
+  await page.getByRole('button', { name: 'Change role for Carlos Pérez' }).click();
+  await expect(page.getByRole('heading', { name: /Change role for Carlos Pérez/ })).toBeVisible();
+  await page.getByRole('group', { name: 'New role', exact: true }).getByRole('button', { name: 'Billing analyst', exact: true }).click();
+  await page.getByRole('button', { name: 'Save role' }).click();
+  await expect(page.getByRole('status').filter({ hasText: /Carlos Pérez is now Billing analyst/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /qa\.carlos@nexus\.example/ }).getByText('Billing analyst', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Change role for/ })).toHaveCount(0);
+});
+
+test('the new user form validates before sending anything, and a repeated email shows its own message', async ({ page }) => {
+  let posts = 0;
+  page.on('request', (r) => { if (r.method() === 'POST' && /\/users$/.test(r.url())) posts++; });
+  await openAs(page, 'manager');
+  await page.getByRole('button', { name: 'Users' }).click();
+  await page.getByRole('button', { name: 'Create user' }).click();
+  await expect(page.getByText('Enter the email.')).toBeVisible();
+  await expect(page.getByText('Enter the name.')).toBeVisible();
+  await expect(page.getByText('The password must have at least 12 characters.')).toBeVisible();
+  await page.getByLabel('Email').fill('qa.nuevo@nexus.example');
+  await page.getByLabel('Full name').fill('Nuevo Usuario');
+  for (const [pw, message] of [['aaaaaaaaaaaa', /4 different characters/], ['qa.nuevo-secret-1', /must not contain the email/], [' leading-space-1234', /start or end with spaces/], ['abcd'.repeat(18) + 'e', /72 bytes/]] as [string, RegExp][]) {
+    await page.getByLabel('Initial password').fill(pw);
+    await page.getByRole('button', { name: 'Create user' }).click();
+    await expect(page.getByText(message)).toBeVisible();
+  }
+  await page.getByLabel('Email').fill('not-an-email');
+  await page.getByLabel('Initial password').fill(PW);
+  await page.getByRole('button', { name: 'Create user' }).click();
+  await expect(page.getByText('Enter a valid email address.')).toBeVisible();
+  await page.getByLabel('Full name').fill('n'.repeat(121));
+  await page.getByLabel('Email').fill('qa.nuevo@nexus.example');
+  await page.getByRole('button', { name: 'Create user' }).click();
+  await expect(page.getByText(/name is too long \(120/)).toBeVisible();
+  expect(posts, 'ninguna de las entradas inválidas debe llegar al servidor').toBe(0);
+  // Un email que ya existe: el servidor responde 409 y se avisa junto al campo.
+  await page.getByLabel('Email').fill('CAMILA.SOTO@nexus.example');
+  await page.getByLabel('Full name').fill('Otra Camila');
+  await page.getByRole('button', { name: 'Create user' }).click();
+  await expect(page.getByText('That email is already registered.')).toBeVisible();
+  expect(posts).toBe(1);
+  // Mostrar y ocultar la contraseña.
+  const pw = page.getByLabel('Initial password');
+  await expect(pw).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Show' }).click();
+  await expect(pw).toHaveAttribute('type', 'text');
+});
+
+test('only the manager has the Users tab, and the API refuses the others', async ({ page, request }) => {
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  for (const role of ['lead', 'billing', 'sales'] as const) {
+    expect((await request.get('/users', { headers: { authorization: `Bearer ${sessions[role].token}` } })).status()).toBe(403);
+  }
+  await openAs(page, 'lead');
+  await expect(page.getByRole('button', { name: 'Projects' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Users' })).toHaveCount(0);
+});
+
+test('on a phone the users become cards and the role buttons stay inside the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 740 });
+  await openAs(page, 'manager');
+  await page.getByRole('button', { name: 'Users' }).click();
+  await expect(page.locator('tbody tr').first()).toBeVisible();
+  expect(await page.locator('tbody tr td').nth(1).evaluate((el) => getComputedStyle(el).display)).toBe('flex');
+  expect(await page.locator('tbody tr td').nth(1).evaluate((el) => getComputedStyle(el, '::before').content)).toBe('"Email"');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  for (const name of ['Project lead', 'Billing analyst', 'Sales', 'Manager']) {
+    const box = await roleButton(page, name).boundingBox();
+    expect(box && box.x >= 0 && box.x + box.width <= 376, `${name} inside the screen`).toBe(true);
+  }
 });
 
 test('the dashboard updates by itself while the project lead approves and the billing analyst issues', async ({ page, request }) => {

@@ -2,6 +2,8 @@
 export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager';
 
 export interface User { email: string; name: string; role: Role }
+/** Usuario tal como lo devuelve la administración de usuarios (identity-access): nunca trae contraseña ni hash. */
+export interface ManagedUser { id: string; email: string; name: string; role: Role; createdAt: string }
 export interface LoginResponse { accessToken: string; expiresIn: number; user: User }
 
 export interface Project { id: string; name: string; client: string; milestonesApproved: number; milestonesTotal: number }

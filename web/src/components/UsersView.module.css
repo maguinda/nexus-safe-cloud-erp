@@ -1,0 +1,15 @@
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.hint { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.pwRow { display: flex; gap: var(--sp-2); align-items: center; }
+.pwRow input { flex: 1 1 auto; min-width: 0; }
+.group { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--sp-1); }
+.group legend { padding: 0; font-size: 13px; font-weight: 500; margin-bottom: var(--sp-1); }
+.roles { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.roles > button { border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.roles > button[aria-pressed='true'] { border-color: var(--navy); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.note { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.who { color: var(--muted); font-weight: 400; }
+.empty { border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--sp-5) var(--sp-4); display: grid; gap: var(--sp-2); justify-items: start; }
+@media (max-width: 640px) { .tableCards td { align-items: center; } }
