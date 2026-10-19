@@ -27,5 +27,6 @@ import { PrismaClient } from '@prisma/client';
 export async function resetState(prisma: PrismaClient) {
   await prisma.invoice.deleteMany({ where: { number: { notIn: ['INV-0101', 'INV-0102'] } } });
   await prisma.processedEvent.deleteMany();
+  await prisma.outboxEvent.deleteMany();
   await prisma.$executeRaw`SELECT setval('invoice_number_seq', 103, false)`;
 }

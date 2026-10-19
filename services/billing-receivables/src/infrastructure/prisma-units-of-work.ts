@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { BillingEvent, routingKeyOf } from '../domain/events';
 import { Invoice } from '../domain/invoice';
 import { InboxScope, InboxUnitOfWork, IssueScope, IssueUnitOfWork } from '../domain/ports';
 import { toDomain } from './prisma-invoice-queries';
@@ -10,6 +11,13 @@ export class PrismaInboxUnitOfWork implements InboxUnitOfWork {
   run<T>(work: (tx: InboxScope) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(async (c) => work(new PrismaInboxScope(c)), TX);
   }
+}
+
+/** Guarda el aviso en la bandeja de salida, dentro de la transacción que recibe. */
+async function writeOutbox(tx: Prisma.TransactionClient, event: BillingEvent): Promise<void> {
+  await tx.outboxEvent.create({
+    data: { id: event.eventId, aggregateId: event.data.invoiceNumber, type: event.type, routingKey: routingKeyOf(event), payload: event as unknown as Prisma.InputJsonValue },
+  });
 }
 
 class PrismaInboxScope implements InboxScope {
@@ -28,6 +36,10 @@ class PrismaInboxScope implements InboxScope {
   async nextInvoiceNumber(): Promise<string> {
     const rows = await this.tx.$queryRaw<{ n: bigint }[]>`SELECT nextval('invoice_number_seq') AS n`;
     return `INV-${String(rows[0].n).padStart(4, '0')}`;
+  }
+
+  addToOutbox(event: BillingEvent): Promise<void> {
+    return writeOutbox(this.tx, event);
   }
 
   async insertInvoice(i: Invoice): Promise<void> {
@@ -54,6 +66,10 @@ class PrismaIssueScope implements IssueScope {
              status::text AS status, created_at AS "createdAt", issued_at AS "issuedAt", issued_by AS "issuedBy", source_event_id AS "sourceEventId", approved_by AS "approvedBy", approved_at AS "approvedAt"
       FROM invoices WHERE number = ${number} FOR UPDATE`;
     return rows[0] ? toDomain(rows[0]) : null;
+  }
+
+  addToOutbox(event: BillingEvent): Promise<void> {
+    return writeOutbox(this.tx, event);
   }
 
   async save(i: Invoice): Promise<void> {

@@ -32,6 +32,7 @@ Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (p
 - El gateway limita el login (10 por minuto por IP): el setup de Playwright reutiliza las sesiones guardadas; si ves 429, espera un minuto.
 - Los tests funcionales de `web/` escriben datos de demo; correr `./scripts/reset-demo.sh` después.
 - Los puertos 3000/3001 los usaba Eventify (otro proyecto de Marlon); estos servicios usan 4101-4103 y 8080.
+- `scripts/reset-demo.sh` reinicia la secuencia de facturas a 103, así que debe limpiar TAMBIÉN el outbox de billing (restricción única por factura y tipo); si no, el siguiente borrador (INV-0103 otra vez) choca, el evento termina en la cola de mensajes muertos y «la factura no aparece». En producción los números no se reutilizan. Lo encontró la CI de GitHub (WebKit) y se reprodujo 6 de 6 en local.
 - Un RabbitMQ recién creado no tiene las colas: los tests no deben consultarlas antes de que el consumidor las cree.
 - La política de contenido (CSP) del gateway está en modo solo-reporte (`/csp-report`); falta pasarla a bloqueo en un PR aparte. En WebKit la propia captura de Playwright inyecta estilos y genera un reporte (la auditoría los separa).
 

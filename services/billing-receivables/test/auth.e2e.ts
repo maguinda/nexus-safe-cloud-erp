@@ -6,6 +6,7 @@ import request from 'supertest';
 import { bearer, OTHER_KEYS, resetState, token, unsigned, USERS } from './helpers';
 
 process.env.CONSUMER_ENABLED = 'false'; // estas pruebas no necesitan RabbitMQ
+process.env.RELAY_ENABLED = 'false';
 process.env.RATE_LIMIT = '100000';
 
 describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', () => {
@@ -109,9 +110,14 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
       const row = await prisma.invoice.findUnique({ where: { number: 'INV-0103' } });
       expect(row?.issuedBy).toBe(USERS.billing.email);
       expect(row?.issuedAt).not.toBeNull();
+      const out = await prisma.outboxEvent.findMany();
+      expect(out).toHaveLength(1);
+      expect(out[0]).toMatchObject({ aggregateId: 'INV-0103', type: 'InvoiceIssued', routingKey: 'billing.invoice.issued' });
+      expect(out[0].payload).toMatchObject({ type: 'InvoiceIssued', data: { invoiceNumber: 'INV-0103', totalCop: 22_015_000, issuedBy: USERS.billing.email } });
     });
     it('answers 409 for an invoice that is already issued', async () => {
       expect((await patch('/invoices/INV-0101/issue', bearer(token(USERS.billing)))).status).toBe(409);
+      expect(await prisma.outboxEvent.count()).toBe(0); // un rechazo no deja ningún aviso
     });
     it('answers 404 for an unknown invoice and 400 for hostile numbers', async () => {
       expect((await patch('/invoices/INV-9999/issue', bearer(token(USERS.billing)))).status).toBe(404);
@@ -129,6 +135,9 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
         if (codes.filter((c) => c === 200).length !== 1 || codes.filter((c) => c === 409).length !== 14) throw new Error(`round ${round}: ${JSON.stringify(codes)}`);
         const row = await prisma.invoice.findUnique({ where: { number: 'INV-0103' } });
         expect(row?.issuedBy).toBe(analysts[codes.indexOf(200)].email);
+        const out = await prisma.outboxEvent.findMany();
+        if (out.length !== 1 || out[0].type !== 'InvoiceIssued') throw new Error(`round ${round}: ${out.length} events in the outbox`);
+        expect((out[0].payload as any).data.issuedBy).toBe(analysts[codes.indexOf(200)].email); // el evento es del ganador
       }
     }, 120_000);
   });

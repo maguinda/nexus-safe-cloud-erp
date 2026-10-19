@@ -44,3 +44,21 @@ model ProcessedEvent {
 
   @@map("processed_events")
 }
+
+/// Bandeja de salida: los eventos de billing se guardan aquí EN LA MISMA transacción que el cambio y un relay los publica
+/// a RabbitMQ después. Así un fallo no deja una factura sin aviso ni un aviso de algo que no se guardó.
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  /// Número de la factura (INV-0103).
+  aggregateId String    @map("aggregate_id")
+  type        String
+  routingKey  String    @map("routing_key")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+
+  /// Defensa extra: nunca dos eventos del mismo tipo para la misma factura.
+  @@unique([aggregateId, type])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}

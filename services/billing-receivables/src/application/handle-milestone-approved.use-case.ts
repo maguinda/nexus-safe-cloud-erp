@@ -1,3 +1,4 @@
+import { invoiceDrafted } from '../domain/events';
 import { Invoice } from '../domain/invoice';
 import { parseMilestoneApproved } from '../domain/milestone-approved';
 import { InboxUnitOfWork } from '../domain/ports';
@@ -36,6 +37,8 @@ export class HandleMilestoneApprovedUseCase {
         approvedAt: new Date(event.occurredAt),
       };
       await tx.insertInvoice(invoice);
+      // El mismo correlationId del evento que originó la factura: una sola traza cruza projects, billing y analytics.
+      await tx.addToOutbox(invoiceDrafted(invoice, event.correlationId, this.clock()));
       return 'created';
     });
   }

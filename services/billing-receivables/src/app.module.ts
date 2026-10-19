@@ -9,12 +9,14 @@ import { loadConfig } from './config';
 import { HealthController } from './http/health.controller';
 import { InvoicesController, ISSUE_INVOICE, LIST_INVOICES, RECONCILE_INVOICES } from './http/invoices.controller';
 import { MilestoneApprovedConsumer } from './infrastructure/milestone-approved-consumer';
+import { OutboxRelay } from './infrastructure/outbox-relay';
 import { PrismaInvoiceQueries } from './infrastructure/prisma-invoice-queries';
 import { PrismaInboxUnitOfWork, PrismaIssueUnitOfWork } from './infrastructure/prisma-units-of-work';
 
 const prisma = new PrismaClient();
 const cfg = () => loadConfig();
 let consumer: MilestoneApprovedConsumer | undefined;
+let relay: OutboxRelay | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
@@ -36,11 +38,17 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
       consumer = new MilestoneApprovedConsumer(new HandleMilestoneApprovedUseCase(new PrismaInboxUnitOfWork(prisma)), c.rabbitUrl);
       consumer.start();
     }
+    if (c.relayEnabled) {
+      relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs });
+      relay.start();
+    }
   }
 
   async onModuleDestroy() {
     await consumer?.stop();
     consumer = undefined;
+    await relay?.stop();
+    relay = undefined;
     await prisma.$disconnect();
   }
 }
