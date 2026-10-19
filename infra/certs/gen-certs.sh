@@ -5,7 +5,9 @@
 #   gateway.pem / gateway-key.pem  carné del gateway (solo cliente)
 # Nada de esto va a Git (*.pem está ignorado). Son certificados de DESARROLLO: curva P-256, 1 año.
 set -e
-DIR="$(cd "$(dirname "$0")" && pwd)"
+# CERT_DIR permite a las pruebas generar sus propios certificados en una carpeta temporal.
+DIR="${CERT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+mkdir -p "$DIR"
 if [ -f "$DIR/ca.pem" ] && [ "$1" != "--force" ]; then
   echo "Los certificados ya existen en $DIR (usa --force para reemplazarlos)"; exit 0
 fi
