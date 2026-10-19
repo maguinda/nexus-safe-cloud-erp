@@ -3,8 +3,8 @@
 Repositorio **privado**: https://github.com/maguinda/nexus-safe-cloud-erp (monorepo; esta carpeta es la raíz del repositorio; la carpeta padre `arquitectura_software` NO es un repo).
 Contexto, decisiones y stack: ver el `CLAUDE.md` de la carpeta padre y `../corte_2/`. Alcance del MVP aprobado por Marlon el 2026-10-18 = el boceto `../corte_2/boceto_mvp.html`; no agregar módulos sin que él lo pida.
 
-## Estado (2026-10-18)
-MVP completo y verificado: 3 servicios NestJS + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. PR mezclados #1 a #11 (IVA y conciliación en #11); mTLS en curso. Probado además clonando el repo desde cero y siguiendo el README.
+## Estado (2026-10-19)
+MVP completo y verificado: 3 servicios NestJS + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 17 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15, 403 en todo; solo leerá el dashboard), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
 
 | Pieza | Qué es | Puerto |
 |---|---|---|
@@ -14,7 +14,7 @@ MVP completo y verificado: 3 servicios NestJS + React + PostgreSQL + RabbitMQ + 
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas: unitarias (identity 9, projects 5, billing 28, web 17), e2e de servicios con PostgreSQL y RabbitMQ reales (23 + 34 + 27), flujo completo `scripts/e2e-flow.mjs` (19 comprobaciones), y navegador `web/` (12 funcionales + 24 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
+Pruebas (2026-10-19): unitarias 185 (identity 24, projects 52, billing 74, web 35), e2e con PostgreSQL y RabbitMQ reales 154 (identity 30, projects 81, billing 43), flujo completo `scripts/e2e-flow.mjs` (≈ 27 comprobaciones), y navegador `web/` 40 (16 funcionales + 24 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
 
 ## Cómo correr
 ```sh
@@ -33,6 +33,8 @@ Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (p
 - Los tests funcionales de `web/` escriben datos de demo; correr `./scripts/reset-demo.sh` después.
 - Los puertos 3000/3001 los usaba Eventify (otro proyecto de Marlon); estos servicios usan 4101-4103 y 8080.
 - `scripts/reset-demo.sh` reinicia la secuencia de facturas a 103, así que debe limpiar TAMBIÉN el outbox de billing (restricción única por factura y tipo); si no, el siguiente borrador (INV-0103 otra vez) choca, el evento termina en la cola de mensajes muertos y «la factura no aparece». En producción los números no se reutilizan. Lo encontró la CI de GitHub (WebKit) y se reprodujo 6 de 6 en local.
+- Con `docker compose` arriba, el contenedor de billing/projects CONSUME los mismos mensajes que las pruebas e2e: para correr tests de cola, `docker compose stop billing` (o projects) antes.
+- Un mensaje que ya espera en la cola cuando arranca el consumidor se perdía (`this.ch` se asignaba tras `consume`): arreglado en #16; la regresión es `consumer-backlog.e2e.ts`.
 - Un RabbitMQ recién creado no tiene las colas: los tests no deben consultarlas antes de que el consumidor las cree.
 - La política de contenido (CSP) del gateway está en modo solo-reporte (`/csp-report`); falta pasarla a bloqueo en un PR aparte. En WebKit la propia captura de Playwright inyecta estilos y genera un reporte (la auditoría los separa).
 
@@ -51,6 +53,6 @@ Gateway → servicios va por HTTPS con certificado en ambos lados (CA propia, `i
 - Los secretos nunca van a Git (`.env`, `*.pem`, `*.key` ignorados). `npm install` siempre con `--ignore-scripts`.
 
 ## Pendiente
-- Informe, slides y pitch del Corte 2 **en inglés** (UML del dominio, matriz de tecnologías, ≥ 3 riesgos, vistas 4+1; el artifact `../corte_2/arquitectura_diagrama.html` ya trae el UML, los datos y las vistas de proceso, despliegue y desarrollo).
+- Corte 2 (en `../corte_2/`): informe PDF, slides y guion de pitch y demo ya escritos el 2026-10-19; falta que Marlon y Edwin ensayen la demo y los 10 minutos.
 - Opcionales aprobables: rol de gerente y dashboard (US-03), política de contenido en bloqueo, TLS en el despliegue, probar en celular real y Android.
 - Verificar en la documentación de AWS: mTLS en API Gateway, Istio con la versión de EKS, tiempo real de failover de RDS Multi-AZ (solo afecta lo dicho en la sustentación sobre la arquitectura objetivo).
