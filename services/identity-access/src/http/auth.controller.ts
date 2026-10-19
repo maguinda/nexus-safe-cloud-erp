@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { LoginUseCase } from '../application/login.use-case';
+import { Public } from '../auth/auth.guard';
 import { LoginDto } from './login.dto';
 
 export const LOGIN_USE_CASE = 'LOGIN_USE_CASE';
@@ -12,6 +13,7 @@ export const LOGIN_RATE_LIMIT = Number(process.env.LOGIN_RATE_LIMIT ?? 10);
 export class AuthController {
   constructor(@Inject(LOGIN_USE_CASE) private readonly login: LoginUseCase) {}
 
+  @Public()
   @Post('login')
   @HttpCode(200)
   @Throttle({ default: { limit: LOGIN_RATE_LIMIT, ttl: 60_000 } })
