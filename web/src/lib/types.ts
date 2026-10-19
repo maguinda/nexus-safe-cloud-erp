@@ -9,4 +9,17 @@ export interface Milestone { id: string; projectId: string; name: string; amount
 export interface ApproveResponse { milestone: Milestone; eventId: string }
 export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string }
 
+export interface DashboardProject { projectName: string; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
+export interface Dashboard {
+  asOf: string;
+  freshness: { lastEventAt: string | null; lastEventLagMs: number | null; eventsProcessed: number };
+  totals: {
+    milestonesApproved: number; approvedCop: number;
+    waitingForInvoice: { count: number; cop: number }; draft: { count: number; totalCop: number };
+    issued: { count: number; subtotalCop: number; taxCop: number; totalCop: number };
+  };
+  projects: DashboardProject[];
+  recentActivity: { at: string; kind: 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued'; message: string }[];
+}
+
 export const ROLE_LABEL: Record<Role, string> = { project_lead: 'Project lead', billing_analyst: 'Billing analyst', sales: 'Sales', manager: 'Manager' };

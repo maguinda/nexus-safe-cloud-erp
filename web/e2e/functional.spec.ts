@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
@@ -59,6 +60,7 @@ test('the project lead approves a milestone and the draft invoice appears by its
 
 test('sales cannot approve and sees a 403 on invoices', async ({ page }) => {
   await openAs(page, 'sales');
+  await expect(page.getByRole('button', { name: 'Dashboard' })).toHaveCount(0); // el dashboard es solo del gerente
   await expect(page.getByRole('heading', { name: 'New project' })).toHaveCount(0); // sin formularios de alta
   await expect(page.getByRole('button', { name: 'Create project' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Approve milestone' })).toHaveCount(0);
@@ -130,3 +132,49 @@ test('the creation forms validate before sending anything', async ({ page }) => 
   }
   expect(posts).toBe(0); // nada llegó al servidor
 });
+
+test('the manager sees the dashboard and nothing else', async ({ page }) => {
+  await openAs(page, 'manager');
+  await expect(page.getByText('Manager', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Projects' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Invoices' })).toHaveCount(0);
+  await expect(page.getByText('Approved milestones')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Branch network upgrade' })).toBeVisible(); // datos de demostración (m1 y m4)
+  await expect(page.getByText(/Live/)).toBeVisible();
+});
+
+test('the dashboard updates by itself while the project lead approves and the billing analyst issues', async ({ page, request }) => {
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  const api = (role: 'lead' | 'billing') => ({ headers: { authorization: `Bearer ${sessions[role].token}` } });
+  await openAs(page, 'manager');
+  const value = (name: string) => page.locator(`div:has(> small:text-is("${name}")) > strong`);
+  await expect(value('Draft invoices')).toBeVisible();
+  // Otras pruebas del archivo ya dejaron borradores: se compara contra el valor de partida, no contra un número fijo.
+  const num = async (name: string) => Number(await value(name).innerText());
+  const [draft0, issued0, approved0] = [await num('Draft invoices'), await num('Issued invoices'), await num('Approved milestones')];
+  // El gerente no hace nada: el project lead aprueba por la API y el tablero cambia solo (aprobado -> borrador -> emitida).
+  expect((await request.post('/milestones/m3/approve', api('lead'))).status()).toBe(200);
+  await expect(value('Approved milestones')).toHaveText(String(approved0 + 1), { timeout: 20_000 });
+  await expect(value('Draft invoices')).toHaveText(String(draft0 + 1), { timeout: 20_000 });
+  const list = await (await request.get('/invoices', api('billing'))).json();
+  const draft = list.find((i: any) => i.milestoneName === 'Link redundancy design' || i.status === 'draft');
+  expect((await request.patch(`/invoices/${draft.number}/issue`, api('billing'))).status()).toBe(200);
+  await expect(value('Issued invoices')).toHaveText(String(issued0 + 1), { timeout: 20_000 });
+  await expect(value('Draft invoices')).toHaveText(String(draft0), { timeout: 20_000 });
+  await expect(page.getByText(new RegExp(`issued invoice ${draft.number}`))).toBeVisible();
+});
+
+test('on a 320 px phone every figure of the dashboard table is inside the screen (nothing hidden in a sideways scroll)', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await openAs(page, 'manager');
+  await expect(page.getByRole('heading', { name: 'By project' })).toBeVisible();
+  const cells = await page.$$eval('td[data-label]', (els) => els.map((el) => { const r = el.getBoundingClientRect(); return { label: el.getAttribute('data-label'), text: (el.textContent ?? '').trim(), left: r.left, right: r.right, width: r.width }; }));
+  expect(cells.length).toBeGreaterThanOrEqual(8); // 2 proyectos de demostración x 4 cifras
+  for (const c of cells) {
+    expect(c.text, `${c.label} has a value`).not.toBe('');
+    expect(c.left, `${c.label} starts inside the screen`).toBeGreaterThanOrEqual(0);
+    expect(c.right, `${c.label} ends inside the screen`).toBeLessThanOrEqual(321);
+  }
+});
+

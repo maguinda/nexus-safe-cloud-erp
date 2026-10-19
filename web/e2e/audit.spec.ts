@@ -12,7 +12,8 @@ function dbFingerprint(): string {
   const q = (db: string, sql: string) => execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d ${db} -Atc "${sql}"`, { cwd: root, shell: '/bin/sh' }).toString().trim();
   const projects = q('projects', `select (select count(*) from milestones where status = 'approved') || '/' || (select count(*) from outbox_events)`);
   const billing = q('billing', `select (select count(*) from invoices) || '/' || (select count(*) from processed_events)`);
-  return `${projects} | ${billing}`;
+  const analytics = q('analytics', `select (select count(*) from milestone_facts) || '/' || (select count(*) from processed_events)`);
+  return `${projects} | ${billing} | ${analytics}`;
 }
 
 let before = '';
@@ -39,6 +40,7 @@ const screens: { name: string; role: RoleKey | null; go: (p: Page) => Promise<vo
   { name: 'login', role: null, go: async (p) => { await p.goto('/'); await p.getByRole('heading', { name: 'Sign in' }).waitFor(); } },
   { name: 'projects', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Branch network upgrade' }).waitFor(); } },
   { name: 'invoices', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Invoices' }).click(); await p.getByRole('table').waitFor(); } },
+  { name: 'dashboard', role: 'manager', go: async (p) => { await p.getByRole('heading', { name: 'Dashboard' }).waitFor(); await p.getByRole('table').waitFor(); } },
   { name: 'forbidden', role: 'sales', go: async (p) => { await p.getByRole('button', { name: 'Invoices' }).click(); await p.getByText('403 Forbidden').waitFor(); } },
 ];
 

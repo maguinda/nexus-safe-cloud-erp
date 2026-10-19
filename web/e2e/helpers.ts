@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export type RoleKey = 'lead' | 'billing' | 'sales';
+export type RoleKey = 'lead' | 'billing' | 'sales' | 'manager';
 
 /** Abre la app con la sesión de ese rol ya iniciada (se inyecta en sessionStorage, como la guarda la app). */
 export async function openAs(page: Page, role: RoleKey) {

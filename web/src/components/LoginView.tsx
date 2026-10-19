@@ -8,6 +8,7 @@ const DEMO = [
   { email: 'laura.rios@nexus.example', label: 'Project lead' },
   { email: 'andres.mora@nexus.example', label: 'Billing analyst' },
   { email: 'camila.soto@nexus.example', label: 'Sales' },
+  { email: 'diana.vega@nexus.example', label: 'Manager' },
 ];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

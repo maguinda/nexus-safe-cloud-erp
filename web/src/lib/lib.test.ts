@@ -44,6 +44,17 @@ describe('api client', () => {
     expect(f).toHaveBeenCalledWith('/projects', expect.objectContaining({ method: 'GET', headers: { Authorization: 'Bearer tok' } }));
   });
 
+  it('reads the dashboard with GET /dashboard and the bearer token', async () => {
+    const f = vi.fn().mockReturnValue(ok({ asOf: 'x', totals: {}, projects: [], recentActivity: [], freshness: {} }));
+    await createApi({ getToken: () => 'tok', onUnauthorized: vi.fn(), fetchImpl: f as any }).dashboard();
+    expect(f).toHaveBeenCalledWith('/dashboard', expect.objectContaining({ method: 'GET', headers: { Authorization: 'Bearer tok' } }));
+  });
+
+  it('turns a 403 from the dashboard into an ApiError with the status', async () => {
+    const f = vi.fn().mockReturnValue(ok({ statusCode: 403, message: 'Role sales is not allowed to do this' }, 403));
+    await expect(createApi({ getToken: () => 'tok', onUnauthorized: vi.fn(), fetchImpl: f as any }).dashboard()).rejects.toMatchObject({ status: 403 });
+  });
+
   it('does not send Authorization when there is no token (login)', async () => {
     const f = vi.fn().mockReturnValue(ok({ accessToken: 'x', expiresIn: 900, user: {} }));
     await createApi({ getToken: () => null, onUnauthorized: vi.fn(), fetchImpl: f as any }).login('a@b.co', 'pw');

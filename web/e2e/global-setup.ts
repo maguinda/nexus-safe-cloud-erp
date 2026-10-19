@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 export default async function globalSetup() {
   const base = process.env.BASE_URL ?? 'http://localhost:8080';
   const password = process.env.DEMO_PASSWORD ?? 'demo-password-1';
-  const accounts: Record<string, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example' };
+  const accounts: Record<string, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example' };
   const dir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
   const file = join(dir, 'sessions.json');
   // Si ya hay sesiones guardadas y a todas les quedan más de 2 minutos, se reutilizan (menos logins contra el gateway).

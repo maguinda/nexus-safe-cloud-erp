@@ -30,3 +30,8 @@
 .err { color: var(--bad); font-size: var(--fs-base); font-weight: 400; margin: 0; }
 .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--sp-3); align-items: start; }
 .formActions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+
+/* Tarjetas de cifras (proyectos y dashboard). */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: var(--sp-3); }
+.kpi { display: block; font-size: var(--fs-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpiSub { display: block; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }

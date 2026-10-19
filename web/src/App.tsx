@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { DashboardView } from './components/DashboardView';
 import { InvoicesView } from './components/InvoicesView';
 import { JwtPanel } from './components/JwtPanel';
 import { LoginView } from './components/LoginView';
@@ -10,11 +11,13 @@ import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
 type View = 'projects' | 'invoices';
+// El gerente solo ve el dashboard (la API responde 403 al resto de sus rutas); los demás roles no tienen esa pestaña.
 
 function Shell() {
   const { user, secondsLeft, signOut } = useSession();
   const [view, setView] = useState<View>('projects');
   const [toast, setToast] = useState('');
+  const isManager = user?.role === 'manager';
   const clear = useCallback(() => setToast(''), []);
 
   return (
@@ -34,11 +37,17 @@ function Shell() {
       {!user ? <LoginView /> : (
         <div className={s.body}>
           <nav className={s.nav} aria-label="Modules">
-            <button type="button" aria-current={view === 'projects' ? 'page' : undefined} onClick={() => setView('projects')}>Projects</button>
-            <button type="button" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => setView('invoices')}>Invoices</button>
+            {isManager
+              ? <button type="button" aria-current="page">Dashboard</button>
+              : (
+                <>
+                  <button type="button" aria-current={view === 'projects' ? 'page' : undefined} onClick={() => setView('projects')}>Projects</button>
+                  <button type="button" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => setView('invoices')}>Invoices</button>
+                </>
+              )}
           </nav>
           <main className={s.content}>
-            {view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? <DashboardView key="d" /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>
