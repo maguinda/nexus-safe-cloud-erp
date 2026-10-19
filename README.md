@@ -12,6 +12,40 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
 | `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
 
+## Where things live
+
+```
+erp/
+├─ services/                  the 3 microservices; each one is its own program with its own database
+│  ├─ identity-access/        login and token
+│  ├─ projects/               projects, milestones, approval
+│  └─ billing-receivables/    invoices, IVA, reconciliation
+├─ web/                       the screen (React)
+├─ infra/                     everything that is not business code
+│  ├─ gateway/nginx.conf      the gateway
+│  ├─ certs/gen-certs.sh      the mTLS certificates
+│  └─ keys/gen-keys.sh        the JWT keys
+├─ docs/                      the API contract (openapi.yaml) and the event contract (events.md)
+├─ scripts/                   test scripts and the demo reset
+└─ docker-compose.yml         starts everything together
+```
+
+Inside every service the code is split in layers, so a rule never depends on the framework or the database:
+
+```
+services/<name>/
+├─ src/
+│  ├─ http/            receives the request and answers (routes + controllers, no logic)
+│  ├─ application/     one use case per action: the story of what happens
+│  ├─ domain/          the business rules, plain functions with their unit tests
+│  ├─ infrastructure/  the database, RabbitMQ and other tools
+│  ├─ auth/            the guard: verifies the JWT and the role
+│  └─ tls.ts           mTLS: requires the caller's certificate
+├─ prisma/             schema, migrations and demo seed
+├─ test/               end-to-end tests against real PostgreSQL and RabbitMQ
+└─ Dockerfile
+```
+
 ## Run the whole stack (containers + gateway)
 
 ```sh
