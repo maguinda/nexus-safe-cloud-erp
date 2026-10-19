@@ -15,7 +15,7 @@
 .sortChips { display: none; }
 @media (max-width: 640px) {
   .sortChips { display: flex; flex-wrap: wrap; flex: 1 1 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
-  .sortChips > * { flex: 1 1 auto; }
+  .sortChips > * { flex: 1 1 auto; padding: 0 6px; font-size: 12px; white-space: nowrap; }
   .search { max-width: none; } .count { margin-left: 0; }
 }
 @media (max-width: 640px) { .invCards td { align-items: center; } }
