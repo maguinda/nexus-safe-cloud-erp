@@ -11,6 +11,7 @@ enum Role {
   project_lead
   billing_analyst
   sales
+  manager
 }
 
 model User {
