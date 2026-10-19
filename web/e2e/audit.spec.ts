@@ -41,6 +41,7 @@ const screens: { name: string; role: RoleKey | null; go: (p: Page) => Promise<vo
   { name: 'projects', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Branch network upgrade' }).waitFor(); } },
   { name: 'invoices', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Invoices' }).click(); await p.getByRole('table').waitFor(); } },
   { name: 'dashboard', role: 'manager', go: async (p) => { await p.getByRole('heading', { name: 'Dashboard' }).waitFor(); await p.getByRole('table').waitFor(); } },
+  { name: 'users', role: 'manager', go: async (p) => { await p.getByRole('button', { name: 'Users' }).click(); await p.getByRole('heading', { name: 'New user' }).waitFor(); await p.getByRole('table').waitFor(); } },
   { name: 'forbidden', role: 'sales', go: async (p) => { await p.getByRole('button', { name: 'Invoices' }).click(); await p.getByText('403 Forbidden').waitFor(); } },
 ];
 

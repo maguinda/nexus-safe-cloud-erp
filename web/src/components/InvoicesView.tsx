@@ -90,14 +90,14 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
               <span className={s.sr}>Search invoices</span>
               <input id="inv-search" type="search" maxLength={120} placeholder="Search invoice, project or milestone" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
-            <div className={s.seg} role="group" aria-label="Filter by status">
+            <div className={ui.seg} role="group" aria-label="Filter by status">
               {tabs.map(([k, label]) => (
-                <button key={k} type="button" className={status === k ? s.segBtnOn : s.segBtn} aria-pressed={status === k} onClick={() => setStatus(k)}>{label} ({counts[k]})</button>
+                <button key={k} type="button" className={status === k ? ui.segBtnOn : ui.segBtn} aria-pressed={status === k} onClick={() => setStatus(k)}>{label} ({counts[k]})</button>
               ))}
             </div>
             <div className={s.sortChips} role="group" aria-label="Sort cards by">
               {SORT_CHIPS.map(([k, label]) => (
-                <button key={k} type="button" className={sort.key === k ? s.segBtnOn : s.segBtn} aria-pressed={sort.key === k} aria-label={`Sort by ${label}`} onClick={() => sortBy(k)}>
+                <button key={k} type="button" className={sort.key === k ? ui.segBtnOn : ui.segBtn} aria-pressed={sort.key === k} aria-label={`Sort by ${label}`} onClick={() => sortBy(k)}>
                   {label}<span aria-hidden="true">{sort.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
                 </button>
               ))}

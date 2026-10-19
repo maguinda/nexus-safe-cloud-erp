@@ -46,6 +46,11 @@
 /* Tarjeta de formulario: separa título, campos, aviso y botón con el mismo hueco. Pieza completa (no depende de .card). */
 .formCard { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-3); }
 .formCard > h2, .formCard > h3 { margin: 0; }
+/* Grupo de botones tipo «segmentado» (filtros y elección de rol). Cada pieza va completa. */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+.segBtn { font-size: 13px; font-weight: 600; min-height: 40px; padding: 0 14px; border: 0; border-right: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.segBtnOn { font-size: 13px; font-weight: 600; min-height: 40px; padding: 0 14px; border: 0; border-right: 1px solid var(--line); background: var(--navy); color: var(--on-navy); cursor: pointer; }
+.seg > :last-child { border-right: 0; }
 .panelError { border: 1px solid var(--bad); background: var(--bad-soft); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: 6px; }
 .panelError strong { color: var(--bad); font-size: var(--fs-lg); }
 .h2 { font-size: var(--fs-md); font-weight: 600; margin: 0 0 var(--sp-2); }
