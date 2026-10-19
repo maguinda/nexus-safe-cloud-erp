@@ -22,7 +22,17 @@ if (failed) { console.log('No se pudo iniciar sesión; ¿corrió el seed (SEED_D
 ok((await call('GET', '/invoices', { token: sales.token })).status === 403, 'Sales recibe 403 en /invoices');
 ok((await call('GET', '/invoices/reconciliation', { token: sales.token })).status === 403, 'Sales recibe 403 en /invoices/reconciliation');
 const projects = await call('GET', '/projects', { token: lead.token });
-ok(projects.status === 200 && projects.json.length === 3, 'Project lead ve los 3 proyectos');
+ok(projects.status === 200 && projects.json.length >= 3, 'Project lead ve los proyectos (al menos los 3 de la demo)');
+
+// Crear datos reales por la API: un proyecto y un hito nuevos, y solo el project_lead puede.
+const newProject = await call('POST', '/projects', { token: lead.token, body: { name: 'Flow check project', client: 'Nexus Safe-Cloud' } });
+ok(newProject.status === 201 && /^p-/.test(newProject.json?.id), 'el project_lead crea un proyecto (201)');
+const newMilestone = await call('POST', `/projects/${newProject.json?.id}/milestones`, { token: lead.token, body: { name: 'Flow check milestone', amountCop: 1000000 } });
+ok(newMilestone.status === 201 && newMilestone.json?.status === 'pending', 'y le agrega un hito pendiente (201)');
+ok((await call('POST', '/projects', { token: sales.token, body: { name: 'X', client: 'Y' } })).status === 403, 'Sales NO puede crear proyectos (403)');
+ok((await call('POST', '/projects', { token: manager.token, body: { name: 'X', client: 'Y' } })).status === 403, 'El gerente NO puede crear proyectos (403)');
+ok((await call('POST', '/projects', { token: lead.token, body: { name: '', client: 'Y' } })).status === 400, 'un proyecto sin nombre se rechaza (400)');
+ok((await call('POST', `/projects/${newProject.json?.id}/milestones`, { token: lead.token, body: { name: 'N', amountCop: -5 } })).status === 400, 'un monto negativo se rechaza (400)');
 
 let target = null;
 for (const p of projects.json) {
@@ -30,6 +40,7 @@ for (const p of projects.json) {
   const pending = ms.json.find((m) => m.status === 'pending');
   if (pending) { target = pending; break; }
 }
+if (newMilestone.json?.id) target = newMilestone.json; // se aprueba el hito recién creado: crear -> aprobar -> factura
 if (!target) { console.log('No hay hitos pendientes: corre scripts/reset-demo.sh'); process.exit(1); }
 console.log(`   hito elegido: ${target.id} "${target.name}" (${target.amountCop} COP)`);
 
