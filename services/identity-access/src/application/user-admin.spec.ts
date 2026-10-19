@@ -1,0 +1,121 @@
+import { CannotChangeOwnRoleError, EmailTakenError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
+import { NewUser, PasswordHasher, RoleChangeTx, UserAdminStore, UserSummary } from '../domain/ports';
+import { Role } from '../domain/role';
+import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './user-admin.use-cases';
+
+/** Base falsa en memoria: guarda usuarios y cuenta cuántas veces se escribió y si una operación corrió dentro de «runRoleChange». */
+class FakeStore implements UserAdminStore {
+  users = new Map<string, UserSummary & { passwordHash?: string }>();
+  writes = 0;
+  insideTx = false;
+  setRoleOutsideTx = 0;
+  constructor(seed: [string, string, Role][] = []) { seed.forEach(([id, email, role]) => this.users.set(id, { id, email, name: email.split('@')[0], role, createdAt: new Date('2026-10-19T10:00:00Z') })); }
+  async isManager(id: string) { return this.users.get(id)?.role === 'manager'; }
+  async list() { return [...this.users.values()].map(({ passwordHash: _p, ...u }) => u); }
+  async create(u: NewUser) {
+    if ([...this.users.values()].some((x) => x.email === u.email)) throw new EmailTakenError();
+    const id = `id-${this.users.size + 1}`; this.writes++;
+    const row = { id, email: u.email, name: u.name, role: u.role, createdAt: new Date('2026-10-19T11:00:00Z'), passwordHash: u.passwordHash };
+    this.users.set(id, row); const { passwordHash: _p, ...summary } = row; return summary;
+  }
+  private queue: Promise<unknown> = Promise.resolve();
+  /** Una transacción a la vez: es lo que garantiza SELECT … FOR UPDATE sobre las filas de los gerentes en PostgreSQL. */
+  runRoleChange<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T> {
+    const run = this.queue.then(() => this.runLocked(work));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+  private async runLocked<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T> {
+    this.insideTx = true;
+    const snapshot = new Map([...this.users].map(([k, v]) => [k, { ...v }]));
+    try {
+      return await work({
+        findById: async (id) => { const u = this.users.get(id); return u ? { id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt } : null; },
+        countManagers: async () => [...this.users.values()].filter((u) => u.role === 'manager').length,
+        setRole: async (id, role) => { this.writes++; const u = this.users.get(id)!; u.role = role; return { id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt }; },
+      });
+    } catch (e) { this.users = snapshot; throw e; } finally { this.insideTx = false; }
+  }
+}
+const hasher: PasswordHasher & { calls: string[] } = { calls: [], verify: async () => true, hash: async function (p) { hasher.calls.push(p); return `hashed:${p}`; } };
+const ADMIN = 'admin';
+const seed = (): FakeStore => new FakeStore([[ADMIN, 'diana.vega@nexus.example', 'manager'], ['m2', 'otra.gerente@nexus.example', 'manager'], ['s1', 'camila.soto@nexus.example', 'sales'], ['l1', 'laura.rios@nexus.example', 'project_lead']]);
+
+describe('ListUsersUseCase', () => {
+  it('lists users for a manager, never with a password hash', async () => {
+    const out = await new ListUsersUseCase(seed()).execute(ADMIN);
+    expect(out).toHaveLength(4);
+    expect(JSON.stringify(out)).not.toMatch(/password|hash/i);
+  });
+  it('refuses someone who is no longer a manager in the database even if their token still says so', async () => {
+    await expect(new ListUsersUseCase(seed()).execute('s1')).rejects.toBeInstanceOf(NotAManagerError);
+    await expect(new ListUsersUseCase(seed()).execute('ghost')).rejects.toBeInstanceOf(NotAManagerError);
+  });
+});
+
+describe('CreateUserUseCase', () => {
+  const make = (s = seed()) => ({ s, uc: new CreateUserUseCase(s, hasher) });
+  beforeEach(() => { hasher.calls.length = 0; });
+
+  it('creates the user with a normalized email and name, and stores only the hash', async () => {
+    const { s, uc } = make();
+    const out = await uc.execute(ADMIN, { email: '  Carlos.PEREZ@Nexus.Example ', name: '  Carlos   Pérez ', role: 'sales', password: 'correct horse battery' });
+    expect(out).toMatchObject({ email: 'carlos.perez@nexus.example', name: 'Carlos Pérez', role: 'sales' });
+    expect(JSON.stringify(out)).not.toMatch(/password|hash|correct horse/i);
+    expect([...s.users.values()].find((u) => u.email === 'carlos.perez@nexus.example')?.passwordHash).toBe('hashed:correct horse battery');
+  });
+  it('rejects a weak password before hashing or writing anything', async () => {
+    const { s, uc } = make();
+    for (const [pw, problem] of [['short', 'too_short'], ['aaaaaaaaaaaaaa', 'too_simple'], ['carlos.perez-1234', 'contains_email'], [' leading space ok', 'edge_spaces']] as const) {
+      const err: any = await uc.execute(ADMIN, { email: 'carlos.perez@nexus.example', name: 'Carlos', role: 'sales', password: pw }).catch((e) => e);
+      expect(err).toBeInstanceOf(WeakPasswordError); expect(err.problem).toBe(problem);
+    }
+    expect(hasher.calls).toEqual([]); expect(s.writes).toBe(0);
+  });
+  it('rejects an email that already exists, whatever its case', async () => {
+    const { s, uc } = make();
+    await expect(uc.execute(ADMIN, { email: 'CAMILA.SOTO@nexus.example', name: 'Otra', role: 'sales', password: 'correct horse battery' })).rejects.toBeInstanceOf(EmailTakenError);
+    expect(s.writes).toBe(0);
+  });
+  it('refuses a caller who is not a manager now and writes nothing', async () => {
+    const { s, uc } = make();
+    await expect(uc.execute('s1', { email: 'x.y@nexus.example', name: 'X', role: 'manager', password: 'correct horse battery' })).rejects.toBeInstanceOf(NotAManagerError);
+    expect(s.writes).toBe(0); expect(hasher.calls).toEqual([]);
+  });
+});
+
+describe('ChangeRoleUseCase', () => {
+  const make = (s = seed()) => ({ s, uc: new ChangeRoleUseCase(s) });
+  it('changes another user’s role inside the locked transaction', async () => {
+    const { s, uc } = make();
+    const out = await uc.execute(ADMIN, 's1', 'billing_analyst');
+    expect(out.role).toBe('billing_analyst'); expect(s.users.get('s1')?.role).toBe('billing_analyst'); expect(s.insideTx).toBe(false);
+  });
+  it('does nothing when the role is already the requested one', async () => {
+    const { s, uc } = make(); const out = await uc.execute(ADMIN, 's1', 'sales');
+    expect(out.role).toBe('sales'); expect(s.writes).toBe(0);
+  });
+  it('refuses to change your own role', async () => {
+    await expect(make().uc.execute(ADMIN, ADMIN, 'sales')).rejects.toBeInstanceOf(CannotChangeOwnRoleError);
+  });
+  it('a manager demoted a moment ago cannot demote anyone with the old token (the caller is re-read inside the transaction)', async () => {
+    const s = seed(); const uc = new ChangeRoleUseCase(s);
+    await uc.execute(ADMIN, 'm2', 'sales'); // el administrador baja a la otra gerente
+    await expect(uc.execute('m2', ADMIN, 'sales')).rejects.toBeInstanceOf(NotAManagerError); // su token sigue vigente, pero ya no es gerente
+    expect(s.users.get(ADMIN)?.role).toBe('manager'); // sigue habiendo un gerente
+  });
+  it('two managers demoting each other one after the other leave exactly one manager', async () => {
+    const s = new FakeStore([['a', 'a@nexus.example', 'manager'], ['b', 'b@nexus.example', 'manager']]); const uc = new ChangeRoleUseCase(s);
+    const results = await Promise.allSettled([uc.execute('a', 'b', 'sales'), uc.execute('b', 'a', 'sales')]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect([...s.users.values()].filter((u) => u.role === 'manager')).toHaveLength(1);
+  });
+  it('answers 404-style for a user that does not exist', async () => {
+    await expect(make().uc.execute(ADMIN, 'nope', 'sales')).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+  it('rolls back everything if the work fails in the middle', async () => {
+    const s = seed(); const before = JSON.stringify([...s.users]);
+    await expect(s.runRoleChange(async (tx) => { await tx.setRole('s1', 'manager'); throw new Error('boom'); })).rejects.toThrow('boom');
+    expect(JSON.stringify([...s.users])).toBe(before);
+  });
+});

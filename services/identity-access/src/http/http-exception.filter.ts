@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { InvalidCredentialsError } from '../domain/errors';
+import { CannotChangeOwnRoleError, EmailTakenError, InvalidCredentialsError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (ver docs/openapi.yaml, schema Error). */
 @Catch()
@@ -18,6 +18,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     if (err instanceof InvalidCredentialsError) {
       statusCode = 401; error = 'Unauthorized'; message = err.message;
+    } else if (err instanceof WeakPasswordError) {
+      statusCode = 400; error = 'Bad Request'; message = err.message;
+    } else if (err instanceof NotAManagerError) {
+      statusCode = 403; error = 'Forbidden'; message = err.message;
+    } else if (err instanceof UserNotFoundError) {
+      statusCode = 404; error = 'Not Found'; message = err.message;
+    } else if (err instanceof EmailTakenError || err instanceof CannotChangeOwnRoleError || err instanceof LastManagerError) {
+      statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof HttpException) {
       statusCode = err.getStatus();
       const body: any = err.getResponse();
