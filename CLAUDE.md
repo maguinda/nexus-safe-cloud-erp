@@ -4,7 +4,7 @@ Repositorio **privado**: https://github.com/maguinda/nexus-safe-cloud-erp (monor
 Contexto, decisiones y stack: ver el `CLAUDE.md` de la carpeta padre y `../corte_2/`. Alcance del MVP aprobado por Marlon el 2026-10-18 = el boceto `../corte_2/boceto_mvp.html`; no agregar módulos sin que él lo pida.
 
 ## Estado (2026-10-19)
-MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 17 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15, 403 en todo; solo leerá el dashboard), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
+MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 17 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15), servicio Analytics y su API de dashboard (#19), pantalla del dashboard (este cambio), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
 
 | Pieza | Qué es | Puerto |
 |---|---|---|
@@ -26,7 +26,7 @@ node scripts/e2e-flow.mjs                              # flujo de punta a punta 
 cd web && npm run test:e2e                             # navegador (necesita `npx playwright install chromium webkit` una vez)
 docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d   # además publica Swagger en 127.0.0.1:4101-4103/docs (solo demo)
 ```
-Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), diana.vega@ (manager, solo leerá el dashboard de Analytics: 403 en el resto), todos `@nexus.example`.
+Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), diana.vega@ (manager: solo ve el Dashboard de Analytics; 403 en el resto), todos `@nexus.example`.
 
 ## Trampas aprendidas
 - Colima (motor de contenedores) solo comparte `$HOME` con su VM: un repo/clon fuera de tu carpeta personal no puede montar las llaves.
@@ -55,5 +55,5 @@ Gateway → servicios va por HTTPS con certificado en ambos lados (CA propia, `i
 
 ## Pendiente
 - Corte 2 (en `../corte_2/`): informe PDF, slides y guion de pitch y demo ya escritos el 2026-10-19; falta que Marlon y Edwin ensayen la demo y los 10 minutos.
-- Opcionales aprobables: rol de gerente y dashboard (US-03), política de contenido en bloqueo, TLS en el despliegue, probar en celular real y Android.
+- Opcionales aprobables: evento al crear hitos (para que el dashboard muestre los pendientes), política de contenido en bloqueo, TLS en el despliegue, probar en celular real y Android.
 - Verificar en la documentación de AWS: mTLS en API Gateway, Istio con la versión de EKS, tiempo real de failover de RDS Multi-AZ (solo afecta lo dicho en la sustentación sobre la arquitectura objetivo).
