@@ -43,7 +43,7 @@ describe('analytics consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
     const e = approved(1); toQueue(e);
     expect(await waitUntil(async () => (await fact('t1')) !== null)).toBe(true);
     expect(await fact('t1')).toMatchObject({ projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, approvedBy: 'laura.rios@nexus.example', invoiceNumber: null, invoiceStatus: null });
-    expect((await prisma.activityEntry.findMany()).map((a) => a.message)).toEqual(['laura.rios@nexus.example approved “Milestone 1” (Branch network upgrade) · 1,000,000 COP']);
+    expect((await prisma.activityEntry.findMany()).map((a) => a.message)).toEqual(['laura.rios@nexus.example approved “Milestone 1” (Branch network upgrade) · 1.000.000 COP']);
     expect(await processedCount()).toBe(1);
   });
 

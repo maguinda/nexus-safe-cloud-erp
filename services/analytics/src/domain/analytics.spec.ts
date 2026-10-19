@@ -70,9 +70,9 @@ describe('mergeEvent', () => {
 describe('describe', () => {
   it('writes a short readable line per event', () => {
     const [a, d, i] = [approved(), drafted(), issued()].map((e) => parseEvent(e));
-    expect(describeEvent(a)).toBe('laura.rios@nexus.example approved “Link redundancy design” (Branch network upgrade) · 18,500,000 COP');
-    expect(describeEvent(d)).toBe('Draft invoice INV-0103 created for “Link redundancy design” · total 22,015,000 COP');
-    expect(describeEvent(i)).toBe('andres.mora@nexus.example issued invoice INV-0103 · total 22,015,000 COP');
+    expect(describeEvent(a)).toBe('laura.rios@nexus.example approved “Link redundancy design” (Branch network upgrade) · 18.500.000 COP');
+    expect(describeEvent(d)).toBe('Draft invoice INV-0103 created for “Link redundancy design” · total 22.015.000 COP');
+    expect(describeEvent(i)).toBe('andres.mora@nexus.example issued invoice INV-0103 · total 22.015.000 COP');
   });
 });
 
