@@ -58,9 +58,20 @@ for (const s of screens) {
       });
       const small: string[] = [];
       document.querySelectorAll('button, input, select, summary').forEach((el) => { const r = el.getBoundingClientRect(); if (r.width > 0 && r.height < 32) small.push(`${el.tagName.toLowerCase()} "${(el.textContent || '').trim().slice(0, 20)}" ${Math.round(r.height)}px`); });
+      // Botones pegados a un campo: dentro de cada formulario, el hueco entre un campo y cualquier botón debe ser de 8 px o más.
+      const tight: string[] = [];
+      document.querySelectorAll('form').forEach((f) => {
+        const rect = (e: Element) => e.getBoundingClientRect();
+        f.querySelectorAll('input, select, textarea').forEach((i) => f.querySelectorAll('button').forEach((b) => {
+          const a = rect(i), c = rect(b); if (a.width === 0 || c.width === 0) return;
+          const dy = Math.max(c.top - a.bottom, a.top - c.bottom), dx = Math.max(c.left - a.right, a.left - c.right);
+          const gap = dy < 0 ? dx : dx < 0 ? dy : Math.hypot(dx, dy);
+          if (gap < 8) tight.push(`${(i.getAttribute('id') || i.getAttribute('name') || (i as HTMLInputElement).type)} / "${(b.textContent || '').trim().slice(0, 18)}" ${Math.round(gap)}px`);
+        }));
+      });
       let minFont = 99;
       document.querySelectorAll('body *').forEach((el) => { if (el.children.length === 0 && (el.textContent || '').trim()) minFont = Math.min(minFont, parseFloat(getComputedStyle(el).fontSize)); });
-      return { vw, pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, wide, small, minFont };
+      return { vw, pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, wide, small, tight, minFont };
     });
     // caret/animations en modo normal: así Playwright no inyecta una hoja de estilos que la política de contenido reportaría.
     // Las violaciones de la política de contenido de LA APP deben ser 0 antes de la captura: en WebKit la propia captura de Playwright
@@ -70,6 +81,7 @@ for (const s of screens) {
     expect(m.pageOverflow, `la página se desborda a ${m.vw}px`).toBe(false);
     expect(m.wide, 'elementos fuera de la vista (fuera de un contenedor con scroll)').toEqual([]);
     expect(m.small, 'objetivos táctiles menores de 32 px').toEqual([]);
+    expect(m.tight, 'botones pegados a un campo (menos de 8 px)').toEqual([]);
     expect(m.minFont, 'letra más chica que 11 px').toBeGreaterThanOrEqual(11);
     expect(violationsBeforeShot, 'violaciones de la política de contenido de la app').toEqual([]);
     expect(blocked, 'la auditoría intentó escribir').toEqual([]);
