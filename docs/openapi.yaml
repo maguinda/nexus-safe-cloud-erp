@@ -10,16 +10,16 @@ info:
     (`Authorization: Bearer <token>`). The token is signed by identity-access (RS256) and each service
     verifies it with the public key, so no service trusts another one by default.
 
-    **Roles.** `project_lead`, `billing_analyst`, `sales`. The role comes from the token and
+    **Roles.** `project_lead`, `billing_analyst`, `sales`, `manager`. The manager reads only the Analytics dashboard: every other route answers 403 to it. The role comes from the token and
     is checked in the API on every request, not only hidden in the UI.
 
-    | Endpoint | project_lead | billing_analyst | sales |
-    |---|---|---|---|
-    | GET /projects, GET /projects/{id}/milestones | yes | yes | yes |
-    | POST /milestones/{id}/approve | yes | 403 | 403 |
-    | GET /invoices | yes | yes | 403 |
-    | GET /invoices/reconciliation | yes | yes | 403 |
-    | PATCH /invoices/{number}/issue | 403 | yes | 403 |
+    | Endpoint | project_lead | billing_analyst | sales | manager |
+    |---|---|---|---|---|
+    | GET /projects, GET /projects/{id}/milestones | yes | yes | yes | 403 |
+    | POST /milestones/{id}/approve | yes | 403 | 403 | 403 |
+    | GET /invoices | yes | yes | 403 | 403 |
+    | GET /invoices/reconciliation | yes | yes | 403 | 403 |
+    | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
 
     **Eventual consistency.** Approving a milestone answers 200 right away. Billing creates the draft
     invoice a moment later from the `MilestoneApproved` event (see docs/events.md), so it may not
@@ -70,6 +70,7 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Project' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /projects/{projectId}/milestones:
     get:
       tags: [Projects]
@@ -86,6 +87,7 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Milestone' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /milestones/{milestoneId}/approve:
     post:
@@ -207,7 +209,7 @@ components:
   schemas:
     Role:
       type: string
-      enum: [project_lead, billing_analyst, sales]
+      enum: [project_lead, billing_analyst, sales, manager]
     LoginRequest:
       type: object
       required: [email, password]

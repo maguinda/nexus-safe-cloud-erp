@@ -70,7 +70,7 @@ then http://localhost:4101/docs, :4102/docs, :4103/docs.
 The web app is served by the same gateway: open http://localhost:8080. Tests: `cd web && npm run test:e2e` (see `web/README.md`).
 
 Demo logins (password in `.env`, `DEMO_PASSWORD`): `laura.rios@nexus.example` (project lead),
-`andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales).
+`andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales), `diana.vega@nexus.example` (manager: reads only the Analytics dashboard, 403 everywhere else).
 
 ## Run the infrastructure locally
 
