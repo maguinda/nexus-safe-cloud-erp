@@ -59,6 +59,8 @@ test('the project lead approves a milestone and the draft invoice appears by its
 
 test('sales cannot approve and sees a 403 on invoices', async ({ page }) => {
   await openAs(page, 'sales');
+  await expect(page.getByRole('heading', { name: 'New project' })).toHaveCount(0); // sin formularios de alta
+  await expect(page.getByRole('button', { name: 'Create project' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Approve milestone' })).toHaveCount(0);
   await expect(page.getByText('Read only for Sales').first()).toBeVisible();
   await page.getByRole('button', { name: 'Invoices' }).click();
@@ -82,4 +84,49 @@ test('an expired token sends the user back to sign in with an explanation', asyn
   await page.getByRole('button', { name: 'Simulate expired token' }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText('Your session expired. Sign in again.')).toBeVisible();
+});
+
+test('the project lead creates a project and a milestone, approves it and the draft invoice appears', async ({ page }) => {
+  await openAs(page, 'lead');
+  await page.getByLabel('Project name').fill('  Warehouse   Wi-Fi rollout ');
+  await page.getByLabel('Client').fill('Nexus Safe-Cloud');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Project “Warehouse Wi-Fi rollout” created' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Warehouse Wi-Fi rollout' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Milestones · Warehouse Wi-Fi rollout' })).toBeVisible(); // el proyecto nuevo queda elegido
+  await page.getByLabel('Milestone name').fill('Site survey');
+  await page.getByLabel('Amount (COP, before VAT)').fill('12000000');
+  await page.getByRole('button', { name: 'Add milestone' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Milestone “Site survey” added' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Site survey' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Pending' })).toBeVisible();
+  await page.getByRole('button', { name: 'Approve milestone' }).click();
+  await expect(page.getByRole('status').filter({ hasText: /Billing created draft INV-\d+/ })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Invoices' }).click();
+  // «Site survey» también es un hito de la demo (INV-0101): se busca la fila del proyecto NUEVO.
+  await expect(page.getByRole('row', { name: /INV-\d+ Warehouse Wi-Fi rollout Site survey/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Warehouse Wi-Fi rollout Site survey.*Draft/ })).toBeVisible();
+});
+
+test('the creation forms validate before sending anything', async ({ page }) => {
+  let posts = 0;
+  page.on('request', (r) => { if (r.method() === 'POST' && /\/projects/.test(r.url())) posts++; });
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await expect(page.getByText('Enter the project name.')).toBeVisible();
+  await expect(page.getByText('Enter the client name.')).toBeVisible();
+  await page.getByLabel('Project name').fill('a'.repeat(121));
+  await page.getByLabel('Client').fill('Client');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await expect(page.getByText(/project name is too long \(120/)).toBeVisible();
+  await page.getByRole('button', { name: 'Add milestone' }).click();
+  await expect(page.getByText('Enter the milestone name.')).toBeVisible();
+  await expect(page.getByText('Enter the amount in pesos.')).toBeVisible();
+  await page.getByLabel('Milestone name').fill('Survey');
+  for (const [raw, message] of [['12.5', /digits only/], ['0', /at least 1 peso/], ['1000000001', /more than 1,000,000,000/]] as const) {
+    await page.getByLabel('Amount (COP, before VAT)').fill(raw);
+    await page.getByRole('button', { name: 'Add milestone' }).click();
+    await expect(page.getByText(message)).toBeVisible();
+  }
+  expect(posts).toBe(0); // nada llegó al servidor
 });

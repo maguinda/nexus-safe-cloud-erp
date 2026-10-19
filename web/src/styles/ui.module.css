@@ -22,3 +22,11 @@
 .panelError { border: 1px solid var(--bad); background: var(--bad-soft); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: 6px; }
 .panelError strong { color: var(--bad); font-size: var(--fs-lg); }
 .h2 { font-size: var(--fs-md); font-weight: 600; margin: 0 0 var(--sp-2); }
+
+/* Formularios (login y alta de proyectos e hitos). */
+.field { display: grid; gap: var(--sp-1); font-size: 13px; font-weight: 500; }
+.field input { padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--fg); min-height: 40px; width: 100%; }
+.field input[aria-invalid='true'] { border-color: var(--bad); }
+.err { color: var(--bad); font-size: var(--fs-base); font-weight: 400; margin: 0; }
+.formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--sp-3); align-items: start; }
+.formActions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }

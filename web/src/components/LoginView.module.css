@@ -2,8 +2,4 @@
 .form { width: 100%; max-width: 440px; display: grid; gap: var(--sp-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-5) var(--sp-4); }
 .title { margin: 0; font-size: var(--fs-xl); }
 .demo { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.field { display: grid; gap: var(--sp-1); font-size: 13px; font-weight: 500; }
-.field input { padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); min-height: 40px; width: 100%; }
-.field input[aria-invalid='true'] { border-color: var(--bad); }
-.err { color: var(--bad); font-size: var(--fs-base); font-weight: 400; margin: 0; }
 .notice { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); }

@@ -53,17 +53,17 @@ export function LoginView() {
           ))}
         </div>
 
-        <label className={s.field}>
+        <label className={ui.field}>
           <span>Email</span>
           <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-err' : undefined} />
-          {errors.email && <span id="email-err" className={s.err}>{errors.email}</span>}
+          {errors.email && <span id="email-err" className={ui.err}>{errors.email}</span>}
         </label>
-        <label className={s.field}>
+        <label className={ui.field}>
           <span>Password</span>
           <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={!!errors.password} aria-describedby={errors.password ? 'pw-err' : undefined} />
-          {errors.password && <span id="pw-err" className={s.err}>{errors.password}</span>}
+          {errors.password && <span id="pw-err" className={ui.err}>{errors.password}</span>}
         </label>
-        {errors.form && <p role="alert" className={s.err}>{errors.form}</p>}
+        {errors.form && <p role="alert" className={ui.err}>{errors.form}</p>}
         <button type="submit" className={ui.btn} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
     </main>
