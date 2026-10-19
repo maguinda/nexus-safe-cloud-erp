@@ -5,6 +5,7 @@ import { Channel, connect } from 'amqplib';
 import { resetState } from './helpers';
 
 process.env.CONSUMER_ENABLED = 'true';
+process.env.RELAY_ENABLED = 'false'; // aquí se mira el outbox; el relay se prueba en relay.e2e.ts
 process.env.RATE_LIMIT = '100000';
 const EXCHANGE = 'erp.events';
 const ROUTING_KEY = 'project.milestone.approved';
@@ -47,6 +48,10 @@ describe('MilestoneApproved consumer (e2e, real PostgreSQL and RabbitMQ)', () =>
     expect(await waitUntil(async () => (await invoiceCount()) === 1)).toBe(true);
     const inv = await prisma.invoice.findFirst({ where: { milestoneId: 't1' } });
     expect(inv).toMatchObject({ number: 'INV-0103', status: 'draft', amountCop: 1_000_001, taxCop: 190_000, totalCop: 1_190_001, approvedBy: 'laura.rios@nexus.example', projectName: 'Branch network upgrade', milestoneName: 'Milestone 1', sourceEventId: e.eventId, issuedAt: null, issuedBy: null });
+    const out = await prisma.outboxEvent.findMany();
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ aggregateId: 'INV-0103', type: 'InvoiceDrafted', routingKey: 'billing.invoice.drafted', publishedAt: null });
+    expect(out[0].payload).toMatchObject({ type: 'InvoiceDrafted', correlationId: e.correlationId, data: { invoiceNumber: 'INV-0103', milestoneId: 't1', amountCop: 1_000_001, taxCop: 190_000, totalCop: 1_190_001, approvedBy: 'laura.rios@nexus.example' } });
   });
 
   it('ignores the same event delivered 20 times at once', async () => {
@@ -56,6 +61,7 @@ describe('MilestoneApproved consumer (e2e, real PostgreSQL and RabbitMQ)', () =>
     await new Promise((r) => setTimeout(r, 1200));
     expect(await invoiceCount()).toBe(1);
     expect(await prisma.processedEvent.count()).toBe(1);
+    expect(await prisma.outboxEvent.count()).toBe(1); // un solo InvoiceDrafted, no 20
     expect(await dlqCount()).toBe(0);
   });
 
