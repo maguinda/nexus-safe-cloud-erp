@@ -10,7 +10,6 @@ describe('MilestoneApprovedConsumer with a backlog already waiting (e2e, real Ra
   const waitUntil = async (cond: () => boolean | Promise<boolean>, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await cond()) return true; await new Promise((r) => setTimeout(r, 25)); } return false; };
   const body = (n: number) => ({ eventId: randomUUID(), type: 'MilestoneApproved', occurredAt: new Date().toISOString(), correlationId: `backlog-${String(n).padStart(6, '0')}`, data: { milestoneId: `b${n}`, milestoneName: 'M', projectId: 'p1', projectName: 'P', amountCop: 1000, approvedBy: 'laura.rios@nexus.example' } });
   const counts = async () => { const c = await conn.createChannel(); c.on('error', () => undefined); const q = await c.checkQueue(QUEUE); await c.close(); return { ready: q.messageCount }; };
-  const unacked = async () => { const r = await fetch(`http://${new URL(process.env.RABBITMQ_URL as string).hostname}:15672/api/queues/%2F/${QUEUE}`, { headers: { authorization: `Basic ${Buffer.from(new URL(process.env.RABBITMQ_URL as string).username + ':' + decodeURIComponent(new URL(process.env.RABBITMQ_URL as string).password)).toString('base64')}` } }); return (await r.json() as any).messages_unacknowledged as number; };
 
   beforeAll(async () => {
     conn = await connect(process.env.RABBITMQ_URL as string);
@@ -35,7 +34,10 @@ describe('MilestoneApprovedConsumer with a backlog already waiting (e2e, real Ra
     try {
       expect(await waitUntil(() => processed.length === n)).toBe(true);
       expect(new Set(processed).size).toBe(n);
-      expect(await waitUntil(async () => (await unacked()) === 0 && (await counts()).ready === 0)).toBe(true); // todos confirmados, ninguno colgado
+      // Ninguno puede quedar sin confirmar: al cerrar el consumidor, un mensaje sin confirmar volvería a la cola.
+      await new Promise((r) => setTimeout(r, 300)); // deja salir el último ack
     } finally { await consumer.stop(); }
+    await new Promise((r) => setTimeout(r, 500)); // RabbitMQ reencola lo no confirmado al cerrarse el canal
+    expect((await counts()).ready).toBe(0);
   });
 });
