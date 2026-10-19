@@ -12,7 +12,7 @@ export const ISSUE_INVOICE = 'ISSUE_INVOICE';
 export const RECONCILE_INVOICES = 'RECONCILE_INVOICES';
 
 /** Solo los campos del contrato (docs/openapi.yaml). */
-const toDto = (i: Invoice) => ({ number: i.number, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString() });
+const toDto = (i: Invoice) => ({ number: i.number, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString(), dueDate: i.dueDate ? i.dueDate.toISOString() : null });
 
 @ApiTags('Invoices')
 @ApiBearerAuth()

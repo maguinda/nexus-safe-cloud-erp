@@ -64,7 +64,7 @@ Rules:
 - Routing key: `billing.invoice.issued`
 - Consumed by: `analytics` (queue `q.analytics`)
 - `correlationId` is the one of the HTTP request that issued the invoice.
-- Same `data` as `InvoiceDrafted` but with `issuedBy` (email of the billing analyst, taken from the token) instead of `approvedBy`.
+- Same `data` as `InvoiceDrafted` but with `issuedBy` (email of the billing analyst, taken from the token) instead of `approvedBy`, plus `dueDate` (ISO date-time: issue date + 30 calendar days in UTC, from `domain/due-date.ts`). Adding a field is backward compatible: consumers that ignore it keep working.
 
 ## Delivery rules (all events)
 

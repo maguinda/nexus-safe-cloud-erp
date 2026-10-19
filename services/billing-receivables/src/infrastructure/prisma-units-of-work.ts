@@ -63,7 +63,7 @@ class PrismaIssueScope implements IssueScope {
     // FOR UPDATE: dos personas emitiendo la misma factura a la vez no pueden ganar las dos.
     const rows = await this.tx.$queryRaw<any[]>`
       SELECT number, milestone_id AS "milestoneId", project_name AS "projectName", milestone_name AS "milestoneName", amount_cop AS "amountCop", tax_cop AS "taxCop", total_cop AS "totalCop",
-             status::text AS status, created_at AS "createdAt", issued_at AS "issuedAt", issued_by AS "issuedBy", source_event_id AS "sourceEventId", approved_by AS "approvedBy", approved_at AS "approvedAt"
+             status::text AS status, created_at AS "createdAt", issued_at AS "issuedAt", issued_by AS "issuedBy", source_event_id AS "sourceEventId", approved_by AS "approvedBy", approved_at AS "approvedAt", due_date AS "dueDate"
       FROM invoices WHERE number = ${number} FOR UPDATE`;
     return rows[0] ? toDomain(rows[0]) : null;
   }
@@ -73,6 +73,6 @@ class PrismaIssueScope implements IssueScope {
   }
 
   async save(i: Invoice): Promise<void> {
-    await this.tx.invoice.update({ where: { number: i.number }, data: { status: i.status, issuedAt: i.issuedAt, issuedBy: i.issuedBy } });
+    await this.tx.invoice.update({ where: { number: i.number }, data: { status: i.status, issuedAt: i.issuedAt, issuedBy: i.issuedBy, dueDate: i.dueDate } });
   }
 }

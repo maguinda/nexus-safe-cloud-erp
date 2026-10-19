@@ -15,7 +15,7 @@ MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, anal
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas (2026-10-19): unitarias 244 (identity 24, projects 52, billing 74, analytics 57, web 37), e2e con PostgreSQL y RabbitMQ reales 199 (identity 30, projects 81, billing 43, analytics 45), flujo completo `scripts/e2e-flow.mjs` (38 comprobaciones), y navegador `web/` 52 (22 funcionales + 30 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
+Pruebas (2026-10-19): unitarias 282 (identity 24, projects 52, billing 106, analytics 57, web 43), e2e con PostgreSQL y RabbitMQ reales 200 (identity 30, projects 81, billing 44, analytics 45), flujo completo `scripts/e2e-flow.mjs` (38 comprobaciones), y navegador `web/` 52 (22 funcionales + 30 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
 
 ## Cómo correr
 ```sh
@@ -38,6 +38,9 @@ Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (p
 - Un mensaje que ya espera en la cola cuando arranca el consumidor se perdía (`this.ch` se asignaba tras `consume`): arreglado en #16; la regresión es `consumer-backlog.e2e.ts`.
 - Un RabbitMQ recién creado no tiene las colas: los tests no deben consultarlas antes de que el consumidor las cree.
 - La política de contenido (CSP) del gateway está en modo solo-reporte (`/csp-report`); falta pasarla a bloqueo en un PR aparte. En WebKit la propia captura de Playwright inyecta estilos y genera un reporte (la auditoría los separa).
+
+## Fecha de vencimiento de facturas (2026-10-19)
+`domain/due-date.ts` (`dueDate(issuedAt, 30)`, días de calendario en UTC) se aplica en `issue()`: solo las facturas **emitidas** tienen `dueDate`; el borrador es `null`. Migración `0004` con relleno de las ya emitidas y dos CHECK (emitida ⇔ con fecha; vence ≥ emisión). Sale en `GET /invoices` y en `InvoiceIssued`; la tabla web tiene la columna «Due». Límite: aún no hay detección de facturas vencidas (`OverdueDetected`) ni pagos. En 320 px la tabla de facturas se desplaza de lado y «Due» queda fuera de la vista hasta deslizar.
 
 ## mTLS (2026-10-18, US-01)
 Gateway → servicios va por HTTPS con certificado en ambos lados (CA propia, `infra/certs/gen-certs.sh`, P-256, 1 año, solo desarrollo). Cada servicio exige un carné firmado por esa CA **y** que su nombre (CN) esté en `TLS_ALLOWED_CLIENTS` (`gateway` + él mismo para su healthcheck): un servicio vulnerado no puede llamar a otro. El JWT se sigue verificando en cada ruta. `TLS_ENABLED=true` sin sus variables impide arrancar. Pruebas con apretón de manos real en `services/*/test/mtls.e2e.ts` (generan sus propios certificados con `CERT_DIR`).

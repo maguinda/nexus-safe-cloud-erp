@@ -4,7 +4,7 @@ import { reconcile } from './reconciliation';
 const inv = (n: number, sub: number, tax: number, total: number, status: Invoice['status'] = 'draft'): Invoice => ({
   number: `INV-${n}`, milestoneId: `m${n}`, projectName: 'P', milestoneName: 'M', amountCop: sub, taxCop: tax, totalCop: total, status,
   createdAt: new Date('2026-10-18T10:00:00Z'), issuedAt: null, issuedBy: null, sourceEventId: null,
-  approvedBy: 'laura.rios@nexus.example', approvedAt: new Date('2026-10-18T09:00:00Z'),
+  approvedBy: 'laura.rios@nexus.example', approvedAt: new Date('2026-10-18T09:00:00Z'), dueDate: null,
 });
 
 describe('reconcile', () => {

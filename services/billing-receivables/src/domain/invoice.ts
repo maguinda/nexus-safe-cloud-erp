@@ -1,3 +1,4 @@
+import { dueDate } from './due-date';
 import { InvoiceNotDraftError } from './errors';
 
 export type InvoiceStatus = 'draft' | 'issued';
@@ -18,10 +19,12 @@ export interface Invoice {
   sourceEventId: string | null;
   approvedBy: string | null;
   approvedAt: Date | null;
+  /** Solo las emitidas: fecha de emisión + 30 días (domain/due-date.ts). */
+  dueDate: Date | null;
 }
 
-/** Regla: una factura solo se emite una vez (draft -> issued). No muta el original. */
+/** Regla: una factura solo se emite una vez (draft -> issued) y al emitirse queda con su fecha de vencimiento. No muta el original. */
 export function issue(i: Invoice, by: string, now: Date): Invoice {
   if (i.status !== 'draft') throw new InvoiceNotDraftError(i.number);
-  return { ...i, status: 'issued', issuedAt: now, issuedBy: by };
+  return { ...i, status: 'issued', issuedAt: now, issuedBy: by, dueDate: dueDate(now) };
 }

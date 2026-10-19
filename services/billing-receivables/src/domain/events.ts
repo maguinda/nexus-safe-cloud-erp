@@ -22,7 +22,7 @@ interface Envelope<T extends string, D> {
 }
 
 export type InvoiceDraftedEvent = Envelope<'InvoiceDrafted', InvoiceEventData & { approvedBy: string | null }>;
-export type InvoiceIssuedEvent = Envelope<'InvoiceIssued', InvoiceEventData & { issuedBy: string }>;
+export type InvoiceIssuedEvent = Envelope<'InvoiceIssued', InvoiceEventData & { issuedBy: string; dueDate: string }>;
 export type BillingEvent = InvoiceDraftedEvent | InvoiceIssuedEvent;
 
 export const INVOICE_DRAFTED_ROUTING_KEY = 'billing.invoice.drafted';
@@ -40,5 +40,5 @@ export function invoiceDrafted(i: Invoice, correlationId: string, now: Date): In
 }
 
 export function invoiceIssued(i: Invoice, correlationId: string, now: Date): InvoiceIssuedEvent {
-  return { eventId: randomUUID(), type: 'InvoiceIssued', occurredAt: now.toISOString(), correlationId, data: { ...base(i), issuedBy: i.issuedBy as string } };
+  return { eventId: randomUUID(), type: 'InvoiceIssued', occurredAt: now.toISOString(), correlationId, data: { ...base(i), issuedBy: i.issuedBy as string, dueDate: (i.dueDate as Date).toISOString() } };
 }

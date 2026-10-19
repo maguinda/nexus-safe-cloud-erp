@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
-import { formatCop, timeAgo } from '../lib/format';
+import { formatCop, formatDay, timeAgo } from '../lib/format';
 import type { Invoice } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
@@ -58,7 +58,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
       <div className={ui.scroll}>
         <table className={ui.table}>
           <caption className={s.sr}>Invoices, newest first</caption>
-          <thead><tr><th>Invoice</th><th>Project</th><th>Milestone</th><th className={ui.num}>Subtotal (COP)</th><th className={ui.num}>IVA 19 %</th><th className={ui.num}>Total (COP)</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+          <thead><tr><th>Invoice</th><th>Project</th><th>Milestone</th><th className={ui.num}>Subtotal (COP)</th><th className={ui.num}>IVA 19 %</th><th className={ui.num}>Total (COP)</th><th>Status</th><th>Due</th><th>Created</th><th>Action</th></tr></thead>
           <tbody>
             {(invoices ?? []).map((i) => (
               <tr key={i.number}>
@@ -69,6 +69,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
                 <td className={ui.num}>{formatCop(i.taxCop)}</td>
                 <td className={ui.num}><strong>{formatCop(i.totalCop)}</strong></td>
                 <td><span className={ui[i.status]}>{i.status === 'draft' ? 'Draft' : 'Issued'}</span></td>
+                <td className={ui.muted}>{i.dueDate ? formatDay(i.dueDate) : '—'}</td>
                 <td className={ui.muted}>{timeAgo(i.createdAt, now)}</td>
                 <td>{i.status === 'draft' && user?.role === 'billing_analyst'
                   ? <button type="button" className={ui.btnGhost} disabled={busy === i.number} onClick={() => void issue(i.number)}>{busy === i.number ? 'Issuing…' : 'Issue invoice'}</button>
