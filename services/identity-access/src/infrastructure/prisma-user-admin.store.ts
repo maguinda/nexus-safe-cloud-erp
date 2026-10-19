@@ -28,7 +28,8 @@ export class PrismaUserAdminStore implements UserAdminStore {
   }
 
   /**
-   * Orden de bloqueo SIEMPRE igual: primero todas las filas de los gerentes (por id), luego quien llama y el usuario que se modifica.
+   * Se bloquean todas las filas de los gerentes (en orden por id) antes de leer nada. Como TODO cambio de rol exige ser gerente,
+   * todos pasan por ese mismo bloqueo y se ejecutan de uno en uno: no hace falta bloquear además la fila de quien llama ni la del usuario.
    * Todo lo que el caso de uso lee ocurre ya dentro del bloqueo, así que ve el estado real aunque otra petición esté a punto de cambiarlo.
    */
   runRoleChange<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T> {
@@ -36,7 +37,7 @@ export class PrismaUserAdminStore implements UserAdminStore {
       await tx.$queryRaw`SELECT id FROM users WHERE role = 'manager'::"Role" ORDER BY id FOR UPDATE`;
       return work({
         findById: async (id) => {
-          const rows = await tx.$queryRaw<UserSummary[]>`SELECT id, email, name, role::text AS role, created_at AS "createdAt" FROM users WHERE id = ${id}::uuid FOR UPDATE`;
+          const rows = await tx.$queryRaw<UserSummary[]>`SELECT id, email, name, role::text AS role, created_at AS "createdAt" FROM users WHERE id = ${id}::uuid`;
           return rows[0] ?? null;
         },
         countManagers: () => tx.user.count({ where: { role: 'manager' } }),
