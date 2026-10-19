@@ -17,9 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json tsconfig.json ./
+COPY healthcheck.js ./
 COPY prisma ./prisma
 USER node
 EXPOSE 4103
-HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD node -e "fetch('http://127.0.0.1:4103/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 CMD ["node", "healthcheck.js"]
 # Migra la base y, solo si SEED_DEMO=true, carga los datos de demostración (los seeds son idempotentes).
 CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$SEED_DEMO\" = \"true\" ]; then npx ts-node prisma/seed.ts; fi && exec node dist/main.js"]

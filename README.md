@@ -16,11 +16,17 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 
 ```sh
 sh infra/keys/gen-keys.sh                 # once: JWT key pair (git-ignored)
+sh infra/certs/gen-certs.sh               # once: internal CA + mTLS certificates (git-ignored)
 cp .env.example .env                      # then change the passwords
 docker compose up -d --build              # postgres, rabbitmq, 3 services, nginx gateway
 ./scripts/reset-demo.sh                   # demo data back to its initial state
 node scripts/e2e-flow.mjs                 # whole flow through the gateway
 ```
+
+### mTLS between the gateway and the services
+The services are **not** reachable over plain HTTP. Each one serves HTTPS and requires a client certificate signed by the internal CA (`infra/certs/gen-certs.sh`) **and** whose name is in its allow-list (`TLS_ALLOWED_CLIENTS`: the gateway, plus the service itself for its healthcheck). A compromised service cannot call another one, even from inside the network. The JWT is still verified on every route: mTLS proves *which service* is calling, the JWT proves *which user*.
+
+`docker-compose.docs.yml` (demo only) opens a second plain-HTTP port per service on `127.0.0.1` so Swagger opens in a browser; the JWT stays mandatory there. Without that file the door does not exist. After recreating a service container, run `docker compose restart gateway` (nginx caches the upstream addresses).
 
 The only published port is the gateway, `127.0.0.1:8080`. Services have no published ports; the gateway exposes just
 `POST /auth/login`, `/projects`, `/milestones`, `/invoices`, `/health`. It does not authenticate: every service verifies the JWT again.

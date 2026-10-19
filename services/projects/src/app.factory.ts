@@ -1,4 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import type { HttpsOptions } from '@nestjs/common/interfaces/external/https-options.interface';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json } from 'express';
@@ -8,8 +9,8 @@ import { correlationId } from './http/correlation-id.middleware';
 import { ApiExceptionFilter } from './http/http-exception.filter';
 
 /** Construye la app igual para producción y para las pruebas e2e. */
-export async function createApp(): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule, { bodyParser: false, logger: process.env.NODE_ENV === 'test' ? false : undefined });
+export async function createApp(httpsOptions?: HttpsOptions): Promise<INestApplication> {
+  const app = await NestFactory.create(AppModule, { bodyParser: false, httpsOptions, logger: process.env.NODE_ENV === 'test' ? false : undefined });
   app.use(correlationId);
   app.use(helmet());
   app.use(json({ limit: '10kb' }));

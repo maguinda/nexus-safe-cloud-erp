@@ -52,7 +52,12 @@ services:
       LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
       SEED_DEMO: ${SEED_DEMO:-false}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
-    secrets: [jwt_private]
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_identity_cert
+      TLS_KEY_PATH: /run/secrets/tls_identity_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,identity
+    secrets: [jwt_private, tls_ca, tls_identity_cert, tls_identity_key]
 
   projects:
     build: ./services/projects
@@ -67,7 +72,12 @@ services:
       JWT_AUDIENCE: erp-api
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       SEED_DEMO: ${SEED_DEMO:-false}
-    secrets: [jwt_public]
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_projects_cert
+      TLS_KEY_PATH: /run/secrets/tls_projects_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,projects
+    secrets: [jwt_public, tls_ca, tls_projects_cert, tls_projects_key]
 
   billing:
     build: ./services/billing-receivables
@@ -82,7 +92,12 @@ services:
       JWT_AUDIENCE: erp-api
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       SEED_DEMO: ${SEED_DEMO:-false}
-    secrets: [jwt_public]
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_billing_cert
+      TLS_KEY_PATH: /run/secrets/tls_billing_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,billing
+    secrets: [jwt_public, tls_ca, tls_billing_cert, tls_billing_key]
 
   web:
     build: ./web
@@ -101,12 +116,30 @@ services:
     volumes:
       - ./infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./infra/gateway/web-headers.inc:/etc/nginx/conf.d/web-headers.inc:ro
+      # Carné del gateway y CA pública (la llave de la CA nunca se monta).
+      - ./infra/certs/gateway.pem:/etc/nginx/certs/gateway.pem:ro
+      - ./infra/certs/gateway-key.pem:/etc/nginx/certs/gateway-key.pem:ro
+      - ./infra/certs/ca.pem:/etc/nginx/certs/ca.pem:ro
 
 secrets:
   jwt_private:
     file: ./infra/keys/jwt-private.pem
   jwt_public:
     file: ./infra/keys/jwt-public.pem
+  tls_ca:
+    file: ./infra/certs/ca.pem
+  tls_identity_cert:
+    file: ./infra/certs/identity.pem
+  tls_identity_key:
+    file: ./infra/certs/identity-key.pem
+  tls_projects_cert:
+    file: ./infra/certs/projects.pem
+  tls_projects_key:
+    file: ./infra/certs/projects-key.pem
+  tls_billing_cert:
+    file: ./infra/certs/billing.pem
+  tls_billing_key:
+    file: ./infra/certs/billing-key.pem
 
 volumes:
   pgdata:
