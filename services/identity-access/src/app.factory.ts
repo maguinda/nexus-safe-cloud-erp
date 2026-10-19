@@ -12,7 +12,9 @@ import { ApiExceptionFilter } from './http/http-exception.filter';
 export async function createApp(httpsOptions?: HttpsOptions): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, { bodyParser: false, httpsOptions, logger: process.env.NODE_ENV === 'test' ? false : undefined });
   app.use(correlationId);
-  app.use(helmet());
+  // Todo lo de helmet por defecto, salvo upgrade-insecure-requests: Safari lo aplica también a localhost y pediría los scripts del Swagger
+  // por HTTPS, pero el puerto de la demo (DOCS_HTTP_PORT) es HTTP simple y la página quedaba en blanco. Una API que solo devuelve JSON no lo necesita.
+  app.use(helmet({ contentSecurityPolicy: { useDefaults: true, directives: { 'upgrade-insecure-requests': null } } }));
   app.use(json({ limit: '10kb' }));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.useGlobalFilters(new ApiExceptionFilter());
