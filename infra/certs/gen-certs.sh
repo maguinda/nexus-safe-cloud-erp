@@ -14,11 +14,12 @@ fi
 DAYS=365
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
+# -sha256 explícito: el openssl de macOS (LibreSSL) firma con SHA-1 por defecto y Node lo rechaza («digest algorithm too weak»).
 # CA: puede firmar certificados finales, pero no sub-CAs (pathlen:0).
 openssl ecparam -name prime256v1 -genkey -noout -out "$DIR/ca-key.pem"
 printf 'basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n' > "$TMP/ca.ext"
 openssl req -new -key "$DIR/ca-key.pem" -subj "/O=Nexus ERP (dev)/CN=Nexus ERP internal CA" -out "$TMP/ca.csr"
-openssl x509 -req -in "$TMP/ca.csr" -signkey "$DIR/ca-key.pem" -days "$DAYS" -extfile "$TMP/ca.ext" -out "$DIR/ca.pem" 2>/dev/null
+openssl x509 -req -sha256 -in "$TMP/ca.csr" -signkey "$DIR/ca-key.pem" -days "$DAYS" -extfile "$TMP/ca.ext" -out "$DIR/ca.pem" 2>/dev/null
 
 # emitir <nombre> <usos> <san>   (el CN es el nombre: así el servidor sabe QUIÉN le habla)
 emitir() {
@@ -26,7 +27,7 @@ emitir() {
   openssl ecparam -name prime256v1 -genkey -noout -out "$DIR/$nombre-key.pem"
   openssl req -new -key "$DIR/$nombre-key.pem" -subj "/O=Nexus ERP (dev)/CN=$nombre" -out "$TMP/$nombre.csr"
   printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=%s\nsubjectAltName=%s\n' "$usos" "$san" > "$TMP/$nombre.ext"
-  openssl x509 -req -in "$TMP/$nombre.csr" -CA "$DIR/ca.pem" -CAkey "$DIR/ca-key.pem" -CAcreateserial -CAserial "$TMP/ca.srl" \
+  openssl x509 -req -sha256 -in "$TMP/$nombre.csr" -CA "$DIR/ca.pem" -CAkey "$DIR/ca-key.pem" -CAcreateserial -CAserial "$TMP/ca.srl" \
     -days "$DAYS" -extfile "$TMP/$nombre.ext" -out "$DIR/$nombre.pem" 2>/dev/null
 }
 for s in identity projects billing; do emitir "$s" "serverAuth,clientAuth" "DNS:$s,DNS:localhost,IP:127.0.0.1"; done
