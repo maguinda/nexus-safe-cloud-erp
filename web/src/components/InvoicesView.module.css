@@ -1,2 +1,13 @@
 .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); min-width: 0; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; }
+.search { flex: 1 1 240px; max-width: 420px; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+.segBtn { font-size: 13px; font-weight: 600; min-height: 40px; padding: 0 14px; border: 0; border-right: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.segBtnOn { font-size: 13px; font-weight: 600; min-height: 40px; padding: 0 14px; border: 0; border-right: 1px solid var(--line); background: var(--navy); color: var(--on-navy); cursor: pointer; }
+.seg > :last-child { border-right: 0; }
+.count { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; margin-left: auto; }
+.dueCell { display: grid; gap: 2px; justify-items: start; }
+.empty { border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--sp-5) var(--sp-4); display: grid; gap: var(--sp-2); justify-items: start; }
+.empty strong { font-size: var(--fs-md); }

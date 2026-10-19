@@ -4,6 +4,8 @@
 .approved { composes: pill; background: var(--accent-soft); color: var(--accent); }
 .draft { composes: pill; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 .issued { composes: pill; background: var(--ok-soft); color: var(--ok); }
+.soon { composes: pill; background: var(--warn-soft); color: var(--warn); }
+.overdue { composes: pill; background: var(--bad-soft); color: var(--bad); }
 
 .btn { font-size: 13px; font-weight: 600; border-radius: var(--radius-sm); padding: 8px 14px; min-height: 36px; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); }
 .btn:disabled { opacity: 0.5; cursor: default; }
@@ -14,6 +16,14 @@
 .table th { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
 .table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .table tr:last-child td { border-bottom: 0; }
+/* Tabla de listado: encabezado fijo al desplazarse y filas más compactas. Cada pieza va completa (no depende del orden de hojas). */
+.scrollTall { overflow: auto; max-height: min(70vh, 640px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.tableDense { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 520px; font-size: var(--fs-base); }
+.tableDense th { position: sticky; top: 0; z-index: 1; text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 2px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.tableDense td { padding: 6px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tableDense tr:last-child td { border-bottom: 0; }
+.sortBtn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.sortBtn:hover { color: var(--fg); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); font-size: var(--fs-sm); }
