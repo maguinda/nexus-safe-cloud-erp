@@ -35,6 +35,7 @@ export class HandleMilestoneApprovedUseCase {
         sourceEventId: event.eventId,
         approvedBy: event.data.approvedBy,
         approvedAt: new Date(event.occurredAt),
+        dueDate: null, // el vencimiento se fija al EMITIR, no al crear el borrador
       };
       await tx.insertInvoice(invoice);
       // El mismo correlationId del evento que originó la factura: una sola traza cruza projects, billing y analytics.

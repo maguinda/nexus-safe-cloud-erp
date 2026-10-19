@@ -68,6 +68,7 @@ describe('HandleMilestoneApprovedUseCase', () => {
   it('creates a draft invoice with the next number from the event data', async () => {
     const db = fakeInbox();
     expect(await new HandleMilestoneApprovedUseCase(db.uow, () => NOW).execute(ev())).toBe('created');
+    expect(db.invoices[0].dueDate).toBeNull(); // el vencimiento se fija al emitir, no al crear el borrador
     expect(db.invoices).toEqual([expect.objectContaining({ number: 'INV-0103', milestoneId: 'm2', projectName: 'Branch network upgrade', milestoneName: 'Link redundancy design', amountCop: 18_500_000, taxCop: 3_515_000, totalCop: 22_015_000, approvedBy: 'laura.rios@nexus.example', status: 'draft', createdAt: NOW, issuedAt: null, sourceEventId: '6f1c2d9e-3b5a-4c71-9d2f-0a1b2c3d4e5f' })]);
   });
 
@@ -125,7 +126,7 @@ describe('HandleMilestoneApprovedUseCase', () => {
 });
 
 describe('IssueInvoiceUseCase', () => {
-  const draft: Invoice = { number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 5, taxCop: 1, totalCop: 6, status: 'draft', approvedBy: null, approvedAt: null, createdAt: NOW, issuedAt: null, issuedBy: null, sourceEventId: null };
+  const draft: Invoice = { number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 5, taxCop: 1, totalCop: 6, status: 'draft', approvedBy: null, approvedAt: null, createdAt: NOW, issuedAt: null, issuedBy: null, sourceEventId: null, dueDate: null };
   let outbox: BillingEvent[] = [];
   beforeEach(() => { outbox = []; });
   // Transacción simulada: si el trabajo falla, se deshacen la factura y el outbox.
@@ -145,14 +146,14 @@ describe('IssueInvoiceUseCase', () => {
   it('issues a draft and records who and when', async () => {
     const store = new Map([[draft.number, draft]]);
     const r = await new IssueInvoiceUseCase(uowFor(store), () => NOW).execute('INV-0103', 'andres.mora@nexus.example', 'corr-issue-0001');
-    expect(r).toMatchObject({ status: 'issued', issuedBy: 'andres.mora@nexus.example', issuedAt: NOW });
+    expect(r).toMatchObject({ status: 'issued', issuedBy: 'andres.mora@nexus.example', issuedAt: NOW, dueDate: new Date('2026-11-17T06:00:00.000Z') });
     expect(draft.status).toBe('draft'); // el original no se muta
   });
   it('writes InvoiceIssued to the outbox with who issued it and the request correlation id', async () => {
     const store = new Map([[draft.number, draft]]);
     await new IssueInvoiceUseCase(uowFor(store), () => NOW).execute('INV-0103', 'andres.mora@nexus.example', 'corr-issue-0001');
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]).toMatchObject({ type: 'InvoiceIssued', occurredAt: NOW.toISOString(), correlationId: 'corr-issue-0001', data: { invoiceNumber: 'INV-0103', milestoneId: 'm2', amountCop: 5, taxCop: 1, totalCop: 6, issuedBy: 'andres.mora@nexus.example' } });
+    expect(outbox[0]).toMatchObject({ type: 'InvoiceIssued', occurredAt: NOW.toISOString(), correlationId: 'corr-issue-0001', data: { invoiceNumber: 'INV-0103', milestoneId: 'm2', amountCop: 5, taxCop: 1, totalCop: 6, issuedBy: 'andres.mora@nexus.example', dueDate: '2026-11-17T06:00:00.000Z' } });
   });
   it('if the outbox fails the invoice stays a draft (all or nothing)', async () => {
     const store = new Map([[draft.number, draft]]);

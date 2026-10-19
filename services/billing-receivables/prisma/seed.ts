@@ -11,7 +11,7 @@ async function main() {
   for (const i of seeded) {
     await prisma.invoice.upsert({
       where: { number: i.number }, update: {},
-      create: { ...i, status: 'issued', issuedAt: i.createdAt, issuedBy: 'andres.mora@nexus.example' },
+      create: { ...i, status: 'issued', issuedAt: i.createdAt, issuedBy: 'andres.mora@nexus.example', dueDate: new Date(i.createdAt.getTime() + 30 * 86_400_000) }, // 30 días en UTC (misma regla que domain/due-date.ts)
     });
   }
   console.log('Seeded demo invoices');
