@@ -9,6 +9,7 @@ export const USERS = {
   lead: { id: randomUUID(), email: 'laura.rios@nexus.example', role: 'project_lead' },
   billing: { id: randomUUID(), email: 'andres.mora@nexus.example', role: 'billing_analyst' },
   sales: { id: randomUUID(), email: 'camila.soto@nexus.example', role: 'sales' },
+  manager: { id: randomUUID(), email: 'diana.vega@nexus.example', role: 'manager' },
 };
 
 /** Firma como lo haría identity-access; las opciones permiten fabricar tokens defectuosos a propósito. */
