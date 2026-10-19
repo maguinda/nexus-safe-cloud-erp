@@ -10,6 +10,7 @@ services:
       DB_IDENTITY_PASSWORD: ${DB_IDENTITY_PASSWORD}
       DB_PROJECTS_PASSWORD: ${DB_PROJECTS_PASSWORD}
       DB_BILLING_PASSWORD: ${DB_BILLING_PASSWORD}
+      DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -99,6 +100,26 @@ services:
       TLS_ALLOWED_CLIENTS: gateway,billing
     secrets: [jwt_public, tls_ca, tls_billing_cert, tls_billing_key]
 
+  analytics:
+    build: ./services/analytics
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://analytics:${DB_ANALYTICS_PASSWORD}@postgres:5432/analytics
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      SEED_DEMO: ${SEED_DEMO:-false}
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_analytics_cert
+      TLS_KEY_PATH: /run/secrets/tls_analytics_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,analytics
+    secrets: [jwt_public, tls_ca, tls_analytics_cert, tls_analytics_key]
+
   web:
     build: ./web
     restart: unless-stopped
@@ -111,6 +132,7 @@ services:
       identity: { condition: service_healthy }
       projects: { condition: service_healthy }
       billing: { condition: service_healthy }
+      analytics: { condition: service_healthy }
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -140,6 +162,10 @@ secrets:
     file: ./infra/certs/billing.pem
   tls_billing_key:
     file: ./infra/certs/billing-key.pem
+  tls_analytics_cert:
+    file: ./infra/certs/analytics.pem
+  tls_analytics_key:
+    file: ./infra/certs/analytics-key.pem
 
 volumes:
   pgdata:

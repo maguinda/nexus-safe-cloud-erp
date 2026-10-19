@@ -45,6 +45,7 @@ jobs:
       DB_IDENTITY_PASSWORD: changemeidentity1
       DB_PROJECTS_PASSWORD: changemeprojects1
       DB_BILLING_PASSWORD: changemebilling1
+      DB_ANALYTICS_PASSWORD: changemeanalytics1
       PGHOST: localhost
       PGPASSWORD: ci-postgres-password
       DEMO_PASSWORD: demo-password-1
