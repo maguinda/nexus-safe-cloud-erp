@@ -53,7 +53,8 @@ export class MilestoneApprovedConsumer {
       await ch.assertQueue(QUEUE, { durable: true, arguments: { 'x-dead-letter-exchange': DLX, 'x-dead-letter-routing-key': QUEUE } });
       await ch.bindQueue(QUEUE, EXCHANGE, ROUTING_KEY);
       await ch.prefetch(10);
-      await ch.consume(QUEUE, (m) => void this.onMessage(m));
+      // Se pasa el canal al manejador: RabbitMQ entrega el backlog en cuanto se registra el consumo, ANTES de que this.ch esté asignado.
+      await ch.consume(QUEUE, (m) => void this.onMessage(m, ch));
       this.conn = conn; this.ch = ch; this.retryMs = 500;
       this.log.log(`consuming ${QUEUE}`);
     } catch (e) {
@@ -68,9 +69,8 @@ export class MilestoneApprovedConsumer {
     this.retryMs = Math.min(this.retryMs * 2, 5000);
   }
 
-  private async onMessage(msg: ConsumeMessage | null) {
-    if (!msg || !this.ch) return;
-    const ch = this.ch;
+  private async onMessage(msg: ConsumeMessage | null, ch: Channel) {
+    if (!msg) return;
     try {
       if (msg.content.length > MAX_BYTES) throw new InvalidEventError('message too large');
       let body: unknown;
