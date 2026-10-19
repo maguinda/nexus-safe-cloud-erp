@@ -1,4 +1,4 @@
-import type { ApproveResponse, Invoice, LoginResponse, Milestone, Project } from './types';
+import type { ApproveResponse, Invoice, LoginResponse, Milestone, Project, Dashboard } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -42,6 +42,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createMilestone: (projectId: string, name: string, amountCop: number) => request<Milestone>('POST', `/projects/${encodeURIComponent(projectId)}/milestones`, { name, amountCop }),
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
     invoices: () => request<Invoice[]>('GET', '/invoices'),
+    dashboard: () => request<Dashboard>('GET', '/dashboard'),
     issue: (invoiceNumber: string) => request<Invoice>('PATCH', `/invoices/${encodeURIComponent(invoiceNumber)}/issue`),
   };
 }

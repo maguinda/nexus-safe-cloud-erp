@@ -74,10 +74,10 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
 
   return (
     <div className={s.stack}>
-      <div className={s.kpis}>
-        <div className={ui.card}><small className={ui.muted}>Active projects</small><strong className={s.kpi}>{projects.length}</strong></div>
-        <div className={ui.card}><small className={ui.muted}>Milestones pending approval</small><strong className={s.kpi}>{pending}</strong></div>
-        <div className={ui.card}><small className={ui.muted}>Draft invoices</small><strong className={s.kpi}>{drafts ?? '—'}</strong></div>
+      <div className={ui.kpis}>
+        <div className={ui.card}><small className={ui.muted}>Active projects</small><strong className={ui.kpi}>{projects.length}</strong></div>
+        <div className={ui.card}><small className={ui.muted}>Milestones pending approval</small><strong className={ui.kpi}>{pending}</strong></div>
+        <div className={ui.card}><small className={ui.muted}>Draft invoices</small><strong className={ui.kpi}>{drafts ?? '—'}</strong></div>
       </div>
 
       {canCreate && <NewProjectForm api={api} onCreated={(p) => { setSelected(p.id); toast(`Project “${p.name}” created`); void load(); }} />}

@@ -1,0 +1,32 @@
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.head { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); align-items: baseline; justify-content: space-between; }
+.fresh { font-size: var(--fs-sm); color: var(--muted); display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); align-items: center; }
+.live { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 600; color: var(--ok); }
+.liveDot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.stale .live { color: var(--warn); }
+.stale .liveDot { background: var(--warn); }
+.warn { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-size: var(--fs-base); }
+.activity { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.activity li { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--line); }
+.activity li:last-child { border-bottom: 0; padding-bottom: 0; }
+.when { color: var(--muted); font-size: var(--fs-sm); }
+.msg { overflow-wrap: anywhere; }
+.note { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+
+/* Tabla por proyecto: variante COMPLETA (no se apoya en el orden de las hojas de estilo). Escritorio: tabla normal; pantallas estrechas: una tarjeta por proyecto con sus 4 cifras a la vista (con scroll lateral quedarían escondidas sin aviso). */
+.projTable { border-collapse: collapse; width: 100%; min-width: 520px; font-size: var(--fs-base); }
+.projTable th { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.projTable td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.projTable tr:last-child td { border-bottom: 0; }
+@media (max-width: 640px) {
+  .projTable { min-width: 0; }
+  .projTable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .projTable, .projTable tbody, .projTable tr, .projTable td { display: block; }
+  .projTable tr { padding: var(--sp-3); border-bottom: 1px solid var(--line); }
+  .projTable tr:last-child { border-bottom: 0; }
+  .projTable td { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 3px 0; border: 0; text-align: right; }
+  .projTable td::before { content: attr(data-label); color: var(--muted); font-size: var(--fs-sm); text-align: left; }
+  .projTable td:first-child { font-weight: 600; text-align: left; }
+  .projTable td:first-child::before { content: none; }
+}

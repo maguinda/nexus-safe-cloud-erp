@@ -52,7 +52,7 @@ export function mergeEvent(prev: Fact | null, e: AnalyticsEvent): Fact {
   return f;
 }
 
-const cop = (n: number) => `${new Intl.NumberFormat('en-US').format(n)} COP`;
+const cop = (n: number) => `${new Intl.NumberFormat('es-CO').format(n)} COP`;
 /** Texto corto para la lista de actividad reciente. */
 export function describe(e: AnalyticsEvent): string {
   switch (e.type) {
