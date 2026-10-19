@@ -3,8 +3,8 @@
 Repositorio **privado**: https://github.com/maguinda/nexus-safe-cloud-erp (monorepo; esta carpeta es la raíz del repositorio; la carpeta padre `arquitectura_software` NO es un repo).
 Contexto, decisiones y stack: ver el `CLAUDE.md` de la carpeta padre y `../corte_2/`. Alcance del MVP aprobado por Marlon el 2026-10-18 = el boceto `../corte_2/boceto_mvp.html`; no agregar módulos sin que él lo pida.
 
-## Estado (2026-10-19)
-MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 17 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15), servicio Analytics y su API de dashboard (#19), pantalla del dashboard (este cambio), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
+## Estado (2026-10-19, tarde)
+MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 20 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15), servicio Analytics y su API de dashboard (#19), pantalla del dashboard (este cambio), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
 
 | Pieza | Qué es | Puerto |
 |---|---|---|
@@ -15,7 +15,7 @@ MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, anal
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas (2026-10-19): unitarias 185 (identity 24, projects 52, billing 74, web 35), e2e con PostgreSQL y RabbitMQ reales 154 (identity 30, projects 81, billing 43), flujo completo `scripts/e2e-flow.mjs` (≈ 27 comprobaciones), y navegador `web/` 40 (16 funcionales + 24 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
+Pruebas (2026-10-19): unitarias 244 (identity 24, projects 52, billing 74, analytics 57, web 37), e2e con PostgreSQL y RabbitMQ reales 199 (identity 30, projects 81, billing 43, analytics 45), flujo completo `scripts/e2e-flow.mjs` (38 comprobaciones), y navegador `web/` 52 (22 funcionales + 30 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
 
 ## Cómo correr
 ```sh
