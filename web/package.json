@@ -13,7 +13,9 @@
     "preview": "vite preview --port 5173",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "format:css": "prettier --write \"src/**/*.css\"",
+    "format:css:check": "prettier --check \"src/**/*.css\""
   },
   "dependencies": {
     "react": "19.1.10",
@@ -28,6 +30,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "4.7.0",
     "jsdom": "26.1.0",
+    "prettier": "3.9.10",
     "typescript": "5.9.3",
     "vite": "6.4.4",
     "vitest": "3.2.7"
