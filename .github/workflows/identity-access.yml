@@ -9,6 +9,7 @@ on:
       - '.github/workflows/ci-node-service.yml'
       - 'infra/postgres/**'
       - 'infra/keys/gen-keys.sh'
+      - 'infra/certs/gen-certs.sh'
   push:
     branches: [main]
     paths:

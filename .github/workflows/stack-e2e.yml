@@ -30,8 +30,9 @@ jobs:
       - name: Keys and environment (development values)
         run: |
           sh infra/keys/gen-keys.sh
-          # En el runner (efímero) la llave privada debe poder leerla el usuario "node" del contenedor.
-          chmod 644 infra/keys/jwt-private.pem
+          sh infra/certs/gen-certs.sh
+          # En el runner (efímero) las llaves privadas deben poder leerlas el usuario "node" del contenedor y el gateway.
+          chmod 644 infra/keys/jwt-private.pem infra/certs/*-key.pem
           cp .env.example .env
       - name: Build and start the stack
         run: docker compose up -d --build
