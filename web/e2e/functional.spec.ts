@@ -107,6 +107,23 @@ test('invoices can be searched, filtered by status and sorted by column', async 
   nums = await order(); expect(nums.indexOf('INV-0101')).toBeLessThan(nums.indexOf('INV-0102'));
 });
 
+test('due dates close to today or in the past get an amber or red chip', async ({ page }) => {
+  // Con los datos de demostración no hay facturas vencidas: se ajusta SOLO la respuesta que ve el navegador (la base no cambia).
+  const day = 86_400_000;
+  await page.route(/\/invoices$/, async (route) => {
+    const res = await route.fetch(); const list = await res.json();
+    for (const i of list) {
+      if (i.number === 'INV-0101') i.dueDate = new Date(Date.now() - 3 * day).toISOString();
+      if (i.number === 'INV-0102') i.dueDate = new Date(Date.now() + 2 * day).toISOString();
+    }
+    await route.fulfill({ response: res, json: list });
+  });
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices' }).click();
+  await expect(page.getByRole('row', { name: /INV-0101/ }).getByText(/^Overdue \d+ d$/)).toBeVisible();
+  await expect(page.getByRole('row', { name: /INV-0102/ }).getByText(/^In \d d$/)).toBeVisible();
+});
+
 test('on a phone the invoices become cards and can still be sorted', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 740 });
   await openAs(page, 'lead');
@@ -116,6 +133,9 @@ test('on a phone the invoices become cards and can still be sorted', async ({ pa
   expect(await page.locator('tbody tr td').nth(1).evaluate((el) => getComputedStyle(el).display)).toBe('flex');
   expect(await page.locator('tbody tr td').nth(1).evaluate((el) => getComputedStyle(el, '::before').content)).toBe('"Project"');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  // En 375 px los cinco botones de ordenar caben en una sola fila (misma altura = misma fila).
+  const tops = await page.getByRole('group', { name: 'Sort cards by' }).getByRole('button').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
   // Sin encabezados no hay dónde pulsar: aparecen los botones «Sort by …» (un segundo clic invierte el orden).
   const firsts = async () => page.locator('tbody tr td:first-child').allInnerTexts();
   const total = page.getByRole('button', { name: 'Sort by Total', exact: true });
