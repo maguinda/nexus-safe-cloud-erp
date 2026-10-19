@@ -20,3 +20,6 @@ npm run test:e2e                            # needs docker compose up -d and the
 ```
 
 All routes need `Authorization: Bearer <JWT>` (RS256, verified with `infra/keys/jwt-public.pem`) except `/health`.
+
+## mTLS
+With `TLS_ENABLED=true` the service serves HTTPS and requires a client certificate from the internal CA whose name is in `TLS_ALLOWED_CLIENTS` (needs `TLS_CERT_PATH`, `TLS_KEY_PATH`, `TLS_CA_PATH`; it refuses to start without them). `DOCS_HTTP_PORT` (demo only) adds a plain-HTTP port for Swagger. Tests: `test/mtls.e2e.ts` (real handshake; it generates throwaway certificates).
