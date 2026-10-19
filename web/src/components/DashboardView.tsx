@@ -69,7 +69,7 @@ export function DashboardView() {
       <section aria-labelledby="dash-proj-h">
         <h3 id="dash-proj-h" className={ui.h2}>By project</h3>
         <div className={ui.scroll}>
-          <table className={s.projTable}>
+          <table className={`${ui.table} ${ui.cardsOnPhone}`}>
             <caption className={s.sr}>Approved and invoiced amounts for each project, in Colombian pesos</caption>
             <thead><tr><th>Project</th><th className={ui.num}>Approved</th><th className={ui.num}>Waiting for invoice</th><th className={ui.num}>Draft (with IVA)</th><th className={ui.num}>Issued (with IVA)</th></tr></thead>
             <tbody>

@@ -8,6 +8,9 @@ import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import s from './InvoicesView.module.css';
 
+/** Solo en teléfono: las columnas pasan a tarjetas y sin encabezados no hay dónde pulsar para ordenar; estos botones hacen lo mismo. */
+const SORT_CHIPS: [SortKey, string][] = [['created', 'Created'], ['total', 'Total'], ['due', 'Due'], ['number', 'Invoice'], ['project', 'Project']];
+
 export function InvoicesView({ toast }: { toast: (m: string) => void }) {
   const { api, user } = useSession();
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
@@ -92,13 +95,20 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
                 <button key={k} type="button" className={status === k ? s.segBtnOn : s.segBtn} aria-pressed={status === k} onClick={() => setStatus(k)}>{label} ({counts[k]})</button>
               ))}
             </div>
+            <div className={s.sortChips} role="group" aria-label="Sort cards by">
+              {SORT_CHIPS.map(([k, label]) => (
+                <button key={k} type="button" className={sort.key === k ? s.segBtnOn : s.segBtn} aria-pressed={sort.key === k} aria-label={`Sort by ${label}`} onClick={() => sortBy(k)}>
+                  {label}<span aria-hidden="true">{sort.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
+                </button>
+              ))}
+            </div>
             <span className={s.count} role="status">Showing {visible.length} of {all.length}</span>
           </div>
           {visible.length === 0 ? (
             <div className={s.empty} role="status"><strong>No invoices match these filters</strong><button type="button" className={ui.btnGhost} onClick={clear}>Clear filters</button></div>
           ) : (
             <div className={ui.scrollTall}>
-              <table className={ui.tableDense}>
+              <table className={`${ui.tableDense} ${ui.cardsOnPhone} ${s.invCards}`}>
                 <caption className={s.sr}>Invoices, sorted by {sort.key} ({sort.dir === 'asc' ? 'ascending' : 'descending'}){filtered ? ', filtered' : ''}</caption>
                 <thead><tr>{header('number', 'Invoice')}{header('project', 'Project')}<th>Milestone</th><th className={ui.num}>Subtotal (COP)</th><th className={ui.num}>IVA 19 %</th>{header('total', 'Total (COP)', true)}<th>Status</th>{header('due', 'Due')}{header('created', 'Created')}<th>Action</th></tr></thead>
                 <tbody>
@@ -107,21 +117,21 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
                     return (
                       <tr key={i.number}>
                         <td className={ui.mono}>{i.number}</td>
-                        <td>{i.projectName}</td>
-                        <td>{i.milestoneName}</td>
-                        <td className={ui.num}>{formatCop(i.amountCop)}</td>
-                        <td className={ui.num}>{formatCop(i.taxCop)}</td>
-                        <td className={ui.num}><strong>{formatCop(i.totalCop)}</strong></td>
-                        <td><span className={ui[i.status]}>{i.status === 'draft' ? 'Draft' : 'Issued'}</span></td>
-                        <td>{i.dueDate ? (
+                        <td data-label="Project">{i.projectName}</td>
+                        <td data-label="Milestone">{i.milestoneName}</td>
+                        <td className={ui.num} data-label="Subtotal (COP)">{formatCop(i.amountCop)}</td>
+                        <td className={ui.num} data-label="IVA 19 %">{formatCop(i.taxCop)}</td>
+                        <td className={ui.num} data-label="Total (COP)"><strong>{formatCop(i.totalCop)}</strong></td>
+                        <td data-label="Status"><span className={ui[i.status]}>{i.status === 'draft' ? 'Draft' : 'Issued'}</span></td>
+                        <td data-label="Due">{i.dueDate ? (
                           <span className={s.dueCell}>
                             <span className={ui.muted}>{formatDay(i.dueDate)}</span>
                             {due.state === 'overdue' && <span className={ui.overdue}>Overdue {Math.abs(due.days as number)} d</span>}
                             {due.state === 'soon' && <span className={ui.soon}>{due.days === 0 ? 'Due today' : `In ${due.days} d`}</span>}
                           </span>
                         ) : <span className={ui.muted}>—</span>}</td>
-                        <td className={ui.muted}>{timeAgo(i.createdAt, now)}</td>
-                        <td>{i.status === 'draft' && user?.role === 'billing_analyst'
+                        <td className={ui.muted} data-label="Created">{timeAgo(i.createdAt, now)}</td>
+                        <td data-label="Action">{i.status === 'draft' && user?.role === 'billing_analyst'
                           ? <button type="button" className={ui.btnGhost} disabled={busy === i.number} onClick={() => void issue(i.number)}>{busy === i.number ? 'Issuing…' : 'Issue invoice'}</button>
                           : <span className={ui.muted}>—</span>}</td>
                       </tr>

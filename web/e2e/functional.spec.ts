@@ -107,6 +107,30 @@ test('invoices can be searched, filtered by status and sorted by column', async 
   nums = await order(); expect(nums.indexOf('INV-0101')).toBeLessThan(nums.indexOf('INV-0102'));
 });
 
+test('on a phone the invoices become cards and can still be sorted', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 740 });
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices' }).click();
+  await expect(page.locator('tbody tr').first()).toBeVisible();
+  // Tarjetas: las filas son bloques con «etiqueta: valor» y no hay desplazamiento lateral de la página.
+  expect(await page.locator('tbody tr td').nth(1).evaluate((el) => getComputedStyle(el).display)).toBe('flex');
+  expect(await page.locator('tbody tr td').nth(1).evaluate((el) => getComputedStyle(el, '::before').content)).toBe('"Project"');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  // Sin encabezados no hay dónde pulsar: aparecen los botones «Sort by …» (un segundo clic invierte el orden).
+  const firsts = async () => page.locator('tbody tr td:first-child').allInnerTexts();
+  const total = page.getByRole('button', { name: 'Sort by Total', exact: true });
+  await expect(total).toBeVisible();
+  await total.click();
+  let nums = await firsts(); expect(nums.indexOf('INV-0101')).toBeLessThan(nums.indexOf('INV-0102'));
+  await expect(total).toHaveAttribute('aria-pressed', 'true');
+  await total.click();
+  nums = await firsts(); expect(nums.indexOf('INV-0102')).toBeLessThan(nums.indexOf('INV-0101'));
+  // En escritorio esos botones no existen: se ordena con los encabezados.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(total).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Sort by Total (COP)' })).toBeVisible();
+});
+
 test('the billing analyst issues the draft invoice', async ({ page }) => {
   await openAs(page, 'billing');
   await page.getByRole('button', { name: 'Invoices' }).click();
