@@ -46,6 +46,17 @@ services/<name>/
 └─ Dockerfile
 ```
 
+### Where the mTLS lives
+
+| What | Where |
+|---|---|
+| Create the certificates | `infra/certs/gen-certs.sh` |
+| Require the caller's certificate in each service | `services/*/src/tls.ts` (the same file in the three services) |
+| Start with TLS | `services/*/src/main.ts` |
+| Handshake tests | `services/*/test/mtls.e2e.ts` |
+| The gateway presenting its certificate | `infra/gateway/nginx.conf` |
+| Pass everything to the containers | `docker-compose.yml` |
+
 ## Run the whole stack (containers + gateway)
 
 ```sh
