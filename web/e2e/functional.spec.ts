@@ -70,6 +70,43 @@ test('sales cannot approve and sees a 403 on invoices', async ({ page }) => {
   await expect(page.getByRole('cell', { name: /INV-/ })).toHaveCount(0);
 });
 
+test('invoices can be searched, filtered by status and sorted by column', async ({ page }) => {
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices' }).click();
+  const order = async () => (await page.getByRole('cell', { name: /^INV-\d+$/ }).allInnerTexts());
+  await expect(page.getByRole('cell', { name: 'INV-0101' })).toBeVisible();
+  // Buscar: solo el proyecto «Retail POS integration» tiene INV-0102.
+  await page.getByLabel('Search invoices').fill('  retail ');
+  await expect(page.getByRole('cell', { name: /^INV-\d+$/ })).toHaveText(['INV-0102']);
+  await expect(page.getByRole('status').filter({ hasText: /^Showing 1 of \d+$/ })).toBeVisible();
+  // Sin resultados: mensaje y «Clear filters» deja todo como estaba.
+  await page.getByLabel('Search invoices').fill('zzzz');
+  await expect(page.getByText('No invoices match these filters')).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(page.getByLabel('Search invoices')).toHaveValue('');
+  await expect(page.getByRole('cell', { name: 'INV-0101' })).toBeVisible();
+  // Estado: «Issued» no deja ningún borrador; «Draft» no deja ninguna emitida; «All» vuelve a todo.
+  await page.getByRole('button', { name: /^Issued \(\d+\)$/ }).click();
+  await expect(page.getByRole('cell', { name: 'Draft' })).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: 'INV-0101' })).toBeVisible();
+  await page.getByRole('button', { name: /^Draft \(\d+\)$/ }).click();
+  await expect(page.getByRole('cell', { name: 'Issued' })).toHaveCount(0);
+  await page.getByRole('button', { name: /^All \(\d+\)$/ }).click();
+  await expect(page.getByRole('cell', { name: 'INV-0101' })).toBeVisible();
+  // Ordenar por Total: INV-0101 (14.280.000) frente a INV-0102 (11.662.000); un segundo clic invierte el orden.
+  const totalHeader = page.getByRole('columnheader', { name: /Total \(COP\)/ });
+  await page.getByRole('button', { name: 'Sort by Total (COP)' }).click();
+  await expect(totalHeader).toHaveAttribute('aria-sort', 'descending');
+  let nums = await order(); expect(nums.indexOf('INV-0101')).toBeLessThan(nums.indexOf('INV-0102'));
+  await page.getByRole('button', { name: 'Sort by Total (COP)' }).click();
+  await expect(totalHeader).toHaveAttribute('aria-sort', 'ascending');
+  nums = await order(); expect(nums.indexOf('INV-0102')).toBeLessThan(nums.indexOf('INV-0101'));
+  // Por número: en orden numérico ascendente INV-0101 va antes que INV-0102.
+  await page.getByRole('button', { name: 'Sort by Invoice' }).click();
+  await expect(page.getByRole('columnheader', { name: /Invoice/ }).first()).toHaveAttribute('aria-sort', 'ascending');
+  nums = await order(); expect(nums.indexOf('INV-0101')).toBeLessThan(nums.indexOf('INV-0102'));
+});
+
 test('the billing analyst issues the draft invoice', async ({ page }) => {
   await openAs(page, 'billing');
   await page.getByRole('button', { name: 'Invoices' }).click();
