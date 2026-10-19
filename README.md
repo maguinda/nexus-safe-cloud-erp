@@ -7,7 +7,8 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 |---|---|
 | `services/identity-access` | Login and JWT issuing |
 | `services/projects` | Projects, milestones, approval (writes the event to an outbox) |
-| `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices |
+| `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
+| `services/analytics` | Read models built from the events and the manager dashboard (`GET /dashboard`) |
 | `web` | React + TypeScript frontend |
 | `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
 | `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
@@ -16,10 +17,11 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 
 ```
 erp/
-├─ services/                  the 3 microservices; each one is its own program with its own database
+├─ services/                  the 4 microservices; each one is its own program with its own database
 │  ├─ identity-access/        login and token
 │  ├─ projects/               projects, milestones, approval
-│  └─ billing-receivables/    invoices, IVA, reconciliation
+│  ├─ billing-receivables/    invoices, IVA, reconciliation
+│  └─ analytics/              read models and the manager dashboard
 ├─ web/                       the screen (React)
 ├─ infra/                     everything that is not business code
 │  ├─ gateway/nginx.conf      the gateway

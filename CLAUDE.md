@@ -4,13 +4,14 @@ Repositorio **privado**: https://github.com/maguinda/nexus-safe-cloud-erp (monor
 Contexto, decisiones y stack: ver el `CLAUDE.md` de la carpeta padre y `../corte_2/`. Alcance del MVP aprobado por Marlon el 2026-10-18 = el boceto `../corte_2/boceto_mvp.html`; no agregar módulos sin que él lo pida.
 
 ## Estado (2026-10-19)
-MVP completo y verificado: 3 servicios NestJS + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 17 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15, 403 en todo; solo leerá el dashboard), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
+MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 17 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15, 403 en todo; solo leerá el dashboard), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
 
 | Pieza | Qué es | Puerto |
 |---|---|---|
 | `services/identity-access` | login, JWT RS256 con rol | 4101 (interno) |
 | `services/projects` | proyectos, hitos, aprobar → outbox → RabbitMQ | 4102 (interno) |
 | `services/billing-receivables` | consume `MilestoneApproved`, factura borrador; emitir | 4103 (interno) |
+| `services/analytics` | modelos de lectura por eventos y `GET /dashboard` (solo `manager`) | 4104 (interno) |
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
