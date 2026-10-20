@@ -1,11 +1,11 @@
 # Nexus Safe-Cloud ERP (MVP)
 
-MVP for the Software Architecture course (Equipo 2, Velocity Softworks). Three services behind one gateway,
+MVP for the Software Architecture course (Equipo 2, Velocity Softworks). Four services behind one gateway,
 a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 
 | Folder | What it is |
 |---|---|
-| `services/identity-access` | Login and JWT issuing |
+| `services/identity-access` | Login, JWT issuing and user administration for the manager (`GET/POST /users`, `PATCH /users/:id/role`) |
 | `services/projects` | Projects, milestones, approval (writes the event to an outbox) |
 | `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
 | `services/analytics` | Read models built from the events and the manager dashboard (`GET /dashboard`) |
@@ -76,14 +76,14 @@ The services are **not** reachable over plain HTTP. Each one serves HTTPS and re
 `docker-compose.docs.yml` (demo only) opens a second plain-HTTP port per service on `127.0.0.1` so Swagger opens in a browser; the JWT stays mandatory there. Without that file the door does not exist. After recreating a service container, run `docker compose restart gateway` (nginx caches the upstream addresses).
 
 The only published port is the gateway, `127.0.0.1:8080`. Services have no published ports; the gateway exposes just
-`POST /auth/login`, `/projects`, `/milestones`, `/invoices`, `/health`. It does not authenticate: every service verifies the JWT again.
+`POST /auth/login`, `/users`, `/projects`, `/milestones`, `/invoices`, `/dashboard`, `/health`. It does not authenticate: every service verifies the JWT again.
 For the demo, Swagger of each service: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`
-then http://localhost:4101/docs, :4102/docs, :4103/docs.
+then http://localhost:4101/docs (identity), :4102/docs (projects), :4103/docs (billing) and :4104/docs (analytics). Each service documents only its own routes; the JWT is the same for all (log in once on :4101 and press Authorize in the others). The whole contract is in `docs/openapi.yaml`.
 
 The web app is served by the same gateway: open http://localhost:8080. Tests: `cd web && npm run test:e2e` (see `web/README.md`).
 
 Demo logins (password in `.env`, `DEMO_PASSWORD`): `laura.rios@nexus.example` (project lead),
-`andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales), `diana.vega@nexus.example` (manager: reads only the Analytics dashboard, 403 everywhere else).
+`andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales), `diana.vega@nexus.example` (manager: reads the Analytics dashboard and administers users in the Users tab, 403 everywhere else). `scripts/reset-demo.sh` removes any user created in the demo and restores these four roles.
 
 ## Run the infrastructure locally
 
