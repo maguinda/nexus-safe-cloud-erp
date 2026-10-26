@@ -13,6 +13,75 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
 | `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
 
+## Correr la demo en tu equipo (paso a paso, para el equipo)
+
+Todo corre en tu computador con Docker; no necesitas AWS ni pagar nada. Las llaves y los certificados no están en Git: cada persona los genera con dos scripts.
+
+**Antes de empezar necesitas**
+- **Git** y acceso al repositorio (es privado: pídele a Marlon que te invite como colaborador).
+- **Docker** con `docker compose`: Docker Desktop (Mac o Windows) o Colima (Mac). En Mac con Colima, clona dentro de tu carpeta personal (`$HOME`); fuera de ella no puede montar las llaves.
+- **Node 20 o más nuevo**, solo para el script de comprobación del paso 7 (la demo en sí no lo necesita).
+- **Windows:** corre todo dentro de WSL (Ubuntu), porque los scripts son de shell (`sh`, `bash`) y clona el repo dentro del disco de Linux de WSL.
+- Los puertos **8080** (la app) y 4101-4104 (Swagger) deben estar libres.
+
+**Pasos** (en una terminal, copia y pega uno por uno)
+```sh
+# 1. Clonar el repositorio
+git clone https://github.com/maguinda/nexus-safe-cloud-erp.git
+cd nexus-safe-cloud-erp
+
+# 2. Generar las llaves del login (JWT) y los certificados de mTLS (una sola vez)
+sh infra/keys/gen-keys.sh
+sh infra/certs/gen-certs.sh
+
+# 3. Crear tu archivo de configuración (Git lo ignora; los valores de ejemplo sirven para la demo local)
+cp .env.example .env
+
+# 4. Levantar todo: base de datos, RabbitMQ, 4 servicios, la web y el gateway
+#    (la primera vez descarga imágenes y compila: puede tardar varios minutos; después tarda segundos)
+docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d --build
+
+# 5. Dejar los datos de la demo como al inicio (repítelo antes de cada ensayo)
+./scripts/reset-demo.sh
+
+# 6. Abrir la app
+#    http://localhost:8080
+```
+Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `docker compose restart gateway`.
+
+**Usuarios de la demo** (todos con la contraseña `demo-password-1`, la de `DEMO_PASSWORD` en tu `.env`)
+
+| Usuario | Rol | Qué puede hacer |
+|---|---|---|
+| `laura.rios@nexus.example` | project lead | Ver proyectos, crear proyectos e hitos, aprobar hitos |
+| `andres.mora@nexus.example` | billing analyst | Ver facturas y emitir la factura (aparece «Due») |
+| `camila.soto@nexus.example` | sales | No ve Invoices: recibe 403 |
+| `diana.vega@nexus.example` | manager | Dashboard de Analytics y pestaña Users |
+
+**Recorrido corto de la demo** (el guion completo con tiempos está en `corte_2/`, en el archivo de pitch y demo)
+1. Entra como Laura y abre **Projects**.
+2. Pulsa **Approve milestone** en un hito pendiente: la respuesta es inmediata y, unos segundos después, aparece una factura borrador en **Invoices**.
+3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos.
+4. En una tercera pestaña entra como Andrés y pulsa **Issue invoice** en el borrador: el estado pasa a Issued y la columna **Due** muestra la fecha de vencimiento (emisión + 30 días).
+5. Entra como Camila: Invoices responde 403. Con **Simulate expired token** la sesión se cierra con «Your session expired».
+6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
+7. Opcional: detén RabbitMQ con `docker compose stop rabbitmq`, aprueba otro hito (responde 200 igual), vuelve a arrancarlo con `docker compose start rabbitmq` y espera unos 15 segundos a que la factura aparezca.
+8. Opcional: como Diana, pestaña **Users**, crea un vendedor y entra con él en otra pestaña.
+
+**Comprobar que todo funciona de punta a punta** (opcional)
+```sh
+node scripts/e2e-flow.mjs      # debe terminar sin ❌ (51 comprobaciones)
+./scripts/reset-demo.sh        # deja la demo como al inicio
+```
+
+**Problemas frecuentes**
+- **Error 429 al iniciar sesión:** el gateway deja 10 inicios de sesión por minuto por IP. Espera un minuto antes de volver a intentar. Los ensayos seguidos y `e2e-flow.mjs` consumen ese cupo.
+- **La demo quedó «sucia»** (hitos ya aprobados, usuarios creados): corre `./scripts/reset-demo.sh`.
+- **«address already in use» / puerto ocupado:** algo más usa el 8080; ciérralo o apaga la otra pila con `docker compose down`.
+- **Error 502 después de recrear un contenedor:** `docker compose restart gateway`.
+- **Swagger no abre:** levantaste sin el segundo archivo; usa el comando del paso 4 completo.
+- **Apagar sin perder datos:** `docker compose stop`. **Borrar todo, datos incluidos:** `docker compose down -v`. Para volver a arrancar: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`, luego `docker compose restart gateway` y `./scripts/reset-demo.sh`.
+
 ## Where things live
 
 ```
