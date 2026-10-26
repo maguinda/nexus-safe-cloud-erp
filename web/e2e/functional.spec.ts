@@ -39,6 +39,31 @@ test('the login form validates before sending anything', async ({ page }) => {
   expect(loginRequests).toBe(0);
 });
 
+test('login: the eye button shows and hides what is typed, and a demo button fills the email', async ({ page }) => {
+  await page.goto('/');
+  const pw = page.getByLabel('Password');
+  await pw.fill('secret-123');
+  await expect(pw).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Show the characters' }).click();
+  await expect(pw).toHaveAttribute('type', 'text');
+  await expect(pw).toHaveValue('secret-123');
+  await page.getByRole('button', { name: 'Hide the characters' }).click();
+  await expect(pw).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Manager', exact: true }).click();
+  await expect(page.getByLabel('Email')).toHaveValue('diana.vega@nexus.example');
+});
+
+test('login layout: brand panel only on wide screens, one column and big touch targets on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  await expect(page.getByText('All of the company’s work, in one place.')).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.getByText('All of the company’s work, in one place.')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  for (const name of ['Sign in', 'Show the characters']) expect((await page.getByRole('button', { name, exact: true }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect((await page.getByLabel('Email').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+});
+
 test('a wrong password shows a clear message and does not sign in', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Email').fill('laura.rios@nexus.example');
@@ -622,6 +647,7 @@ test('Dashboards on a 320 px phone: nothing leaves the screen, in both screens',
     await expect(page.getByRole('heading', { name: ready, exact: true })).toBeVisible();
     await expect(explorerRows(page).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${nav}: no sideways scroll`).toBe(true);
+    await expect.poll(() => explorerRows(page).locator('td[data-label]').count()).toBeGreaterThan(10);
     const cells = await explorerRows(page).locator('td[data-label]').evaluateAll((els: Element[]) => els.map((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right }; }));
     expect(cells.length).toBeGreaterThan(10);
     for (const c of cells) { expect(c.left).toBeGreaterThanOrEqual(0); expect(c.right).toBeLessThanOrEqual(321); }

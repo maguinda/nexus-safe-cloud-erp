@@ -1,0 +1,207 @@
+/* Login. Móvil primero: una columna (cabecera de marca arriba, tarjeta abajo); desde 900 px, pantalla dividida. Todo con tokens, cada variante completa. */
+/* La barra de la app ya trae la marca: en celular el panel de marca no se muestra. */
+.page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--bg);
+}
+/* Se muestra desde 900 px (ver abajo). */
+.brand {
+  display: none;
+  background: var(--navy);
+  color: var(--on-navy);
+}
+.side {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding: var(--sp-4);
+  min-width: 0;
+}
+.form {
+  width: 100%;
+  max-width: 440px;
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+}
+.intro {
+  margin: calc(var(--sp-2) * -1) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-base);
+}
+.notice {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.demo {
+  display: grid;
+  gap: var(--sp-2);
+}
+.demoTitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.demoList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+.demoBtn {
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.demoBtn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.field {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.field label {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.lead {
+  position: absolute;
+  left: var(--sp-3);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 48px 0 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-md);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--bad);
+}
+.eye {
+  position: absolute;
+  right: 2px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.eye:hover {
+  color: var(--fg);
+}
+.err {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--fs-base);
+  font-weight: 400;
+}
+.submit {
+  min-height: 48px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-ink);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+.submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (min-width: 900px) {
+  .page {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  }
+  .brand {
+    display: grid;
+    gap: var(--sp-5);
+    align-content: end;
+    padding: calc(var(--sp-5) * 2) calc(var(--sp-5) * 2);
+  }
+  .brandBody {
+    display: grid;
+    gap: var(--sp-5);
+    max-width: 440px;
+  }
+  .tagline {
+    margin: 0;
+    font-size: 32px;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+  .points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--sp-3);
+  }
+  .points li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    font-size: var(--fs-md);
+  }
+  .pointIcon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--on-navy) 14%, transparent);
+  }
+  .side {
+    align-content: center;
+    padding: calc(var(--sp-5) * 2);
+  }
+  .form {
+    padding: calc(var(--sp-5) * 2);
+  }
+}
