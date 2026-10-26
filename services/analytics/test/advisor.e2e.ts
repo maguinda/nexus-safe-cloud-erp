@@ -29,8 +29,11 @@ describe('advisor: what to do first, with a fake Claude API (e2e, real PostgreSQ
       req.on('data', (c) => (raw += c));
       req.on('end', () => {
         seen.push({ key: req.headers['x-api-key'] as string | undefined, version: req.headers['anthropic-version'] as string | undefined, body: JSON.parse(raw) });
-        res.writeHead(answer.status, { 'content-type': 'application/json' });
-        res.end(answer.status === 200 ? JSON.stringify({ content: [{ type: 'text', text: answer.text }] }) : JSON.stringify({ error: { message: `secret detail ${KEY}` } }));
+        // Igual que la API real con este modelo: rechaza `temperature` («is deprecated for this model»). Se descubrió con la llave real.
+        const body = seen[seen.length - 1].body as unknown as Record<string, unknown>;
+        const status = 'temperature' in body ? 400 : answer.status;
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(status === 200 ? JSON.stringify({ content: [{ type: 'text', text: answer.text }] }) : JSON.stringify({ error: { type: 'invalid_request_error', message: `secret detail ${KEY}` } }));
       });
     });
     await new Promise<void>((ok) => stub.listen(0, '127.0.0.1', ok));
@@ -104,6 +107,7 @@ describe('advisor: what to do first, with a fake Claude API (e2e, real PostgreSQ
       expect(seen).toHaveLength(1);
       expect(seen[0]).toMatchObject({ key: KEY, version: '2023-06-01' });
       expect(seen[0].body.model).toBe('claude-test-model');
+      expect(seen[0].body).not.toHaveProperty('temperature');
       expect(seen[0].body.system).toMatch(/ONLY those facts/);
       expect(seen[0].body.messages[0].content).toContain(ids[0]);
       expect(seen[0].body.messages[0].content).toContain('IoT10'); // los hechos reales de la base
