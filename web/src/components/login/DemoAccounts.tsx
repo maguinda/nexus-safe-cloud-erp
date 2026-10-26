@@ -9,13 +9,15 @@ export const DEMO: { email: string; label: MsgKey }[] = [
   { email: 'diana.vega@nexus.example', label: 'role.manager' },
 ];
 
+const AVATARS = [s.avatar1, s.avatar2, s.avatar3, s.avatar4];
+
 /** Cuentas de demostración: cada botón rellena el correo de ese rol. */
 export function DemoAccounts({ onPick, t }: { onPick: (email: string) => void; t: TFn }) {
   return (
     <div className={s.demo}>
       <p className={s.demoTitle} id="demo-title">{t('login.demoAccounts')}</p>
       <div className={s.demoList} role="group" aria-labelledby="demo-title">
-        {DEMO.map((d) => <button key={d.email} type="button" className={s.demoBtn} onClick={() => onPick(d.email)}>{t(d.label)}</button>)}
+        {DEMO.map((d, i) => <button key={d.email} type="button" className={s.demoBtn} onClick={() => onPick(d.email)}><span className={AVATARS[i]} aria-hidden>{t(d.label).charAt(0)}</span><span>{t(d.label)}</span></button>)}
       </div>
     </div>
   );

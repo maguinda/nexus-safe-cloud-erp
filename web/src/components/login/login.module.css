@@ -1,16 +1,43 @@
 /* Login. Móvil primero: una columna (cabecera de marca arriba, tarjeta abajo); desde 900 px, pantalla dividida. Todo con tokens, cada variante completa. */
-/* La barra de la app ya trae la marca: en celular el panel de marca no se muestra. */
+/* En celular el panel de marca es una franja compacta con la ilustración; la frase y las razones aparecen desde 900 px. */
 .page {
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   background: var(--bg);
 }
-/* Se muestra desde 900 px (ver abajo). */
 .brand {
-  display: none;
-  background: var(--navy);
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  justify-items: center;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
   color: var(--on-navy);
+  background-color: var(--navy); /* base bajo los degradados: también es lo que leen las herramientas de contraste */
+  background-image:
+    radial-gradient(circle at 18% 12%, color-mix(in oklab, var(--chart-1) 45%, transparent), transparent 55%),
+    radial-gradient(circle at 88% 92%, color-mix(in oklab, var(--accent) 30%, transparent), transparent 50%),
+    linear-gradient(160deg, var(--navy), color-mix(in oklab, var(--navy) 55%, black));
+}
+.brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--on-navy) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--on-navy) 7%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at 50% 45%, black, transparent 75%);
+  pointer-events: none;
+}
+.brand > * {
+  position: relative;
+}
+.brandBody {
+  display: none;
+}
+.brandArt {
+  width: min(100%, 260px);
 }
 .side {
   display: grid;
@@ -20,6 +47,7 @@
   min-width: 0;
 }
 .form {
+  box-shadow: 0 18px 40px -22px color-mix(in oklab, var(--fg) 45%, transparent);
   width: 100%;
   max-width: 440px;
   display: grid;
@@ -63,6 +91,10 @@
   gap: var(--sp-2);
 }
 .demoBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: left;
   min-height: 44px;
   padding: 0 var(--sp-3);
   border: 1px solid var(--line);
@@ -159,10 +191,12 @@
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   }
   .brand {
-    display: grid;
     gap: var(--sp-5);
-    align-content: end;
-    padding: calc(var(--sp-5) * 2) calc(var(--sp-5) * 2);
+    align-content: center;
+    padding: calc(var(--sp-5) * 2);
+  }
+  .brandArt {
+    width: 100%;
   }
   .brandBody {
     display: grid;
@@ -205,3 +239,23 @@
     padding: calc(var(--sp-5) * 2);
   }
 }
+
+/* Inicial del rol en un círculo de color (token de la paleta de gráficos oscurecido hacia la marca para que el texto blanco pase el contraste). */
+.avatar1,
+.avatar2,
+.avatar3,
+.avatar4 {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--on-navy);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.avatar1 { background: color-mix(in oklab, var(--chart-1) 62%, var(--navy)); }
+.avatar2 { background: color-mix(in oklab, var(--chart-3) 62%, var(--navy)); }
+.avatar3 { background: color-mix(in oklab, var(--chart-2) 62%, var(--navy)); }
+.avatar4 { background: var(--navy); }
