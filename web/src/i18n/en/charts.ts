@@ -1,0 +1,28 @@
+import type { charts as es } from '../es/charts';
+
+export const charts: Record<keyof typeof es, string> = {
+  'chart.viewTable': 'View as table',
+  'chart.noData': 'No data',
+  'chart.noDataHint': 'There is nothing to show in this chart yet.',
+  'chart.loading': 'Loading the chart…',
+  'chart.error': 'The chart could not be shown',
+  'chart.legend': 'Legend',
+  'chart.hint': 'Use the ← → arrow keys to move between points and Escape to leave.',
+  'chart.reading': 'Reading at {at}',
+  'chart.cellEmpty': 'no data',
+  'chart.delta.up': 'Up {value}',
+  'chart.delta.down': 'Down {value}',
+  'chart.delta.flat': 'No change',
+  'chart.delta.none': 'No comparison',
+  'chart.delta.vs': 'vs. previous period',
+  'chart.donut.total': 'Total',
+  'chart.donut.other': 'Other',
+  'chart.gauge.ok': 'Normal',
+  'chart.gauge.warn': 'Attention',
+  'chart.gauge.bad': 'Critical',
+  'chart.table.category': 'Category',
+  'chart.table.value': 'Value',
+  'chart.table.share': 'Share',
+  'chart.table.time': 'Time',
+  'chart.table.row': 'Row',
+};

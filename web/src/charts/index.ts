@@ -1,0 +1,22 @@
+/** Librería de gráficos SVG de la app (sin dependencias). Guía de uso: ./README.md */
+export { BarChart, barChartTable, barPath } from './BarChart';
+export type { BarCategory, BarChartProps, BarSeries } from './BarChart';
+export { ChartCard } from './ChartCard';
+export type { ChartCardProps } from './ChartCard';
+export { Delta } from './Delta';
+export type { DeltaProps } from './Delta';
+export { Donut, donutTable, foldSlices } from './Donut';
+export type { DonutProps, DonutSlice } from './Donut';
+export { Gauge, gaugeTone } from './Gauge';
+export type { GaugeBand, GaugeProps, GaugeTone } from './Gauge';
+export { Heatmap, heatmapTable, heatMix } from './Heatmap';
+export type { HeatLine, HeatmapProps } from './Heatmap';
+export { LineChart, lineChartTable } from './LineChart';
+export type { LineBand, LineChartProps, LineMarker, LinePoint, LineSeries, LineThreshold } from './LineChart';
+export { Sparkline } from './Sparkline';
+export type { SparklineProps } from './Sparkline';
+export { ChartEmpty, Legend } from './parts';
+export { formatClock, formatDayMonth, formatInstantMs, formatNumber, formatPercent, formatTick, formatTimeTick } from './format';
+export { changePct } from './scale';
+export { MAX_CATEGORICAL, seriesTone, toneColor } from './types';
+export type { ChartTable, I18nProps, LegendItem, Tone } from './types';

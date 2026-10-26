@@ -5,6 +5,10 @@ import { invoices } from './invoices';
 import { projects } from './projects';
 import { server } from './server';
 import { users } from './users';
+import { charts } from './charts';
+import { sensors } from './sensors';
+import { netview } from './netview';
+import { summary } from './summary';
 
 /** El español es la fuente de las claves: el inglés tiene que tener exactamente las mismas (si falta una, no compila). */
-export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server } as const;
+export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...charts, ...sensors, ...netview, ...summary } as const;
