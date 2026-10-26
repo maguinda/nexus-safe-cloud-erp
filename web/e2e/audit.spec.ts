@@ -33,6 +33,8 @@ test.beforeEach(async ({ page }) => {
     if (r.method() === 'POST' && r.url().endsWith('/csp-report')) { cspReports.push(r.postData() ?? ''); return route.fulfill({ status: 204 }); }
     const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(r.method());
     if (isRead || (r.method() === 'POST' && r.url().endsWith('/auth/login'))) return route.continue();
+    // El asesor pide por POST pero solo LEE (y sin IA no gasta nada): pasa únicamente con ai:false; con ai:true se bloquea como cualquier otra escritura.
+    if (r.method() === 'POST' && r.url().endsWith('/advisor/brief') && r.postDataJSON()?.ai === false) return route.continue();
     blocked.push(`${r.method()} ${r.url()} ${(r.postData() ?? '').slice(0, 500)}`);
     return route.fulfill({ status: 599, body: '{"message":"blocked by audit"}', contentType: 'application/json' });
   });

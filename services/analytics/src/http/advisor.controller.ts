@@ -22,12 +22,12 @@ export class AdvisorController {
   @Post('brief')
   @HttpCode(200)
   @Roles('manager')
-  @Throttle({ default: { limit: Number(process.env.ADVISOR_RATE_LIMIT ?? 60), ttl: 60_000 } })
+  @Throttle({ default: { limit: Number(process.env.ADVISOR_RATE_LIMIT ?? 600), ttl: 60_000 } })
   @ApiOperation({ summary: 'What to do first: the findings of Sensors and Network ranked, written by rules or by the model and always tied to their evidence (role manager)' })
   @ApiResponse({ status: 400, description: 'The body is not valid' })
   @ApiResponse({ status: 401, description: 'Missing, invalid or expired token' })
   @ApiResponse({ status: 403, description: 'Role not allowed' })
-  @ApiResponse({ status: 429, description: 'More than 60 requests in a minute' })
+  @ApiResponse({ status: 429, description: 'More than 600 requests in a minute' })
   brief(@Body() body: AdviceRequestDto) {
     return this.advice.execute(body.language, body.ai);
   }
