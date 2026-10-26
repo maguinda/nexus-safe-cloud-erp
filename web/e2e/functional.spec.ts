@@ -631,6 +631,12 @@ test('Network: the explorer filters the 76 devices and the 74 links exactly as t
 
 // ---- Asesor de decisiones «Qué hacer primero» ----
 const advisorCard = (page: any) => page.getByRole('region', { name: 'What to do first' });
+/** Simula un equipo SIN llave de IA (la respuesta real de reglas, con `aiAvailable:false`): la prueba no debe depender de si quien la corre tiene una llave en su .env. */
+async function withoutAiKey(page: any, language: 'en' | 'es') {
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  const real = await (await page.request.post('/advisor/brief', { headers: { authorization: `Bearer ${sessions.manager.token}` }, data: { language, ai: false } })).json();
+  await page.route('**/advisor/brief', (route: any) => route.fulfill({ json: { ...real, aiAvailable: false } }));
+}
 
 test('Advisor: the manager sees what to do first, ranked, each item with its reason, action and evidence', async ({ page }) => {
   await openAs(page, 'manager');
@@ -656,6 +662,7 @@ test('Advisor: an item opens the screen it talks about', async ({ page }) => {
 });
 
 test('Advisor: with no AI key configured the button is off and says why; the rules still work', async ({ page }) => {
+  await withoutAiKey(page, 'en');
   await openAs(page, 'manager');
   const card = advisorCard(page);
   await expect(card.getByRole('heading', { level: 3 }).first()).toBeVisible();
@@ -687,6 +694,7 @@ test('Advisor: an answer written by the AI is labelled as such, and a discarded 
 });
 
 test('Advisor in Spanish: the screen and the sentences come in Spanish', async ({ page }) => {
+  await withoutAiKey(page, 'es');
   await openAs(page, 'manager', 'es');
   const card = page.getByRole('region', { name: 'Qué hacer primero' });
   await expect(card.getByRole('heading', { level: 3 }).first()).toHaveText('Revisa las alertas de las 09:40 UTC');
