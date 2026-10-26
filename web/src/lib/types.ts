@@ -24,4 +24,19 @@ export interface Dashboard {
   recentActivity: { at: string; kind: 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued'; message: string }[];
 }
 
+export type DeviceState = 'normal' | 'warning' | 'alert' | 'no_data';
+export interface TelemetryDevice {
+  id: string; name: string; kind: string; location: string; readingKind: string; unit: string; connection: 'ONLINE' | 'OFFLINE';
+  state: DeviceState; lastValue: number | null; lastStatus: string | null; lastAt: string | null; warnings: number; alerts: number;
+}
+/** Resumen de telemetría de Analytics (GET /telemetry/summary): los datos de Nexus cargados, solo para el gerente. */
+export interface TelemetrySummary {
+  asOf: string;
+  window: { from: string; to: string } | null;
+  totals: { devices: number; online: number; readings: number; normal: number; warnings: number; alerts: number };
+  devices: TelemetryDevice[];
+  byLocation: { location: string; devices: number; warnings: number; alerts: number; avgTempC: number | null; avgHumidityPct: number | null }[];
+  attention: { at: string; deviceId: string; deviceName: string; location: string; status: 'WARNING' | 'ALERT'; value: number; unit: string; note: string | null }[];
+}
+
 export const ROLE_LABEL: Record<Role, string> = { project_lead: 'Project lead', billing_analyst: 'Billing analyst', sales: 'Sales', manager: 'Manager' };

@@ -38,6 +38,28 @@
   background: var(--bad-soft);
   color: var(--bad);
 }
+/* Estados de un sensor (panel Network & IoT). Cada variante va completa: no depende del orden de las hojas. */
+.stateNormal {
+  composes: pill;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.stateWarning {
+  composes: pill;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.stateAlert {
+  composes: pill;
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.stateNoData {
+  composes: pill;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
 
 .btn {
   font-size: 13px;

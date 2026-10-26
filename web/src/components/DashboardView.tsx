@@ -3,6 +3,7 @@ import { ApiError } from '../lib/api';
 import { formatCop, timeAgo } from '../lib/format';
 import type { Dashboard } from '../lib/types';
 import { useSession } from '../session';
+import { TelemetryPanel } from './TelemetryPanel';
 import ui from '../styles/ui.module.css';
 import s from './DashboardView.module.css';
 
@@ -104,6 +105,8 @@ export function DashboardView() {
             </ol>
           )}
       </section>
+
+      <TelemetryPanel />
 
       <p className={s.note}>Built only from events by the Analytics service, so it never reads the operational databases. Pending milestones are not shown: Projects does not publish an event when a milestone is created.</p>
     </section>
