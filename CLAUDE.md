@@ -15,7 +15,7 @@ MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, anal
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas (2026-10-26): unitarias 516 (identity 71, projects 52, billing 106, analytics 74, web 213), e2e con PostgreSQL y RabbitMQ reales 339 (identity 137, projects 83, billing 46, analytics 73), flujo completo `scripts/e2e-flow.mjs` (55 comprobaciones), y navegador `web/` 142 (58 funcionales + 84 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px, cada pantalla en español y en inglés).
+Pruebas (2026-10-26): unitarias 836 (identity 86, projects 52, billing 106, analytics 109, web 483), e2e con PostgreSQL y RabbitMQ reales 523 (identity 183, projects 83, billing 46, analytics 211), flujo completo `scripts/e2e-flow.mjs`, y navegador `web/` 304 (88 funcionales en Chromium y WebKit + 216 auditorías de pantalla en claro y oscuro, español e inglés, escritorio, WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px). Incluye las pantallas Sensores y Red. No probado: celular real, teclado virtual, Android real.
 
 ## Cómo correr
 ```sh
@@ -58,7 +58,9 @@ La docente pidió subir al ERP, en análisis y dashboard, los datos de la carpet
 - **Carga:** `prisma/iot-load.ts` desde `prisma/seed.ts` (idempotente: el id de cada lectura viene de la fuente). Los JSON salen de `prisma/data/convert-iot.py`. El Dockerfile copia `prisma/`, por eso los JSON y el cargador viajan en la imagen (el seed no puede importar de `src/`).
 - **API:** `GET /telemetry/summary` (solo `manager`). El repositorio entrega agregados (nunca las 4.200 filas); el estado de cada dispositivo sale de su ÚLTIMA lectura; la lista de atención pone las alertas antes que las advertencias.
 - **Pantalla:** panel `Network & IoT` en el Dashboard (`TelemetryPanel.tsx`). Fecha armada a mano en UTC (el abreviado del mes cambia entre motores) y conteos con formato fijo en-US. En celular la lista de 21 dispositivos empieza plegada (el panel pasó de 6.525 a 2.099 px a 320 px).
-- **Límite:** los otros tres archivos de la carpeta (inventario de red para el proveedor, catálogo de monitoreo, captura de paquetes) no están cargados; no hay pantalla para «subir un archivo»; no se calcula nada en tiempo real (es un conjunto fijo del 13 de septiembre).
+- **Inventario de red (2026-10-26):** `Data para Proveedor ERP.xlsx` (hojas 01, 03 y 06) cargado con la migración `0003_network_inventory` y `prisma/network-load.ts`: 76 dispositivos, 74 enlaces y el monitoreo de 10 equipos de infraestructura. Endpoints `/telemetry/{summary,trends,readings,facets}` y `/network/{summary,devices,links,facets}`, todos solo `manager`. Pantallas **Sensores** y **Red** (hallazgos por reglas puras con su evidencia, filtros reales, gráficos propios en SVG con tabla alternativa, tablas paginadas). Hooks pequeños en `web/src/hooks`, estilos solo en CSS Modules con tokens, móvil primero.
+- **Tema e idioma:** `users.language` y `users.theme` (migraciones 0004 y 0005), `PATCH /me/language` y `/me/theme`; login rediseñado (PR #54). Un deadlock real (40P01) al cambiar roles a la vez se arregló con un advisory lock; la prueba nueva falla 9 de 12 sin el arreglo.
+- **Límite:** la captura de paquetes y las demás hojas del inventario no están cargadas; no hay pantalla para «subir un archivo»; no se calcula nada en tiempo real (es un conjunto fijo del 13 de septiembre).
 - `reset-demo.sh` no toca estas tablas. El e2e de telemetría las borra y las vuelve a cargar al terminar.
 
 ## Fecha de vencimiento de facturas (2026-10-19)
