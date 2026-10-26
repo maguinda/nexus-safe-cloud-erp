@@ -74,6 +74,17 @@ node scripts/e2e-flow.mjs      # debe terminar sin ❌ (51 comprobaciones)
 ./scripts/reset-demo.sh        # deja la demo como al inicio
 ```
 
+**Migraciones de la base de datos** (no tienes que ejecutarlas)
+Cada servicio tiene su propia base y su propio historial de migraciones de Prisma (identity 3, projects 1, billing 4, analytics 1). Se aplican solas: al arrancar, cada contenedor corre `npx prisma migrate deploy`, así que el paso 4 deja las tablas creadas. Para comprobarlo:
+```sh
+docker compose logs billing | grep -i migration     # «4 migrations found» y «applied» o «No pending migrations to apply»
+source .env
+docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres \
+  psql -h localhost -U "$POSTGRES_ADMIN_USER" -d billing \
+  -Atc "select migration_name from _prisma_migrations order by started_at"
+```
+Cambia `billing` por `identity`, `projects` o `analytics` para ver los otros servicios. Si un servicio no arranca por la base, mira `docker compose logs <servicio> | tail`; para empezar de cero (borra los datos) corre `docker compose down -v` y vuelve al paso 4. No corras `prisma migrate dev` ni edites los archivos de `services/*/prisma/migrations`: un cambio de esquema es una migración nueva, en una rama aparte.
+
 **Problemas frecuentes**
 - **Error 429 al iniciar sesión:** el gateway deja 10 inicios de sesión por minuto por IP. Espera un minuto antes de volver a intentar. Los ensayos seguidos y `e2e-flow.mjs` consumen ese cupo.
 - **La demo quedó «sucia»** (hitos ya aprobados, usuarios creados): corre `./scripts/reset-demo.sh`.
