@@ -39,6 +39,10 @@
   font-size: 11px;
   font-weight: 600;
   fill: var(--fg);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3;
+  stroke-linejoin: round;
 }
 .centerValue {
   font-size: 22px;
@@ -405,4 +409,74 @@
 }
 .cell {
   cursor: default;
+}
+
+/* Lo que antes iba en línea con valores fijos: cada variante completa, sin depender del orden de las hojas. */
+.gaugeTrack {
+  stroke: var(--chart-grid);
+}
+.statusLineCentered {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  margin: 0;
+  justify-content: center;
+  width: 100%;
+}
+.legendItemDim {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  opacity: 0.55;
+}
+.legendItemDim[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.table th.rowHead {
+  position: static;
+  background: transparent;
+  color: inherit;
+  font-weight: 500;
+}
+.plot {
+  position: relative;
+  margin-top: 0;
+}
+.plotWithLegend {
+  position: relative;
+  margin-top: var(--sp-2);
+}
+.ring {
+  stroke: var(--surface);
+}
+.deltaVs {
+  font-weight: 400;
+}
+.tipLayer {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+}
+.cellCurrent {
+  stroke: var(--fg);
+}
+.valueOnSeq {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--chart-on-seq);
+  pointer-events: none;
+}
+.valueOnBg {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--fg);
+  pointer-events: none;
 }

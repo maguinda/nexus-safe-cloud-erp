@@ -214,10 +214,15 @@ export function firstLast(values: number[]): { first: number; last: number } | n
   return first === null || last === null ? null : { first, last };
 }
 
-/** % de lecturas de calefactor encendido: promedio de los tramos de las oficinas visibles. */
+/**
+ * % de lecturas de calefactor encendido en las oficinas visibles. Sale de las lecturas reales (el servidor cuenta cuántas hay y cuántas están
+ * encendidas): promediar los porcentajes de los tramos de 10 minutos da otro número, porque el primero y el último tramo traen menos lecturas.
+ */
 export function heaterOnPct(trends: Trends, location: string): number | null {
   const show = visible(trends.locations, location);
-  return mean(trends.series.filter((s) => show.includes(s.location)).flatMap((s) => s.points.map((p) => p.heaterOnPct)).filter(finite));
+  const rows = trends.byLocation.filter((b) => show.includes(b.location) && b.heaterReadings > 0 && finite(b.heaterOnPct));
+  const total = rows.reduce((n, b) => n + b.heaterReadings, 0);
+  return total === 0 ? null : rows.reduce((n, b) => n + (b.heaterOnPct as number) * b.heaterReadings, 0) / total;
 }
 
 export interface SensorCards {

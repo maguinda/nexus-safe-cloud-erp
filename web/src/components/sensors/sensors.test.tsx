@@ -18,7 +18,7 @@ const point = (m: number, o: Partial<TrendPoint> = {}): TrendPoint => ({ at: at(
 const trends = (): Trends => ({
   asOf: '2026-10-26T00:00:00Z', bucketMinutes: 10, window: WINDOW, thresholds: { tempWarningC: 24 }, locations: ['Oficina 1', 'Oficina 2'],
   series: ['Oficina 1', 'Oficina 2'].map((location) => ({ location, points: [0, 10, 20, 30, 40, 50].map((m) => point(m)) })),
-  byLocation: [{ location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24 }, { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24 }],
+  byLocation: [{ location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 100 }, { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 80 }],
   events: [{ at: at(20), location: 'Oficina 1', deviceName: 'TEMP_MON_OF1', status: 'WARNING', value: 24, unit: '°C', note: 'Umbral Ligero Superado' }, { at: at(40), location: 'Oficina 2', deviceName: 'IoT10(1)', status: 'ALERT', value: 1.2, unit: 'PPM', note: 'Alerta Humo Detectada' }],
   insights: [],
 });
@@ -84,7 +84,7 @@ describe('Cards', () => {
   });
   it('one office says so in the heater card; an office with no heater reading shows a dash', () => {
     expect(view('es', { location: 'Oficina 2' })).toContain('promedio de Oficina 2');
-    const t = trends(); for (const s of t.series) for (const p of s.points) p.heaterOnPct = null;
+    const t = trends(); t.byLocation = t.byLocation.map((b) => ({ ...b, heaterReadings: 0, heaterOnPct: null }));
     const out = html(<Cards cards={buildCards(t, facets(), '')} facets={facets()} location="" window={WINDOW} bucketMinutes={10} lang="es" t={es} onDetail={vi.fn()} />);
     expect(out).toContain('>—<');
   });

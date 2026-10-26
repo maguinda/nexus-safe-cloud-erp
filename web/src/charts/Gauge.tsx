@@ -47,16 +47,16 @@ export function Gauge({ value, min = 0, max = 100, bands, valueText, label, aria
   const bounds = bands ? [...bands].sort((a, b) => a.from - b.from).slice(1).map((b) => b.from).filter((x) => x > min && x < max) : [];
   return (
     <div>
-      <svg className={s.svg} width="100%" viewBox={`0 0 ${size} ${size * 0.66}`} role="img" aria-label={ariaLabel} aria-describedby={`${id}-d`}>
-        <path d={arc(-Math.PI / 2, Math.PI / 2)} fill="none" style={{ stroke: 'var(--chart-grid)' }} strokeWidth={w} strokeLinecap="round" />
+      <svg className={s.svg} width="100%" viewBox={`0 0 ${size} ${size * 0.74}`} role="img" aria-label={ariaLabel} aria-describedby={`${id}-d`}>
+        <path d={arc(-Math.PI / 2, Math.PI / 2)} fill="none" className={s.gaugeTrack} strokeWidth={w} strokeLinecap="round" />
         {a1 > -Math.PI / 2 + 0.01 && <path d={arc(-Math.PI / 2, a1)} fill="none" style={{ stroke: color }} strokeWidth={w} strokeLinecap="round" className={s.mark} />}
         {bounds.map((b) => { const a = toAngle(b); const p0 = polar(cx, cy, r - w / 2 - 3, a), p1 = polar(cx, cy, r + w / 2 + 3, a); return <line key={b} x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} className={s.axisLine} />; })}
         <text x={cx} y={cy - 6} textAnchor="middle" className={s.centerValue}>{valueText ?? formatNumber(value, lang, 1)}</text>
-        <text x={cx} y={cy + 14} textAnchor="middle" className={s.centerLabel}>{label}</text>
-        <text x={cx - r} y={cy + 28} textAnchor="middle" className={s.axisText}>{formatNumber(min, lang, 0)}</text>
-        <text x={cx + r} y={cy + 28} textAnchor="middle" className={s.axisText}>{formatNumber(max, lang, 0)}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" className={s.centerLabel}>{label}</text>
+        <text x={cx - r} y={cy + 38} textAnchor="middle" className={s.axisText}>{formatNumber(min, lang, 0)}</text>
+        <text x={cx + r} y={cy + 38} textAnchor="middle" className={s.axisText}>{formatNumber(max, lang, 0)}</text>
       </svg>
-      {tone && <p className={s.statusLine} style={{ margin: 0, justifyContent: 'center', width: '100%' }}><span aria-hidden style={{ color }}>{ICON[tone]}</span><span>{t(`chart.gauge.${tone}`)}</span></p>}
+      {tone && <p className={s.statusLineCentered}><span aria-hidden style={{ color }}>{ICON[tone]}</span><span>{t(`chart.gauge.${tone}`)}</span></p>}
       <SrOnly id={`${id}-d`}>{`${label}: ${valueText ?? formatNumber(value, lang, 1)}${tone ? `, ${t(`chart.gauge.${tone}`)}` : ''}`}</SrOnly>
     </div>
   );

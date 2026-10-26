@@ -42,7 +42,8 @@ export function Heatmap({ rows, cols, values, valueFormat, min, max, showValues,
   const lo = isFiniteNumber(min) ? min : e[0], hi = isFiniteNumber(max) ? max : e[1];
 
   const longest = Math.max(...rows.map((r) => r.label.length));
-  const labelW = Math.min(width * 0.38, Math.max(48, longest * 6.4 + 12));
+  // +20 y no +12: con +12 la etiqueta más larga medía justo lo que cabía y un error de redondeo la recortaba («Oficina…» en las tres filas).
+  const labelW = Math.min(width * 0.38, Math.max(48, longest * 6.4 + 20));
   const topH = 22;
   const cw = Math.max(8, (width - labelW - 4) / cols.length);
   const ch = Math.max(22, Math.min(34, cw));
@@ -65,7 +66,7 @@ export function Heatmap({ rows, cols, values, valueFormat, min, max, showValues,
 
   return (
     <div ref={ref} className={s.root}>
-      <div style={{ position: 'relative' }}>
+      <div className={s.plot}>
         <svg className={s.svg} width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label={ariaLabel} aria-describedby={`${id}-hint`} tabIndex={0} onKeyDown={move} onBlur={() => setPos(null)} onPointerLeave={() => setPos(null)}>
           {cols.map((c, ci) => (ci % every === 0 ? <text key={c.id} className={s.axisText} x={round2(labelW + ci * cw + cw / 2)} y={14} textAnchor="middle"><title>{c.label}</title>{c.label}</text> : null))}
           {rows.map((r, ri) => (
@@ -78,11 +79,11 @@ export function Heatmap({ rows, cols, values, valueFormat, min, max, showValues,
                 const isCur = cur !== null && cur.r === ri && cur.c === ci;
                 return (
                   <g key={c.id} className={s.cell} onPointerEnter={() => setPos({ r: ri, c: ci })} onPointerMove={() => setPos({ r: ri, c: ci })}>
-                    <rect x={round2(x + 1)} y={round2(y + 1)} width={Math.max(1, round2(cw - 2))} height={Math.max(1, round2(ch - 2))} rx={3}
-                      style={{ fill: v === null ? 'var(--surface-2)' : `color-mix(in oklab, var(--chart-seq) ${heatMix(f)}%, var(--surface))`, stroke: isCur ? 'var(--fg)' : 'none' }} strokeWidth={isCur ? 2 : 0}>
+                    <rect x={round2(x + 1)} y={round2(y + 1)} width={Math.max(1, round2(cw - 2))} height={Math.max(1, round2(ch - 2))} rx={3} className={isCur ? s.cellCurrent : undefined}
+                      style={{ fill: v === null ? 'var(--surface-2)' : `color-mix(in oklab, var(--chart-seq) ${heatMix(f)}%, var(--surface))` }} strokeWidth={isCur ? 2 : 0}>
                       <title>{`${r.label} · ${c.label}: ${v === null ? t('chart.cellEmpty') : fmt(v)}`}</title>
                     </rect>
-                    {inside && v !== null && <text x={round2(x + cw / 2)} y={round2(y + ch / 2) + 4} textAnchor="middle" className={s.valueText} style={{ fill: f > 0.55 ? 'var(--chart-on-seq)' : 'var(--fg)', pointerEvents: 'none' }}>{fmt(v)}</text>}
+                    {inside && v !== null && <text x={round2(x + cw / 2)} y={round2(y + ch / 2) + 4} textAnchor="middle" className={f > 0.55 ? s.valueOnSeq : s.valueOnBg}>{fmt(v)}</text>}
                   </g>
                 );
               })}

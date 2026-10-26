@@ -7,7 +7,7 @@ export interface BucketRow {
   avgTempC: number | null; maxTempC: number | null; avgHumidityPct: number | null; maxSmokePpm: number | null; heaterOnPct: number | null;
   detections: number; unlocks: number; warnings: number; alerts: number;
 }
-export interface LocationStat { location: string; tempReadings: number; warningReadings: number; peakTempC: number | null }
+export interface LocationStat { location: string; tempReadings: number; warningReadings: number; peakTempC: number | null; heaterReadings: number; heaterOn: number }
 export interface EventRow { recordedAt: Date; deviceName: string; location: string; status: string; value: number; unit: string; note: string | null }
 
 /** Lo que el repositorio entrega ya agregado: tramos de 10 minutos por oficina, contadores por oficina y solo los eventos ALERT/WARNING. */
@@ -30,7 +30,8 @@ export interface Trends {
   thresholds: { tempWarningC: number | null };
   locations: string[];
   series: { location: string; points: { at: string; avgTempC: number | null; maxTempC: number | null; avgHumidityPct: number | null; maxSmokePpm: number | null; heaterOnPct: number | null; motionDetections: number; doorUnlocks: number; warnings: number; alerts: number }[] }[];
-  byLocation: { location: string; tempReadings: number; warningReadings: number; warningSharePct: number; peakTempC: number | null }[];
+  /** `heaterOnPct` sale de las lecturas reales del calefactor (con 10 minutos por tramo, promediar los porcentajes de los tramos da otro número). */
+  byLocation: { location: string; tempReadings: number; warningReadings: number; warningSharePct: number; peakTempC: number | null; heaterReadings: number; heaterOnPct: number | null }[];
   events: { at: string; location: string; deviceName: string; status: string; value: number; unit: string; note: string | null }[];
   insights: Insight[];
 }
@@ -96,7 +97,7 @@ export function buildTrends(input: TrendsInput, now: Date): Trends {
     window: input.window ? { from: input.window.from.toISOString(), to: input.window.to.toISOString() } : null,
     thresholds: { tempWarningC: input.tempWarningC },
     locations, series,
-    byLocation: [...input.perLocation].sort((a, b) => a.location.localeCompare(b.location)).map((p) => ({ location: p.location, tempReadings: p.tempReadings, warningReadings: p.warningReadings, warningSharePct: p.tempReadings === 0 ? 0 : Math.round((p.warningReadings / p.tempReadings) * 1000) / 10, peakTempC: round1(p.peakTempC) })),
+    byLocation: [...input.perLocation].sort((a, b) => a.location.localeCompare(b.location)).map((p) => ({ location: p.location, tempReadings: p.tempReadings, warningReadings: p.warningReadings, warningSharePct: p.tempReadings === 0 ? 0 : Math.round((p.warningReadings / p.tempReadings) * 1000) / 10, peakTempC: round1(p.peakTempC), heaterReadings: p.heaterReadings, heaterOnPct: p.heaterReadings === 0 ? null : Math.round((p.heaterOn / p.heaterReadings) * 1000) / 10 })),
     events, insights,
   };
 }

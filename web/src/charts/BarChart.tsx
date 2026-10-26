@@ -114,7 +114,7 @@ export function BarChart({ categories, series, orientation = 'vertical', stacked
   return (
     <div ref={ref} className={s.root}>
       {series.length >= 2 && <Legend items={legend} label={t('chart.legend')} />}
-      <div style={{ position: 'relative', marginTop: series.length >= 2 ? 8 : 0 }}>
+      <div className={series.length >= 2 ? s.plotWithLegend : s.plot}>
         <svg className={s.svg} width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label={ariaLabel} aria-describedby={`${id}-hint`} tabIndex={0} onKeyDown={onKeyDown} onBlur={clear} onPointerLeave={clear}>
           {dom.ticks.map((tk) => horizontal ? (
             <g key={tk}>
@@ -151,7 +151,7 @@ export function BarChart({ categories, series, orientation = 'vertical', stacked
         </svg>
         {ax !== null && !horizontal && <Tooltip x={centre(ax)} width={width} title={categories[ax].label} rows={tipRows} />}
         {ax !== null && horizontal && (
-          <div style={{ position: 'absolute', top: Math.max(0, centre(ax) - 30), left: 0, width: '100%', pointerEvents: 'none' }}>
+          <div className={s.tipLayer} style={{ top: Math.max(0, centre(ax) - 30) }}>
             <Tooltip x={Math.min(width - 100, Math.max(100, m.l + plotW * 0.5))} width={width} title={categories[ax].label} rows={tipRows} />
           </div>
         )}

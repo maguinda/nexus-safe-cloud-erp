@@ -61,7 +61,7 @@ export interface Trends {
   asOf: string; bucketMinutes: number; window: { from: string; to: string } | null; thresholds: { tempWarningC: number | null };
   locations: string[];
   series: { location: string; points: TrendPoint[] }[];
-  byLocation: { location: string; tempReadings: number; warningReadings: number; warningSharePct: number; peakTempC: number | null }[];
+  byLocation: { location: string; tempReadings: number; warningReadings: number; warningSharePct: number; peakTempC: number | null; heaterReadings: number; heaterOnPct: number | null }[];
   events: { at: string; location: string; deviceName: string; status: string; value: number; unit: string; note: string | null }[];
   insights: Insight<TrendsInsightCode>[];
 }

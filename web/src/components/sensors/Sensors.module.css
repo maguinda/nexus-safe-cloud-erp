@@ -288,7 +288,7 @@
 /* ---- gráficos ---- */
 .chartsGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   min-width: 0;
 }
@@ -299,9 +299,9 @@
 .chartHalf {
   min-width: 0;
 }
-@media (max-width: 900px) {
+@media (min-width: 901px) {
   .chartsGrid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

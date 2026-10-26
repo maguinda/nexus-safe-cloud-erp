@@ -29,7 +29,7 @@ export function Sparkline({ values, tone = 'chart-1', width = 96, height = 28, a
     <svg className={s.svg} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
       {area && <path d={areaPath(pts, height - pad)} style={{ fill: color }} opacity={0.12} />}
       <path className={s.line} d={linePath(pts)} style={{ stroke: color }} />
-      {last && <circle cx={last.x} cy={last.y} r={3.5} style={{ fill: color, stroke: 'var(--surface)' }} strokeWidth={2} />}
+      {last && <circle cx={last.x} cy={last.y} r={3.5} className={s.ring} style={{ fill: color }} strokeWidth={2} />}
     </svg>
   );
 }

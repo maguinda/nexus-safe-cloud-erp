@@ -13,8 +13,8 @@ const base = (): TrendsInput => ({
   tempWarningC: 24,
   buckets: [bucket('Oficina 2', 8, 10), bucket('Oficina 1', 8, 20), bucket('Oficina 1', 8, 10), bucket('Oficina 2', 8, 20)],
   perLocation: [
-    { location: 'Oficina 1', tempReadings: 200, warningReadings: 13, peakTempC: 24 },
-    { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, peakTempC: 24 },
+    { location: 'Oficina 1', tempReadings: 200, warningReadings: 13, peakTempC: 24, heaterReadings: 200, heaterOn: 180 },
+    { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, peakTempC: 24, heaterReadings: 200, heaterOn: 180 },
   ],
   events: [ev(9, 40, 'Oficina 1', 'ALERT'), ev(9, 40, 'Oficina 2', 'ALERT'), ev(8, 14, 'Oficina 1', 'WARNING'), ev(8, 29, 'Oficina 1', 'WARNING'), ev(8, 44, 'Oficina 1', 'WARNING'), ev(8, 59, 'Oficina 1', 'WARNING')],
 });
@@ -44,9 +44,18 @@ describe('buildTrends', () => {
 
   it('per location: share of temperature readings over the threshold, peak and counts', () => {
     expect(buildTrends(base(), NOW).byLocation).toEqual([
-      { location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24 },
-      { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24 },
+      { location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 90 },
+      { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 90 },
     ]);
+  });
+
+  it('the heater share comes from the real readings, not from averaging the percentages of the buckets, and is null with no heater', () => {
+    const i = base();
+    i.perLocation[0] = { ...i.perLocation[0], heaterReadings: 9, heaterOn: 6 };   // 6 de 9 = 66,7 %
+    i.perLocation[1] = { ...i.perLocation[1], heaterReadings: 0, heaterOn: 0 };
+    const [a, b] = buildTrends(i, NOW).byLocation;
+    expect(a).toMatchObject({ heaterReadings: 9, heaterOnPct: 66.7 });
+    expect(b).toMatchObject({ heaterReadings: 0, heaterOnPct: null });
   });
 
   it('events come in time order, alerts before warnings when they share the instant', () => {

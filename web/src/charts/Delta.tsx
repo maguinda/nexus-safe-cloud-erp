@@ -31,7 +31,7 @@ export function Delta({ previous, current, pct, goodWhen = 'up', flatBelow = 0.0
     <span className={`${s.delta} ${cls}`} aria-label={showVs ? `${spoken} ${t('chart.delta.vs')}` : spoken}>
       <span aria-hidden>{flat ? '▬' : up ? '▲' : '▼'}</span>
       <span aria-hidden>{flat ? '0' : text}</span>
-      {showVs && <span aria-hidden style={{ fontWeight: 400 }}>{t('chart.delta.vs')}</span>}
+      {showVs && <span aria-hidden className={s.deltaVs}>{t('chart.delta.vs')}</span>}
     </span>
   );
 }

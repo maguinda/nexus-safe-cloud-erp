@@ -114,7 +114,7 @@ export function LineChart({ series, thresholds = [], band, markers = [], xKind =
   return (
     <div ref={ref} className={s.root}>
       {legend.length >= 2 && <Legend items={legend} label={t('chart.legend')} />}
-      <div style={{ position: 'relative', marginTop: legend.length >= 2 ? 8 : 0 }}>
+      <div className={legend.length >= 2 ? s.plotWithLegend : s.plot}>
         <svg
           className={s.svg} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} aria-describedby={`${id}-hint`}
           tabIndex={0} onKeyDown={onKeyDown} onBlur={clear} onPointerLeave={clear}
@@ -134,7 +134,7 @@ export function LineChart({ series, thresholds = [], band, markers = [], xKind =
           {thresholds.filter((th) => isFiniteNumber(th.y)).map((th) => (
             <g key={`${th.label}-${th.y}`}>
               <line className={s.thresholdLine} x1={m.l} x2={m.l + plotW} y1={round2(Y(th.y))} y2={round2(Y(th.y))} />
-              <text className={s.thresholdText} x={m.l + plotW - 4} y={round2(Y(th.y)) - 5} textAnchor="end" style={{ paintOrder: 'stroke', stroke: 'var(--surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{th.label}</text>
+              <text className={s.thresholdText} x={m.l + plotW - 4} y={round2(Y(th.y)) - 5} textAnchor="end">{th.label}</text>
             </g>
           ))}
 
@@ -145,11 +145,11 @@ export function LineChart({ series, thresholds = [], band, markers = [], xKind =
             </g>
           ))}
           {goodMarkers.map((mk, i) => (
-            <rect key={i} x={round2(X(mk.x)) - 4.5} y={round2(Y(mk.y)) - 4.5} width={9} height={9} transform={`rotate(45 ${round2(X(mk.x))} ${round2(Y(mk.y))})`} style={{ fill: toneColor(mk.tone ?? 'bad'), stroke: 'var(--surface)' }} strokeWidth={2}><title>{`${mk.label}: ${yFmt(mk.y)}`}</title></rect>
+            <rect key={i} x={round2(X(mk.x)) - 4.5} y={round2(Y(mk.y)) - 4.5} width={9} height={9} transform={`rotate(45 ${round2(X(mk.x))} ${round2(Y(mk.y))})`} className={s.ring} style={{ fill: toneColor(mk.tone ?? 'bad') }} strokeWidth={2}><title>{`${mk.label}: ${yFmt(mk.y)}`}</title></rect>
           ))}
           {paths.map(({ sr, last }, i) => last && (
             <g key={`end-${sr.id}`}>
-              <circle cx={last.x} cy={last.y} r={4} style={{ fill: toneColor(sr.tone), stroke: 'var(--surface)' }} strokeWidth={2} />
+              <circle cx={last.x} cy={last.y} r={4} className={s.ring} style={{ fill: toneColor(sr.tone) }} strokeWidth={2} />
               {labelsOnEnd && <text className={s.labelText} x={last.x + 10} y={round2(endY[i]) + 4}>{sr.label.length > 16 ? `${sr.label.slice(0, 15)}…` : sr.label}</text>}
             </g>
           ))}
@@ -157,7 +157,7 @@ export function LineChart({ series, thresholds = [], band, markers = [], xKind =
           {ax !== null && (
             <g>
               <line className={s.crosshair} x1={round2(X(ax))} x2={round2(X(ax))} y1={m.t} y2={m.t + plotH} />
-              {cleaned.map((sr) => { const v = sr.byX.get(ax); return v === undefined || v === null ? null : <circle key={sr.id} cx={round2(X(ax))} cy={round2(Y(v))} r={4} style={{ fill: toneColor(sr.tone), stroke: 'var(--surface)' }} strokeWidth={2} />; })}
+              {cleaned.map((sr) => { const v = sr.byX.get(ax); return v === undefined || v === null ? null : <circle key={sr.id} cx={round2(X(ax))} cy={round2(Y(v))} r={4} className={s.ring} style={{ fill: toneColor(sr.tone) }} strokeWidth={2} />; })}
             </g>
           )}
           <rect className={s.hit} x={m.l} y={m.t} width={plotW} height={plotH} onPointerMove={onPointerMove} />

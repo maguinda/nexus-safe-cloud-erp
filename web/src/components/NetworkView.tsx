@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { formatNumber } from '../charts';
+import { useGoExplorer } from '../hooks/useGoExplorer';
+import { useNetworkData } from '../hooks/useNetworkData';
 import { errorText } from '../i18n/server';
 import { applyInsight, coverageRows, initialExplorer, linksOfDevice, applyAction, type ExplorerState, type InsightAction } from '../lib/netview';
-import type { Insight, NetworkFacets, NetworkLinkItem, NetworkSummary } from '../lib/types';
+import type { Insight } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { CoverageGrid } from './network/CoverageGrid';
@@ -27,40 +29,13 @@ const KPI_ACTIONS: Record<KpiTarget, InsightAction> = {
  */
 export function NetworkView() {
   const { api, t, lang } = useSession();
-  const [summary, setSummary] = useState<NetworkSummary | null>(null);
-  const [facets, setFacets] = useState<NetworkFacets | null>(null);
-  const [links, setLinks] = useState<NetworkLinkItem[] | null>(null);
-  const [linksError, setLinksError] = useState(false);
-  const [cause, setCause] = useState<unknown>(null);
+  const { summary, facets, links, linksError, cause, reload } = useNetworkData(api);
   const [explorer, setExplorer] = useState<ExplorerState>(initialExplorer);
-  const explorerRef = useRef<HTMLElement>(null);
-  const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-
-  const load = useCallback(async () => {
-    try {
-      const [sm, fc] = await Promise.all([api.networkSummary(), api.networkFacets()]);
-      if (!alive.current) return;
-      setSummary(sm); setFacets(fc); setCause(null);
-    } catch (e) { if (alive.current) setCause(e); }
-    // Los enlaces (74) solo alimentan el gráfico de tipo × criticidad: si fallan, falla ese gráfico y no la pantalla.
-    api.networkLinks({ limit: 200 }).then((p) => { if (alive.current) { setLinks(p.items); setLinksError(false); } }, () => { if (alive.current) setLinksError(true); });
-  }, [api]);
-  useEffect(() => { void load(); }, [load]);
-
-  /** Aplica un filtro al explorador y lleva allí el foco y la vista (sin animar si la persona pidió menos movimiento). */
-  const goExplorer = useCallback((f: (s: ExplorerState) => ExplorerState) => {
-    setExplorer(f);
-    requestAnimationFrame(() => {
-      const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      explorerRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-      explorerRef.current?.focus({ preventScroll: true });
-    });
-  }, []);
+  const { ref: explorerRef, go: goExplorer } = useGoExplorer<ExplorerState>(setExplorer);
 
   if (!summary) {
     return cause
-      ? <div className={ui.panelError} role="alert"><strong>{t('netview.unavailable')}</strong><span>{errorText(cause, t, 'netview.loadError')}</span><button type="button" className={ui.btnGhost} onClick={() => void load()}>{t('netview.retry')}</button></div>
+      ? <div className={ui.panelError} role="alert"><strong>{t('netview.unavailable')}</strong><span>{errorText(cause, t, 'netview.loadError')}</span><button type="button" className={ui.btnGhost} onClick={reload}>{t('netview.retry')}</button></div>
       : <p className={ui.muted} role="status">{t('netview.loading')}</p>;
   }
   if (summary.totals.devices === 0) return <section aria-labelledby="net-h"><h2 id="net-h" className={s.title}>{t('netview.title')}</h2><p className={ui.muted}>{t('netview.empty')}</p></section>;

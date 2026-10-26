@@ -17,9 +17,9 @@ const trends = (): Trends => ({
     series('Oficina 3', (i) => ({ avgTempC: i === 0 ? null : 23, warnings: 0, alerts: i === 4 ? 1 : 0, heaterOnPct: null })),
   ],
   byLocation: [
-    { location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24 },
-    { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 23.5 },
-    { location: 'Oficina 3', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: null },
+    { location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 100 },
+    { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 23.5, heaterReadings: 200, heaterOnPct: 80 },
+    { location: 'Oficina 3', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: null, heaterReadings: 0, heaterOnPct: null },
   ],
   events: [
     { at: at(8, 14), location: 'Oficina 1', deviceName: 'TEMP_MON_OF1', status: 'WARNING', value: 24, unit: '°C', note: 'Umbral Ligero Superado' },
@@ -214,7 +214,11 @@ describe('cards', () => {
   it('numbers come from the whole source for severity and from the visible offices for the rest', () => {
     const c = buildCards(trends(), facets(), '');
     expect(c).toMatchObject({ readings: 4200, normal: 4158, warnings: 39, alerts: 3, warningSharePct: 6.5, tempPeak: 24, threshold: 24 });
-    expect(c.heater).toBeCloseTo((100 * 6 + 80 * 6) / 12, 5);
+    expect(c.heater).toBeCloseTo(90, 5); // (100 % de 200 lecturas + 80 % de 200 lecturas) / 400
+  });
+  it('the heater share weighs each office by its readings, it is not an average of averages', () => {
+    const t = trends(); t.byLocation = t.byLocation.map((b) => (b.location === 'Oficina 1' ? { ...b, heaterReadings: 100, heaterOnPct: 100 } : b.location === 'Oficina 2' ? { ...b, heaterReadings: 300, heaterOnPct: 60 } : b));
+    expect(buildCards(t, facets(), '').heater).toBeCloseTo(70, 5); // (100 + 180) / 400, y no (100 + 60) / 2 = 80
   });
   it('one office: its own share, peak and heater', () => {
     const c = buildCards(trends(), facets(), 'Oficina 2');
@@ -239,8 +243,8 @@ describe('cards', () => {
     expect(firstLast([4, 8])).toEqual({ first: 4, last: 8 });
     expect(firstLast([5])).toBeNull(); expect(firstLast([])).toBeNull();
   });
-  it('heater: average of the slots with a value; none when no slot has one', () => {
-    expect(heaterOnPct({ ...trends(), series: [] }, '')).toBeNull();
+  it('heater: weighted by readings; none when no office has a heater reading', () => {
+    expect(heaterOnPct({ ...trends(), byLocation: [] }, '')).toBeNull();
     expect(heaterOnPct(trends(), 'Oficina 1')).toBe(100);
   });
   it('«Ver detalle» filters only where it makes sense (and only with kinds that exist)', () => {

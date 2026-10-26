@@ -11,7 +11,7 @@ export function Legend({ items, label, activeId, onActive }: { items: LegendItem
     <ul className={s.legend} aria-label={label}>
       {items.map((it) => (
         <li
-          key={it.id} className={s.legendItem} style={activeId && activeId !== it.id ? { opacity: 0.55 } : undefined}
+          key={it.id} className={activeId && activeId !== it.id ? s.legendItemDim : s.legendItem}
           tabIndex={onActive ? 0 : undefined}
           onPointerEnter={onActive ? () => onActive(it.id) : undefined} onPointerLeave={onActive ? () => onActive(null) : undefined}
           onFocus={onActive ? () => onActive(it.id) : undefined} onBlur={onActive ? () => onActive(null) : undefined}
@@ -75,7 +75,7 @@ export function DataTable({ table }: { table: ChartTable }) {
         <thead><tr>{table.columns.map((c, i) => <th key={`${c}-${i}`} scope="col" className={i >= from ? s.num : undefined}>{c}</th>)}</tr></thead>
         <tbody>
           {table.rows.map((row, r) => (
-            <tr key={r}>{row.map((cell, i) => (i === 0 ? <th key={i} scope="row" style={{ fontWeight: 500, position: 'static', background: 'transparent', color: 'inherit' }}>{cell ?? '—'}</th> : <td key={i} className={i >= from ? s.num : undefined}>{cell ?? '—'}</td>))}</tr>
+            <tr key={r}>{row.map((cell, i) => (i === 0 ? <th key={i} scope="row" className={s.rowHead}>{cell ?? '—'}</th> : <td key={i} className={i >= from ? s.num : undefined}>{cell ?? '—'}</td>))}</tr>
           ))}
         </tbody>
       </table>

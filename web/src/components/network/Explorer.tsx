@@ -1,6 +1,8 @@
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect } from 'react';
 import type { KeyboardEvent } from 'react';
 import { formatNumber } from '../../charts';
+import { useQueryResult } from '../../hooks/useQueryResult';
+import { useTypingDelay } from '../../hooks/useTypingDelay';
 import type { Lang } from '../../i18n/core';
 import { errorText } from '../../i18n/server';
 import type { MsgKey, TFn } from '../../i18n';
@@ -14,24 +16,7 @@ import ui from '../../styles/ui.module.css';
 import { CritChip } from './parts';
 import s from './network.module.css';
 
-type Result<T> = { state: 'loading' } | { state: 'error'; cause: unknown } | { state: 'ready'; data: Page<T> };
 const critLabel = (c: string, t: TFn) => { const k = critKey(c); return k ? t(k as MsgKey) : c; };
-
-function useQueryResult<T>(load: () => Promise<Page<T>>, key: string, debounceMs: number): { result: Result<T>; reload: () => void } {
-  const [result, setResult] = useState<Result<T>>({ state: 'loading' });
-  const [nonce, setNonce] = useState(0);
-  const seq = useRef(0);
-  const loader = useRef(load); loader.current = load;
-  useEffect(() => {
-    const mine = ++seq.current; // si llega una respuesta vieja después de una nueva, se descarta
-    setResult((r) => (r.state === 'ready' ? r : { state: 'loading' }));
-    const id = setTimeout(() => {
-      loader.current().then((data) => { if (mine === seq.current) setResult({ state: 'ready', data }); }, (cause) => { if (mine === seq.current) setResult({ state: 'error', cause }); });
-    }, debounceMs);
-    return () => clearTimeout(id);
-  }, [key, nonce, debounceMs]);
-  return { result, reload: () => setNonce((n) => n + 1) };
-}
 
 function ChipGroup({ legend, options, value, onToggle }: { legend: string; options: { value: string; label: string }[]; value?: string; onToggle: (v: string) => void }) {
   return (
@@ -50,10 +35,8 @@ interface Props { api: Api; state: ExplorerState; setState: (f: (s: ExplorerStat
 export const Explorer = forwardRef<HTMLElement, Props>(function Explorer({ api, state, setState, facets, totals, lang, t }, ref) {
   const devices = state.tab === 'devices';
   const dq = toDevicesQuery(state), lq = toLinksQuery(state);
-  const lastQ = useRef('');
   const q = devices ? state.devices.q : state.links.q;
-  const delay = lastQ.current !== q ? 250 : 0; // al escribir se espera un poco; al pulsar un filtro, no
-  useEffect(() => { lastQ.current = q; });
+  const delay = useTypingDelay(q, 250); // al escribir se espera un poco; al pulsar un filtro, no
   const dev = useQueryResult<NetworkDeviceItem>(() => api.networkDevices(dq), `d${JSON.stringify(dq)}${devices ? '' : '-off'}`, devices ? delay : 1e9);
   const lnk = useQueryResult<NetworkLinkItem>(() => api.networkLinks(lq), `l${JSON.stringify(lq)}${devices ? '-off' : ''}`, devices ? 1e9 : delay);
   const cur = devices ? dev.result : lnk.result;

@@ -487,6 +487,147 @@ test('Theme: if the server cannot save it, the page does not change and says why
   problems = problems.filter((m) => !/status of 500/.test(m));
 });
 
+// ---- Dashboards «Sensores» y «Red»: hallazgos con referencia, filtros reales y tablas explorables ----
+const netLinks: { originName: string; destinationName: string; functional: boolean | null }[] = JSON.parse(readFileSync(join(here, '..', '..', 'services', 'analytics', 'prisma', 'data', 'network-links.json'), 'utf8'));
+const goTo = async (page: any, nav: string) => { await page.getByRole('navigation').getByRole('button', { name: nav, exact: true }).click(); };
+const shown = (page: any, text: RegExp | string) => page.getByText(text).first();
+/** La tabla del explorador (la de lecturas o la de dispositivos y enlaces); no las tablas alternativas de los gráficos, que están plegadas dentro de «Ver como tabla». */
+const explorerRows = (page: any) => page.locator('table:visible').filter({ has: page.locator('caption') }).last().locator('tbody tr');
+
+test('Sensors: a finding says what happened and «See the readings» filters the table to the readings behind it', async ({ page }) => {
+  await openAs(page, 'manager');
+  await goTo(page, 'Sensors');
+  await expect(page.getByRole('heading', { name: 'Findings' })).toBeVisible();
+  const first = page.getByRole('button', { name: /^See the readings/ }).first();
+  await expect(page.getByText(/09:40 UTC .* 3 offices|3 offices/).first()).toBeVisible(); // la alta prioridad: las alertas simultáneas, con su hora y sus oficinas
+  await expect(page.getByText(/Oficina 1, Oficina 2, Oficina 3/).first()).toBeVisible();
+  await first.click();
+  await expect(shown(page, 'Showing 1–3 of 3')).toBeVisible();
+  await expect(explorerRows(page)).toHaveCount(3);
+  await expect(explorerRows(page).filter({ hasText: 'Alert' })).toHaveCount(3);
+  for (const device of ['IoT10', 'IoT10(1)', 'IoT10(2)']) await expect(page.getByRole('cell', { name: new RegExp('^' + device.replace(/[()]/g, '\\$&')) }).first()).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Active filters' }).or(page.getByText('Active filters')).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).first().click();
+  await expect(shown(page, 'Showing 1–50 of 4,200')).toBeVisible();
+});
+
+test('Sensors: card detail and combined filters give exactly the counts of the source (39 warnings, 13 in Oficina 2)', async ({ page }) => {
+  await openAs(page, 'manager');
+  await goTo(page, 'Sensors');
+  await page.getByRole('button', { name: 'See detail: Warnings' }).click();
+  await expect(shown(page, /Showing 1–39 of 39$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).first().click();
+  await page.getByRole('button', { name: 'Oficina 2', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Warning', exact: true }).first().click();
+  await expect(shown(page, /Showing 1–13 of 13$/)).toBeVisible();
+  // las 13 son de Oficina 2, de 24 °C, con su nota tal como viene de la fuente
+  const body = explorerRows(page);
+  await expect(body).toHaveCount(13);
+  expect(await body.filter({ hasText: 'Oficina 2' }).count()).toBe(13);
+  await expect(page.getByRole('cell', { name: 'Umbral Ligero Superado' }).first()).toBeVisible();
+  // el filtro de oficina también deja solo esa serie en los gráficos (se ve en la tabla alternativa)
+  // El filtro de oficina también deja solo esa serie en el gráfico: el texto de su tarjeta (leyenda y tabla alternativa) nombra solo Oficina 2.
+  const chartText = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('h2, h3, h4')].find((x) => x.textContent?.trim() === 'Temperature by office')!;
+    let e: Element | null = h; while (e && !e.querySelector('svg')) e = e.parentElement;
+    return e?.textContent ?? '';
+  });
+  expect(chartText).toContain('Oficina 2');
+  expect(chartText).not.toContain('Oficina 1');
+  expect(chartText).not.toContain('Oficina 3');
+});
+
+test('Sensors: paging and sorting by value work over the whole 4200 and never repeat a row', async ({ page }) => {
+  await openAs(page, 'manager');
+  await goTo(page, 'Sensors');
+  await expect(shown(page, 'Showing 1–50 of 4,200')).toBeVisible();
+  await page.getByRole('button', { name: 'Next', exact: true }).first().click();
+  await expect(shown(page, 'Showing 51–100 of 4,200')).toBeVisible();
+  await expect(shown(page, 'Page 2 of 84')).toBeVisible();
+  await page.getByRole('button', { name: '100', exact: true }).first().click();
+  await expect(shown(page, /Showing 1–100 of 4,200$/)).toBeVisible();
+});
+
+test('Sensors: every chart says its finding to a screen reader and has its table', async ({ page }) => {
+  await openAs(page, 'manager');
+  await goTo(page, 'Sensors');
+  await expect(page.getByRole('heading', { name: 'Readings', exact: true })).toBeVisible();
+  const charts = page.getByRole('img');
+  await expect.poll(async () => charts.count()).toBeGreaterThanOrEqual(5);
+  for (const label of await charts.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''))) expect(label.length, 'aria-label with a finding').toBeGreaterThan(20);
+  expect(await page.getByText('View as table').count()).toBeGreaterThanOrEqual(5);
+});
+
+test('Sensors in Spanish: the screen is Spanish, the findings carry their numbers, and the source data stays as it is', async ({ page }) => {
+  await openAs(page, 'manager', 'es');
+  await goTo(page, 'Sensores');
+  await expect(page.getByRole('heading', { name: 'Hallazgos' })).toBeVisible();
+  await expect(page.getByText(/a las 09:40 UTC hubo alertas/i).first()).toBeVisible();
+  await expect(page.getByText(/exactamente 15 minutos/).first()).toBeVisible();
+  await page.getByRole('button', { name: /^Ver las lecturas/ }).nth(1).click();
+  await expect(page.getByText(/Mostrando 1–39 de 39$/).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Umbral Ligero Superado' }).first()).toBeVisible(); // la nota de la docente, sin traducir
+  for (const english of ['Findings', 'Readings by severity', 'Showing', 'Clear filters']) await expect(page.getByText(english, { exact: false })).toHaveCount(0);
+});
+
+test('Network: the findings name the gap (nothing configured on ASA0) and lead to the equipment that shows it', async ({ page }) => {
+  await openAs(page, 'manager');
+  await goTo(page, 'Network');
+  await expect(page.getByRole('heading', { name: 'What needs attention' })).toBeVisible();
+  await expect(page.getByText(/None of the 10 pieces of infrastructure equipment|None of the 10/).first()).toBeVisible();
+  await expect(page.getByText(/ASA0/).first()).toBeVisible();
+  // la matriz de cobertura: 10 equipos, Syslog/SNMP/NTP todos ✗, NetFlow ✓ en 4
+  const matrix = page.getByRole('table', { name: /monitoring/i }).first();
+  await expect(matrix.locator('tbody tr')).toHaveCount(10);
+  await expect(matrix.getByText('Syslog 0 of 10')).toBeVisible().catch(() => undefined);
+  await page.getByRole('button', { name: /^See the critical equipment/ }).click();
+  await expect(shown(page, /Showing 1–5 of 5$/)).toBeVisible();
+  await expect(explorerRows(page).filter({ hasText: 'ASA0' })).toHaveCount(1); // el cortafuegos, entre los 5 críticos con registro de monitoreo
+});
+
+test('Network: the explorer filters the 76 devices and the 74 links exactly as the source, and a device leads to its links', async ({ page }) => {
+  await openAs(page, 'manager');
+  await goTo(page, 'Network');
+  await expect(page.getByRole('tab', { name: 'Devices (76)' })).toBeVisible();
+  await expect(shown(page, /Showing 1–25 of 76$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Without a monitoring record', exact: true }).first().click();
+  await expect(shown(page, /Showing 1–25 of 66$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).first().click();
+  await page.getByRole('button', { name: 'High', exact: true }).first().click();
+  await expect(shown(page, /Showing 1–5 of 5$/)).toBeVisible(); // los 5 switches de acceso son los de criticidad Alta
+  await page.getByRole('tabpanel').getByRole('button', { name: 'See the links of SW1 P1' }).first().click(); // el de la tabla del explorador (la matriz de arriba tiene los suyos) // dos botones llevan a los enlaces (el nombre y «Ver enlaces»): con cualquiera basta
+  await expect(page.getByRole('tab', { name: /Links/ })).toHaveAttribute('aria-selected', 'true');
+  const n = netLinks.filter((l) => l.originName === 'SW1 P1' || l.destinationName === 'SW1 P1').length;
+  await expect(page.getByRole('tab', { name: /Links/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(shown(page, new RegExp(`Showing 1–${n} of ${n}$`))).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).first().click();
+  await expect(page.getByRole('tab', { name: 'Links (74)' })).toBeVisible();
+});
+
+test('Dashboards: nobody but the manager sees the Sensors and Network screens, and the API refuses the others', async ({ page, request }) => {
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  for (const role of ['lead', 'billing', 'sales'] as const) {
+    for (const path of ['/telemetry/trends', '/telemetry/readings', '/network/devices', '/network/links']) expect((await request.get(path, { headers: { authorization: `Bearer ${sessions[role].token}` } })).status()).toBe(403);
+  }
+  await openAs(page, 'lead');
+  await expect(page.getByRole('button', { name: 'Sensors' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Network' })).toHaveCount(0);
+});
+
+test('Dashboards on a 320 px phone: nothing leaves the screen, in both screens', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await openAs(page, 'manager');
+  for (const [nav, ready] of [['Sensors', 'Readings'], ['Network', 'Explorer']] as const) {
+    await goTo(page, nav);
+    await expect(page.getByRole('heading', { name: ready, exact: true })).toBeVisible();
+    await expect(explorerRows(page).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${nav}: no sideways scroll`).toBe(true);
+    const cells = await explorerRows(page).locator('td[data-label]').evaluateAll((els: Element[]) => els.map((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right }; }));
+    expect(cells.length).toBeGreaterThan(10);
+    for (const c of cells) { expect(c.left).toBeGreaterThanOrEqual(0); expect(c.right).toBeLessThanOrEqual(321); }
+  }
+});
+
 const PW = 'Qa-Passw0rd-long!';
 const roleButton = (page: any, name: string) => page.getByRole('group', { name: 'Role', exact: true }).getByRole('button', { name, exact: true });
 

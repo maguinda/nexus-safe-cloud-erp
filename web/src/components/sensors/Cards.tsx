@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { Delta, Sparkline } from '../../charts';
+import { Sparkline } from '../../charts';
 import { formatClock, formatNumber } from '../../charts/format';
 import type { TFn } from '../../i18n';
 import type { Lang } from '../../i18n/core';
@@ -46,7 +46,6 @@ export const Cards: FC<{ cards: SensorCards; facets: TelemetryFacets | null; loc
           <span className={s.cardLabel}>{tempLabel}</span>
           <div className={s.cardRow}>
             <strong className={s.cardValue}>{temp === null ? '—' : `${n1(temp)} °C`}</strong>
-            {cards.trend && <span title={t('sensors.cards.temperatureTrend')}><Delta lang={lang} t={t} previous={cards.trend.first} current={cards.trend.last} goodWhen="down" /></span>}
           </div>
           {cards.meanTemp.length >= 2 && <Sparkline values={cards.meanTemp} ariaLabel={t('sensors.cards.temperatureSpark', { min: n1(Math.min(...cards.meanTemp)), max: n1(Math.max(...cards.meanTemp)) })} />}
           <span className={s.cardSub}>

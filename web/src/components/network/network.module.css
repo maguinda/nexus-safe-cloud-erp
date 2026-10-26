@@ -192,7 +192,10 @@
 
 /* Matriz de cobertura */
 .coverScroll {
+  position: relative; /* los textos ocultos (.sr) son absolutos: sin esto escapan del recorte y ensanchan la página */
   overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 .cover {
   border-collapse: collapse;
