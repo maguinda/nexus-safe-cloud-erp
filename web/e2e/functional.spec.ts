@@ -226,6 +226,77 @@ test('the manager sees the dashboard and the users tab, and nothing else', async
   await expect(page.getByText(/Live/)).toBeVisible();
 });
 
+// ---- Network & IoT: los datos de la carpeta PROYECTO_NEXUS (21 dispositivos, 4200 lecturas) dentro del dashboard del gerente ----
+const iotPanel = (page: any) => page.getByRole('region', { name: 'Network & IoT' });
+const iotKpi = (page: any, label: string) => iotPanel(page).locator('small', { hasText: label }).locator('xpath=following-sibling::strong');
+
+test('Network & IoT: the manager reads the Nexus data in the dashboard, exactly as it was loaded', async ({ page }) => {
+  await openAs(page, 'manager');
+  await expect(iotPanel(page).getByRole('heading', { name: 'Network & IoT' })).toBeVisible();
+  await expect(iotKpi(page, 'Devices online')).toHaveText('21 / 21');
+  await expect(iotKpi(page, 'Readings')).toHaveText('4,200');
+  await expect(iotKpi(page, 'Warnings')).toHaveText('39');
+  await expect(iotKpi(page, 'Alerts')).toHaveText('3');
+  await expect(iotPanel(page).getByText('13 Sep 2026, 08:01–11:20 UTC')).toBeVisible();
+  const office = iotPanel(page).getByRole('table').first();
+  await expect(office.locator('tbody tr')).toHaveCount(3);
+  await expect(office.getByRole('cell', { name: 'Oficina 2', exact: true })).toBeVisible();
+  const devices = iotPanel(page).getByRole('table').nth(1);
+  expect(await iotPanel(page).locator('details').evaluate((el: HTMLDetailsElement) => el.open), 'on a desktop the device list starts open').toBe(true);
+  await expect(devices.locator('tbody tr')).toHaveCount(21);
+  await expect(devices.getByText('TEMP_MON_OF1')).toBeVisible();
+  await expect(devices.getByText('IOT-OF3-07')).toBeVisible();
+  await expect(devices.getByText('LOCKED').first()).toBeVisible(); // las señales de sí/no se leen por su estado, no por 0 o 1
+  const latest = iotPanel(page).getByRole('region', { name: 'Latest warnings and alerts' }).locator('li');
+  await expect(latest).toHaveCount(8);
+  await expect(latest.first()).toContainText(/Warning|Alert/);
+  await expect(page.getByRole('heading', { name: 'By project' })).toBeVisible(); // lo anterior del dashboard sigue ahí
+});
+
+test('Network & IoT: nobody but the manager sees it', async ({ page }) => {
+  await openAs(page, 'lead');
+  await expect(page.getByRole('button', { name: 'Branch network upgrade' })).toBeVisible();
+  await expect(page.getByText('Network & IoT')).toHaveCount(0);
+  await expect(page.getByText('IOT-OF1-01')).toHaveCount(0);
+});
+
+test('Network & IoT: when the data cannot be loaded it says so, the rest of the dashboard stays, and Try again recovers', async ({ page }) => {
+  let fail = true;
+  await page.route('**/telemetry/summary', (route) => (fail ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ statusCode: 500, message: 'Internal server error' }) }) : route.continue()));
+  await openAs(page, 'manager');
+  await expect(page.getByRole('heading', { name: 'By project' })).toBeVisible(); // el tablero financiero no depende de la telemetría
+  await expect(page.getByRole('alert').filter({ hasText: 'Network & IoT is not available' })).toBeVisible();
+  fail = false;
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(iotKpi(page, 'Devices online')).toHaveText('21 / 21');
+  problems = problems.filter((m) => !/status of 500/.test(m)); // el 500 lo provocamos a propósito; cualquier otro error de consola sí cuenta
+});
+
+test('Network & IoT: with nothing loaded it explains how it gets loaded, not an empty table', async ({ page }) => {
+  const empty = { asOf: new Date().toISOString(), window: null, totals: { devices: 0, online: 0, readings: 0, normal: 0, warnings: 0, alerts: 0 }, devices: [], byLocation: [], attention: [] };
+  await page.route('**/telemetry/summary', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(empty) }));
+  await openAs(page, 'manager');
+  await expect(page.getByText(/No Nexus telemetry has been loaded yet/)).toBeVisible();
+});
+
+test('Network & IoT: on a 320 px phone every figure of both tables is inside the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await openAs(page, 'manager');
+  await expect(iotKpi(page, 'Readings')).toHaveText('4,200');
+  const list = iotPanel(page).locator('details');
+  expect(await list.evaluate((el: HTMLDetailsElement) => el.open), 'in a phone the long device list starts folded').toBe(false);
+  await list.locator('summary').click();
+  await expect(list.locator('tbody tr').first()).toBeVisible();
+  const cells = await iotPanel(page).locator('td[data-label]').evaluateAll((els: Element[]) => els.map((el: Element) => { const r = el.getBoundingClientRect(); return { label: el.getAttribute('data-label'), text: (el.textContent ?? '').trim(), left: r.left, right: r.right }; }));
+  expect(cells.length).toBe(3 * 5 + 21 * 6); // 3 oficinas x 5 cifras + 21 dispositivos x 6 campos con etiqueta
+  for (const c of cells) {
+    expect(c.text, `${c.label} has a value`).not.toBe('');
+    expect(c.left, `${c.label} starts inside the screen`).toBeGreaterThanOrEqual(0);
+    expect(c.right, `${c.label} ends inside the screen`).toBeLessThanOrEqual(321);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
 const PW = 'Qa-Passw0rd-long!';
 const roleButton = (page: any, name: string) => page.getByRole('group', { name: 'Role', exact: true }).getByRole('button', { name, exact: true });
 
