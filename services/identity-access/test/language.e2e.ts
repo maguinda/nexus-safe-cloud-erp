@@ -16,7 +16,7 @@ const login = (email: string) => request(app.getHttpServer()).post('/auth/login'
 const tokenOf = async (email: string) => (await login(email)).body.accessToken as string;
 const patch = (tok: string | null, body?: unknown) => { let r = request(app.getHttpServer()).patch('/me/language'); if (tok !== null) r = r.set('Authorization', bearer(tok)); return body === undefined ? r : r.send(body as object); };
 const langOf = async (email: string) => (await prisma.user.findUniqueOrThrow({ where: { email } })).language;
-const reset = async () => { for (const [email, role] of SEED) await prisma.user.update({ where: { email }, data: { role: role as any, language: 'es' } }); };
+const reset = async () => { for (const [email, role] of SEED) await prisma.user.update({ where: { email }, data: { role: role as any, language: 'es', theme: 'system' } }); };
 const allLanguages = async () => Object.fromEntries(await Promise.all(SEED.map(async ([e]) => [e, await langOf(e)])));
 
 beforeAll(async () => { const { createApp } = require('../src/app.factory'); app = await createApp(); await app.init(); });

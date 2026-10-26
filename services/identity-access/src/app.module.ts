@@ -4,12 +4,13 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { LoginUseCase } from './application/login.use-case';
 import { SetLanguageUseCase } from './application/set-language.use-case';
+import { SetThemeUseCase } from './application/set-theme.use-case';
 import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './application/user-admin.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { AuthController, LOGIN_USE_CASE } from './http/auth.controller';
 import { HealthController } from './http/health.controller';
-import { MeController, SET_LANGUAGE_USE_CASE } from './http/me.controller';
+import { MeController, SET_LANGUAGE_USE_CASE, SET_THEME_USE_CASE } from './http/me.controller';
 import { CHANGE_ROLE_USE_CASE, CREATE_USER_USE_CASE, LIST_USERS_USE_CASE, UsersController } from './http/users.controller';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
 import { PrismaUserAdminStore } from './infrastructure/prisma-user-admin.store';
@@ -30,6 +31,7 @@ const prisma = new PrismaClient();
     { provide: LIST_USERS_USE_CASE, useFactory: () => new ListUsersUseCase(new PrismaUserAdminStore(prisma)) },
     { provide: CREATE_USER_USE_CASE, useFactory: () => new CreateUserUseCase(new PrismaUserAdminStore(prisma), new BcryptPasswordHasher()) },
     { provide: SET_LANGUAGE_USE_CASE, useFactory: () => new SetLanguageUseCase(new PrismaUserPreferencesStore(prisma)) },
+    { provide: SET_THEME_USE_CASE, useFactory: () => new SetThemeUseCase(new PrismaUserPreferencesStore(prisma)) },
     { provide: CHANGE_ROLE_USE_CASE, useFactory: () => new ChangeRoleUseCase(new PrismaUserAdminStore(prisma)) },
     {
       provide: LOGIN_USE_CASE,

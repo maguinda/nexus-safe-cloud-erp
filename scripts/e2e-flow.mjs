@@ -92,6 +92,11 @@ ok((await call('PATCH', '/me/language', { token: sales.token, body: { language: 
 ok((await call('PATCH', '/me/language', { token: sales.token, body: { language: 'fr' } })).status === 400, 'un idioma que no es es ni en se rechaza (400)');
 ok((await call('PATCH', '/me/language', { body: { language: 'en' } })).status === 401, 'cambiar el idioma sin token -> 401');
 ok((await call('PATCH', '/me/language', { token: sales.token, body: { language: 'es' } })).json?.language === 'es', 'y lo deja otra vez en español (200)');
+// Tema de la interfaz (Sistema, Claro u Oscuro): igual que el idioma, cada persona cambia el suyo.
+ok((await call('PATCH', '/me/theme', { token: sales.token, body: { theme: 'dark' } })).json?.theme === 'dark', 'Sales cambia su propio tema a oscuro (200)');
+ok((await call('PATCH', '/me/theme', { token: sales.token, body: { theme: 'blue' } })).status === 400, 'un tema que no es system, light ni dark se rechaza (400)');
+ok((await call('PATCH', '/me/theme', { body: { theme: 'dark' } })).status === 401, 'cambiar el tema sin token -> 401');
+ok((await call('PATCH', '/me/theme', { token: sales.token, body: { theme: 'system' } })).json?.theme === 'system', 'y lo deja otra vez en «system» (200)');
 ok((await call('POST', '/users', { token: lead.token, body: { email: newEmail, name: 'X', role: 'manager', password: NEW_PW } })).status === 403, 'Project lead NO crea usuarios (403)');
 ok((await call('GET', '/users')).status === 401, 'listar usuarios sin token -> 401');
 const userList = await call('GET', '/users', { token: manager.token });

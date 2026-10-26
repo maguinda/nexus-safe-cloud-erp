@@ -1,5 +1,6 @@
 import { Language } from './language';
 import { Role } from './role';
+import { Theme } from './theme';
 import { User } from './user';
 
 /** Puertos que el dominio necesita; los adaptadores viven en infrastructure/. */
@@ -21,10 +22,11 @@ export interface TokenIssuer {
   issue(user: User): AccessToken;
 }
 
-/** Preferencias de la propia persona (hoy solo el idioma de la interfaz). Una sola sentencia, sin bloqueos: la última escritura gana. */
+/** Preferencias de la propia persona (el idioma y el tema de la interfaz). Una sola sentencia, sin bloqueos: la última escritura gana. */
 export interface UserPreferencesStore {
   /** false si la persona ya no existe. */
   setLanguage(userId: string, language: Language): Promise<boolean>;
+  setTheme(userId: string, theme: Theme): Promise<boolean>;
 }
 
 /** Lo que se muestra de un usuario: NUNCA incluye la contraseña ni su hash. */

@@ -30,6 +30,8 @@
   background: var(--surface);
   color: var(--fg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
 }
 .title {
   margin: 0;
@@ -80,13 +82,16 @@
 }
 .option[aria-pressed="true"] {
   background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 .option:disabled {
   cursor: progress;
   opacity: 0.7;
+}
+.optionsThree .option {
+  flex-basis: 72px;
 }
 .help {
   margin: 0;

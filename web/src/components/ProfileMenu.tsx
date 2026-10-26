@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { errorText } from '../i18n/server';
+import { THEMES } from '../lib/theme';
+import type { Theme } from '../lib/types';
 import { Lang, LANGS, translate } from '../i18n';
 import { roleKey } from '../lib/types';
 import { useSession } from '../session';
@@ -7,10 +9,11 @@ import s from './ProfileMenu.module.css';
 
 /** Cada idioma se muestra SIEMPRE con su propio nombre, para poder encontrarlo aunque la pantalla esté en el otro. */
 const NAME: Record<Lang, string> = { es: 'Español', en: 'English' };
+const THEME_KEY = { system: 'theme.system', light: 'theme.light', dark: 'theme.dark' } as const;
 
 /** Perfil de la persona: sus datos y el idioma de la interfaz. El idioma se guarda en el servidor, así la sigue a cualquier equipo. */
 export function ProfileMenu({ onChanged }: { onChanged: (message: string) => void }) {
-  const { user, lang, t, setLanguage } = useSession();
+  const { user, lang, t, theme, setLanguage, setTheme } = useSession();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +48,18 @@ export function ProfileMenu({ onChanged }: { onChanged: (message: string) => voi
     } finally { setSaving(false); }
   };
 
+  const chooseTheme = async (next: Theme) => {
+    if (next === theme || saving) return;
+    setSaving(true); setError('');
+    try {
+      await setTheme(next);
+      onChanged(t('theme.saved', { theme: t(THEME_KEY[next]) }));
+    } catch (e) {
+      // El tema NO cambió: la pantalla sigue como estaba y se dice por qué.
+      setError(t('theme.error', { reason: errorText(e, t, 'server.unexpected') }));
+    } finally { setSaving(false); }
+  };
+
   return (
     <div className={s.wrap} ref={root}>
       <button
@@ -69,6 +84,15 @@ export function ProfileMenu({ onChanged }: { onChanged: (message: string) => voi
               ))}
             </div>
             <p className={s.help}>{t('profile.languageHelp')}</p>
+          </fieldset>
+          <fieldset className={s.group}>
+            <legend>{t('theme.title')}</legend>
+            <div className={`${s.options} ${s.optionsThree}`}>
+              {THEMES.map((th) => (
+                <button key={th} type="button" className={s.option} aria-pressed={theme === th} disabled={saving} onClick={() => void chooseTheme(th)}>{t(THEME_KEY[th])}</button>
+              ))}
+            </div>
+            <p className={s.help}>{t('theme.help')}</p>
           </fieldset>
           {saving && <p className={s.status} role="status">{t('profile.saving')}</p>}
           {error && <p className={s.error} role="alert">{error}</p>}

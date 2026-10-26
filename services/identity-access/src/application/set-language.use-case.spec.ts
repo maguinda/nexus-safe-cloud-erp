@@ -6,7 +6,10 @@ import { SetLanguageUseCase } from './set-language.use-case';
 const ID = '0b9c3a52-7c4e-4a39-9d33-6f0a5c1d2e11';
 function store(known: string[] = [ID]) {
   const saved = new Map<string, Language>();
-  const s: UserPreferencesStore = { setLanguage: async (id, l) => { if (!known.includes(id)) return false; saved.set(id, l); return true; } };
+  const s: UserPreferencesStore = {
+    setLanguage: async (id, l) => { if (!known.includes(id)) return false; saved.set(id, l); return true; },
+    setTheme: async () => { throw new Error('the language never touches the theme'); },
+  };
   return { s, saved };
 }
 

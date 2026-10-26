@@ -5,9 +5,10 @@ import { invoices } from './invoices';
 import { projects } from './projects';
 import { server } from './server';
 import { users } from './users';
+import { theme } from './theme';
 import { charts } from './charts';
 import { sensors } from './sensors';
 import { netview } from './netview';
 import { summary } from './summary';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...charts, ...sensors, ...netview, ...summary };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary };

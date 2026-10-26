@@ -92,7 +92,7 @@
 }
 .nav button[aria-current="page"] {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 .content {

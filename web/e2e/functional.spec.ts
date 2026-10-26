@@ -304,6 +304,9 @@ const T = (lang: 'es' | 'en') => (key: Parameters<typeof translate>[1], params?:
 const profileButton = (page: any, name: string, role: string, lang: 'es' | 'en') => page.getByRole('button', { name: T(lang)('profile.open', { name, role }) });
 /** Lo que el servidor tiene guardado, leído de la base (no por el login: el gateway deja pasar solo 10 inicios de sesión por minuto y la suite ya usa varios). */
 const serverLanguage = (_request: unknown, email: string): string => execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d identity -Atc "select language from users where email='${email}'"`, { cwd: join(here, '..', '..'), shell: '/bin/sh' }).toString().trim();
+const serverTheme = (email: string): string => execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d identity -Atc "select theme from users where email='${email}'"`, { cwd: join(here, '..', '..'), shell: '/bin/sh' }).toString().trim();
+/** Claridad del fondo de la página (0 a 255): claro ≈ 245, oscuro ≈ 14. Se mide el color calculado, no el atributo: lo que importa es lo que se ve. */
+const pageLuma = (page: any) => page.evaluate(() => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g)!.map(Number); return Math.round(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]); });
 
 test('Language: in Spanish the screens and options are Spanish and the stored data stays as stored', async ({ page }) => {
   const es = T('es');
@@ -410,6 +413,78 @@ test('Language: a known server warning is translated and an unknown one is shown
   await page.getByRole('button', { name: 'Facturas', exact: true }).click();
   await expect(page.getByText('A brand new server problem')).toBeVisible();
   problems = problems.filter((m) => !/status of (400|500)/.test(m));
+});
+
+// ---- Tema de la interfaz: Sistema | Claro | Oscuro, por persona, guardado en el servidor ----
+const themeButton = (page: any, name: string) => page.getByRole('dialog').getByRole('group', { name: 'Theme' }).getByRole('button', { name, exact: true });
+const openProfile = async (page: any, name: string, role: string) => { await profileButton(page, name, role, 'en').click(); await page.getByRole('dialog', { name: 'My profile' }).waitFor(); };
+
+test('Theme: the profile switches light and dark at once, the colors really change, and the server keeps it', async ({ page }) => {
+  await openAs(page, 'lead', 'en', 'light');
+  expect(await pageLuma(page), 'light page').toBeGreaterThan(200);
+  await openProfile(page, 'Laura Ríos', 'Project lead');
+  await expect(themeButton(page, 'Light')).toHaveAttribute('aria-pressed', 'true');
+  await themeButton(page, 'Dark').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Theme changed to Dark.' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await pageLuma(page), 'dark page').toBeLessThan(60);
+  expect(serverTheme('laura.rios@nexus.example')).toBe('dark');
+  await themeButton(page, 'Light').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  expect(await pageLuma(page)).toBeGreaterThan(200);
+  expect(serverTheme('laura.rios@nexus.example')).toBe('light');
+  await themeButton(page, 'System').click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/); // sigue al sistema: sin atributo
+  expect(serverTheme('laura.rios@nexus.example')).toBe('system');
+});
+
+test('Theme: «System» follows the computer (dark computer, dark page) and an explicit choice wins over the computer', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await openAs(page, 'lead', 'en', 'system');
+  expect(await pageLuma(page), 'system + dark computer').toBeLessThan(60);
+  await openProfile(page, 'Laura Ríos', 'Project lead');
+  await themeButton(page, 'Light').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  expect(await pageLuma(page), 'explicit light on a dark computer').toBeGreaterThan(200);
+  await themeButton(page, 'System').click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/); // primero se espera a que la página cambie (el servidor responde antes)
+  expect(await pageLuma(page)).toBeLessThan(60);
+});
+
+test('Theme: it follows the person to another computer, and language and theme do not undo each other', async ({ page, browser, baseURL }) => {
+  await openAs(page, 'sales', 'es');
+  await profileButton(page, 'Camila Soto', 'Ventas', 'es').click();
+  const dlg = page.getByRole('dialog', { name: 'Mi perfil' });
+  await dlg.getByRole('group', { name: 'Tema' }).getByRole('button', { name: 'Oscuro', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await dlg.getByRole('button', { name: 'English', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible();
+  expect([serverTheme('camila.soto@nexus.example'), serverLanguage(null, 'camila.soto@nexus.example')]).toEqual(['dark', 'en']);
+  // otra computadora: un navegador que no sabe nada de ella
+  const other = await (await browser.newContext({ baseURL })).newPage();
+  await other.goto('/');
+  await other.getByLabel('Correo').fill('camila.soto@nexus.example'); await other.getByLabel('Contraseña').fill(process.env.DEMO_PASSWORD ?? 'demo-password-1');
+  await other.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+  await expect(other.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible(); // su idioma
+  await expect(other.locator('html')).toHaveAttribute('data-theme', 'dark'); // y su tema
+  expect(await pageLuma(other)).toBeLessThan(60);
+  await other.context().close();
+  // se deja como estaba
+  await page.getByRole('dialog', { name: 'My profile' }).getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'System', exact: true }).click();
+  await page.getByRole('dialog', { name: 'My profile' }).getByRole('button', { name: 'Español', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Facturas', exact: true })).toBeVisible();
+  expect([serverTheme('camila.soto@nexus.example'), serverLanguage(null, 'camila.soto@nexus.example')]).toEqual(['system', 'es']);
+});
+
+test('Theme: if the server cannot save it, the page does not change and says why', async ({ page }) => {
+  await page.route('**/me/theme', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ statusCode: 500, message: 'Internal Server Error' }) }));
+  await openAs(page, 'lead', 'en', 'light');
+  await openProfile(page, 'Laura Ríos', 'Project lead');
+  await themeButton(page, 'Dark').click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('The theme could not be changed:');
+  await expect(themeButton(page, 'Light')).toHaveAttribute('aria-pressed', 'true');
+  expect(await pageLuma(page)).toBeGreaterThan(200);
+  problems = problems.filter((m) => !/status of 500/.test(m));
 });
 
 const PW = 'Qa-Passw0rd-long!';

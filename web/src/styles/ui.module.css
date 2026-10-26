@@ -15,7 +15,7 @@
 .approved {
   composes: pill;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .draft {
   composes: pill;
@@ -69,7 +69,7 @@
   min-height: 36px;
   cursor: pointer;
   border: 1px solid var(--accent);
-  background: var(--accent);
+  background: var(--accent-ink);
   color: var(--on-accent);
 }
 .btn:disabled {
@@ -79,7 +79,7 @@
 .btnGhost {
   composes: btn;
   background: transparent;
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .scroll {

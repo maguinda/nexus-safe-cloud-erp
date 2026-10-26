@@ -13,6 +13,11 @@ export class InvalidLanguageError extends Error {
   constructor() { super('Language must be es or en'); this.name = 'InvalidLanguageError'; }
 }
 
+/** El tema no es uno de los tres admitidos (el DTO ya lo filtra; esta es la segunda defensa, en el dominio). */
+export class InvalidThemeError extends Error {
+  constructor() { super('Theme must be system, light or dark'); this.name = 'InvalidThemeError'; }
+}
+
 export class EmailTakenError extends Error {
   constructor() { super('That email is already registered'); this.name = 'EmailTakenError'; }
 }

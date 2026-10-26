@@ -3,7 +3,10 @@ export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager';
 
 import type { Lang } from '../i18n/core';
 
-export interface User { email: string; name: string; role: Role; /** Idioma de la interfaz de esta persona (viene del servidor). */ language?: Lang }
+/** Tema de la interfaz: «system» sigue el modo claro u oscuro del equipo. */
+export type Theme = 'system' | 'light' | 'dark';
+
+export interface User { email: string; name: string; role: Role; /** Idioma de la interfaz de esta persona (viene del servidor). */ language?: Lang; /** Tema de la interfaz de esta persona (viene del servidor). */ theme?: Theme }
 /** Usuario tal como lo devuelve la administración de usuarios (identity-access): nunca trae contraseña ni hash. */
 export interface ManagedUser { id: string; email: string; name: string; role: Role; createdAt: string }
 export interface LoginResponse { accessToken: string; expiresIn: number; user: User }
