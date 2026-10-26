@@ -72,6 +72,7 @@ for (const lang of ['en', 'es'] as const) for (const theme of ['light', 'dark'] 
       document.querySelectorAll('form').forEach((f) => {
         const rect = (e: Element) => e.getBoundingClientRect();
         f.querySelectorAll('input, select, textarea').forEach((i) => f.querySelectorAll('button').forEach((b) => {
+          if (b.hasAttribute('data-in-field')) return; // acciones dentro del campo a propósito (ver la contraseña)
           const a = rect(i), c = rect(b); if (a.width === 0 || c.width === 0) return;
           const dy = Math.max(c.top - a.bottom, a.top - c.bottom), dx = Math.max(c.left - a.right, a.left - c.right);
           const gap = dy < 0 ? dx : dx < 0 ? dy : Math.hypot(dx, dy);
