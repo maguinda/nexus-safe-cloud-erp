@@ -8,7 +8,7 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `services/identity-access` | Login, JWT issuing and user administration for the manager (`GET/POST /users`, `PATCH /users/:id/role`) |
 | `services/projects` | Projects, milestones, approval (writes the event to an outbox) |
 | `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
-| `services/analytics` | Read models built from the events and the manager dashboard (`GET /dashboard`) |
+| `services/analytics` | Read models built from the events and the manager dashboard (`GET /dashboard`), plus the Nexus network and IoT data loaded from the course folder (`GET /telemetry/summary`) |
 | `web` | React + TypeScript frontend |
 | `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
 | `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
@@ -61,7 +61,7 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 **Recorrido corto de la demo** (el guion completo con tiempos está en `corte_2/`, en el archivo de pitch y demo)
 1. Entra como Laura y abre **Projects**.
 2. Pulsa **Approve milestone** en un hito pendiente: la respuesta es inmediata y, unos segundos después, aparece una factura borrador en **Invoices**.
-3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos.
+3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos. Más abajo está el panel **Network & IoT** con los datos de Nexus que dejó la docente: 21 dispositivos y 4.200 lecturas (21 / 21 en línea, 39 advertencias, 3 alertas), una tabla por oficina, las últimas alertas y todos los dispositivos.
 4. En una tercera pestaña entra como Andrés y pulsa **Issue invoice** en el borrador: el estado pasa a Issued y la columna **Due** muestra la fecha de vencimiento (emisión + 30 días).
 5. Entra como Camila: Invoices responde 403. Con **Simulate expired token** la sesión se cierra con «Your session expired».
 6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
@@ -92,6 +92,22 @@ Cambia `billing` por `identity`, `projects` o `analytics` para ver los otros ser
 - **Error 502 después de recrear un contenedor:** `docker compose restart gateway`.
 - **Swagger no abre:** levantaste sin el segundo archivo; usa el comando del paso 4 completo.
 - **Apagar sin perder datos:** `docker compose stop`. **Borrar todo, datos incluidos:** `docker compose down -v`. Para volver a arrancar: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`, luego `docker compose restart gateway` y `./scripts/reset-demo.sh`.
+
+## Datos de Nexus (red e IoT) en Analytics
+
+La docente dejó en la carpeta compartida del curso (`PROYECTO_NEXUS`) los datos que el ERP debe mostrar en la parte de análisis y dashboard. Se cargan en la base de **analytics** y el gerente los ve en el panel **Network & IoT** del Dashboard.
+
+| Qué | Dónde |
+|---|---|
+| Datos usados | `Datos PacketTracer.xlsx`: 21 dispositivos IoT (cámaras, temperatura, humedad, movimiento, humo, calefacción y cerraduras en 3 oficinas) y 4.200 lecturas del 13 de septiembre de 2026, 08:01 a 11:20. Las marcas de tiempo no traen zona horaria y se leen como UTC |
+| Archivos en el repo | `services/analytics/prisma/data/iot-devices.json` y `iot-readings.json`, más `convert-iot.py`, el script que los genera desde el Excel |
+| Tablas | `iot_devices` e `iot_readings` (migración `0002_iot_telemetry`, con clave foránea, único por dispositivo e instante y tres CHECK) |
+| Carga | `prisma/seed.ts` (con `SEED_DEMO=true`, al arrancar el contenedor) llama a `prisma/iot-load.ts`. Se puede repetir sin duplicar nada |
+| API | `GET /telemetry/summary`, solo para el gerente (403 para los demás roles) |
+| Pantalla | panel **Network & IoT** en el Dashboard (en un celular la lista de dispositivos empieza plegada) |
+
+Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/analytics/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. Los otros tres archivos de la carpeta (inventario de red para el proveedor, catálogo de monitoreo y captura de paquetes) **no** están cargados: es un alcance pendiente.
+`./scripts/reset-demo.sh` no toca estos datos.
 
 ## Where things live
 
@@ -156,7 +172,7 @@ The services are **not** reachable over plain HTTP. Each one serves HTTPS and re
 `docker-compose.docs.yml` (demo only) opens a second plain-HTTP port per service on `127.0.0.1` so Swagger opens in a browser; the JWT stays mandatory there. Without that file the door does not exist. After recreating a service container, run `docker compose restart gateway` (nginx caches the upstream addresses).
 
 The only published port is the gateway, `127.0.0.1:8080`. Services have no published ports; the gateway exposes just
-`POST /auth/login`, `/users`, `/projects`, `/milestones`, `/invoices`, `/dashboard`, `/health`. It does not authenticate: every service verifies the JWT again.
+`POST /auth/login`, `/users`, `/projects`, `/milestones`, `/invoices`, `/dashboard`, `/telemetry`, `/health`. It does not authenticate: every service verifies the JWT again.
 For the demo, Swagger of each service: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`
 then http://localhost:4101/docs (identity), :4102/docs (projects), :4103/docs (billing) and :4104/docs (analytics). Each service documents only its own routes; the JWT is the same for all (log in once on :4101 and press Authorize in the others). The whole contract is in `docs/openapi.yaml`.
 
