@@ -23,6 +23,7 @@ info:
     | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
     | GET /dashboard | 403 | 403 | 403 | yes |
     | GET /telemetry/summary | 403 | 403 | 403 | yes |
+    | GET /network/summary | 403 | 403 | 403 | yes |
     | PATCH /me/language (your own) | yes | yes | yes | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
 
@@ -49,6 +50,8 @@ tags:
   - name: Invoices
     description: Owned by billing-receivables
   - name: Telemetry
+    description: Owned by analytics (manager only)
+  - name: Network
     description: Owned by analytics (manager only)
 security:
   - bearerAuth: []
@@ -334,6 +337,23 @@ paths:
               schema: { $ref: '#/components/schemas/TelemetrySummary' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /network/summary:
+    get:
+      tags: [Network]
+      operationId: getNetworkSummary
+      summary: Network inventory of Nexus loaded into Analytics (role manager)
+      description: |
+        Built from `Data para Proveedor ERP.xlsx` of the PROYECTO_NEXUS folder (76 devices, 74 links and the monitoring status of the 10 pieces of
+        network infrastructure), loaded by `services/analytics/prisma/seed.ts` when `SEED_DEMO=true`. Not loaded: interfaces, VLAN/DHCP and the IP/MAC list.
+        The repository answers aggregates, never the 150 rows.
+      responses:
+        '200':
+          description: Totals, devices by category and criticality, links, monitoring coverage and the infrastructure list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NetworkSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /invoices/{invoiceNumber}/issue:
     patch:
       tags: [Invoices]
@@ -593,6 +613,65 @@ components:
               value: { type: number }
               unit: { type: string }
               note: { type: string, nullable: true }
+    NetworkSummary:
+      type: object
+      required: [asOf, totals, byCategory, byCriticality, links, monitoring, infrastructure]
+      properties:
+        asOf: { type: string, format: date-time }
+        totals:
+          type: object
+          required: [devices, links, criticalDevices, infrastructure]
+          properties:
+            devices: { type: integer, example: 76 }
+            links: { type: integer, example: 74 }
+            criticalDevices: { type: integer, description: Devices whose criticality is Crítica, example: 5 }
+            infrastructure: { type: integer, description: Pieces of network infrastructure (the ones with a monitoring row), example: 10 }
+        byCategory:
+          type: array
+          description: Biggest first, ties by name
+          items: { type: object, required: [category, count], properties: { category: { type: string, example: Laptop }, count: { type: integer } } }
+        byCriticality:
+          type: array
+          description: Always Crítica, Alta, Media (zero when empty), then any other value
+          items: { type: object, required: [criticality, count], properties: { criticality: { type: string, example: Crítica }, count: { type: integer } } }
+        links:
+          type: object
+          required: [total, functional, notFunctional, noData, byType, byCriticality]
+          properties:
+            total: { type: integer }
+            functional: { type: integer }
+            notFunctional: { type: integer }
+            noData: { type: integer, description: Links that do not say whether they work (the IoT ones) }
+            byType: { type: array, items: { type: object, properties: { type: { type: string, example: eCopper }, count: { type: integer } } } }
+            byCriticality: { type: array, items: { type: object, properties: { criticality: { type: string }, count: { type: integer } } } }
+        monitoring:
+          type: object
+          required: [equipment, syslog, snmp, ntp, netflow, withoutAnyConfig, signalsPossible]
+          properties:
+            equipment: { type: integer, example: 10 }
+            syslog: { type: integer, description: Pieces of equipment with Syslog configured, example: 0 }
+            snmp: { type: integer, example: 0 }
+            ntp: { type: integer, example: 0 }
+            netflow: { type: integer, example: 4 }
+            withoutAnyConfig: { type: integer, description: Equipment with none of the four configured, example: 6 }
+            signalsPossible: { type: integer, description: Signals each piece could report (CPU, memory, interfaces…), example: 12 }
+        infrastructure:
+          type: array
+          description: Crítica first, then by name
+          items:
+            type: object
+            required: [name, model, role, criticality, ips, syslog, snmp, ntp, netflow, signals]
+            properties:
+              name: { type: string, example: Multilayer Switch0 }
+              model: { type: string, example: 3560-24PS }
+              role: { type: string, example: Core / Distribución L3 }
+              criticality: { type: string, example: Crítica }
+              ips: { type: string, nullable: true, example: 10.0.0.2; 10.0.0.9 }
+              syslog: { type: boolean }
+              snmp: { type: boolean }
+              ntp: { type: boolean }
+              netflow: { type: boolean }
+              signals: { type: integer, description: How many signals it could report }
     Reconciliation:
       type: object
       required: [rows, summary]

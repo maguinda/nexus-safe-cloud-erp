@@ -1,0 +1,12 @@
+[
+{"deviceName":"Multilayer Switch0","syslog":false,"snmp":false,"ntp":false,"netflow":true,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"Multilayer Switch0(1)","syslog":false,"snmp":false,"ntp":false,"netflow":true,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"SW1 P1","syslog":false,"snmp":false,"ntp":false,"netflow":false,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"SW3 ´P2","syslog":false,"snmp":false,"ntp":false,"netflow":false,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"SW4 P3","syslog":false,"snmp":false,"ntp":false,"netflow":false,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"SW5 P3","syslog":false,"snmp":false,"ntp":false,"netflow":false,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"SW2 P1","syslog":false,"snmp":false,"ntp":false,"netflow":false,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"ASA0","syslog":false,"snmp":false,"ntp":false,"netflow":false,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"Router0","syslog":false,"snmp":false,"ntp":false,"netflow":true,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]},
+{"deviceName":"Router1","syslog":false,"snmp":false,"ntp":false,"netflow":true,"signals":["CPU","Memoria","Interfaces","Errores RX/TX","Uptime/Reinicio","STP","Routing","HSRP","VLAN","ACL","Cambios config","Hardware"]}
+]
