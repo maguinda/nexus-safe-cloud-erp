@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary } from './types';
+import type { ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -46,6 +46,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     dashboard: () => request<Dashboard>('GET', '/dashboard'),
     telemetry: () => request<TelemetrySummary>('GET', '/telemetry/summary'),
     setLanguage: (language: Lang) => request<{ language: Lang }>('PATCH', '/me/language', { language }),
+    setTheme: (theme: Theme) => request<{ theme: Theme }>('PATCH', '/me/theme', { theme }),
     users: () => request<ManagedUser[]>('GET', '/users'),
     createUser: (u: { email: string; name: string; role: Role; password: string }) => request<ManagedUser>('POST', '/users', u),
     changeRole: (id: string, role: Role) => request<ManagedUser>('PATCH', `/users/${encodeURIComponent(id)}/role`, { role }),

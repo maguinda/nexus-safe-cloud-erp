@@ -5,6 +5,7 @@ export { users } from './users';
 export { invoices } from './invoices';
 export { dashboard } from './dashboard';
 export { server } from './server';
+export { theme } from './theme';
 export { charts } from './charts';
 export { sensors } from './sensors';
 export { netview } from './netview';

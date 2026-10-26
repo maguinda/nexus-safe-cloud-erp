@@ -21,6 +21,8 @@ model User {
   role         Role
   /// Idioma de la interfaz de esta persona: es o en (CHECK en la base).
   language     String   @default("es")
+  /// Tema de la interfaz de esta persona: system, light o dark (CHECK en la base).
+  theme        String   @default("system")
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
 

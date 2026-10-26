@@ -101,7 +101,7 @@ describe('POST /users', () => {
     const row = await prisma.user.findUnique({ where: { email: 'qa.vendedor1@nexus.example' } });
     expect(row?.passwordHash).toMatch(/^\$2[aby]\$10\$/); expect(row?.passwordHash).not.toContain(GOOD);
     const signIn = await request(app.getHttpServer()).post('/auth/login').send({ email: 'QA.Vendedor1@Nexus.Example ', password: GOOD });
-    expect(signIn.status).toBe(200); expect(signIn.body.user).toEqual({ email: 'qa.vendedor1@nexus.example', name: 'Carlos Pérez', role: 'sales', language: 'es' });
+    expect(signIn.status).toBe(200); expect(signIn.body.user).toEqual({ email: 'qa.vendedor1@nexus.example', name: 'Carlos Pérez', role: 'sales', language: 'es', theme: 'system' });
     expect((await call('get', '/users', signIn.body.accessToken)).status).toBe(403); // el nuevo vendedor no administra usuarios
     expect((await request(app.getHttpServer()).post('/auth/login').send({ email: 'qa.vendedor1@nexus.example', password: GOOD + 'x' })).status).toBe(401);
   });

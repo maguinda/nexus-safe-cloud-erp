@@ -51,9 +51,9 @@ const screensFor = (lang: Lang): { name: string; role: RoleKey | null; go: (p: P
   ];
 };
 
-for (const lang of ['en', 'es'] as const) for (const s of screensFor(lang)) {
-  test(`layout: ${s.name} [${lang}]`, async ({ page }, info) => {
-    if (s.role) await openAs(page, s.role, lang); else await preferLanguage(page, lang);
+for (const lang of ['en', 'es'] as const) for (const theme of ['light', 'dark'] as const) for (const s of screensFor(lang)) {
+  test(`layout: ${s.name} [${lang}] [${theme}]`, async ({ page }, info) => {
+    if (s.role) await openAs(page, s.role, lang, theme); else await preferLanguage(page, lang, theme);
     await s.go(page);
     const m = await page.evaluate(() => {
       const vw = window.innerWidth;
@@ -83,8 +83,28 @@ for (const lang of ['en', 'es'] as const) for (const s of screensFor(lang)) {
     // caret/animations en modo normal: así Playwright no inyecta una hoja de estilos que la política de contenido reportaría.
     // Las violaciones de la política de contenido de LA APP deben ser 0 antes de la captura: en WebKit la propia captura de Playwright
     // inyecta una hoja de estilos y genera un reporte (se comprobó aparte), así que solo cuentan las anteriores.
+    // Contraste del texto (WCAG): cada texto visible contra el primer fondo opaco que tiene detrás. Debajo de 3 es ilegible; debajo de 4,5 se informa.
+    const contrast = await page.evaluate(() => {
+      const parse = (c: string) => { const m = c.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0]; return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
+      const lin = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+      const lum = (c: { r: number; g: number; b: number }) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+      const bgOf = (el: Element) => { for (let e: Element | null = el; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c.a >= 0.9) return c; } return parse(getComputedStyle(document.body).backgroundColor); };
+      const low: string[] = []; const weak: string[] = [];
+      document.querySelectorAll('body *').forEach((el) => {
+        const own = [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? '').trim().length > 0);
+        const r = el.getBoundingClientRect(); if (!own || r.width === 0 || r.height === 0) return;
+        const st = getComputedStyle(el); if (st.visibility === 'hidden' || Number(st.opacity) < 0.5 || (el as HTMLButtonElement).disabled) return;
+        const fg = parse(st.color), bg = bgOf(el); const a = lum(fg), b = lum(bg);
+        const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+        const label = `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 24)}" ${ratio.toFixed(1)}:1`;
+        if (ratio < 3) low.push(label); else if (ratio < 4.5) weak.push(label);
+      });
+      return { low, weak };
+    });
+    if (contrast.weak.length) console.log(`   (info) ${info.project.name} ${s.name} [${lang}][${theme}]: ${contrast.weak.length} textos entre 3:1 y 4,5:1 → ${contrast.weak.slice(0, 3).join(' · ')}`);
+    expect(contrast.low, 'texto con contraste menor de 3:1').toEqual([]);
     const violationsBeforeShot = [...cspReports];
-    await page.screenshot({ path: `test-results/shots/${info.project.name}-${s.name}-${lang}.png`, fullPage: false, caret: 'initial', animations: 'allow' });
+    await page.screenshot({ path: `test-results/shots/${info.project.name}-${s.name}-${lang}-${theme}.png`, fullPage: false, caret: 'initial', animations: 'allow' });
     expect(m.pageOverflow, `la página se desborda a ${m.vw}px`).toBe(false);
     expect(m.wide, 'elementos fuera de la vista (fuera de un contenedor con scroll)').toEqual([]);
     expect(m.small, 'objetivos táctiles menores de 32 px').toEqual([]);
@@ -96,9 +116,9 @@ for (const lang of ['en', 'es'] as const) for (const s of screensFor(lang)) {
 }
 
 // El menú de perfil se abre desde la barra superior: en un celular debe quedar entero dentro de la pantalla (antes se salía por la izquierda).
-for (const lang of ['en', 'es'] as const) {
-  test(`layout: profile menu inside the screen [${lang}]`, async ({ page }) => {
-    await openAs(page, 'manager', lang);
+for (const lang of ['en', 'es'] as const) for (const theme of ['light', 'dark'] as const) {
+  test(`layout: profile menu inside the screen [${lang}] [${theme}]`, async ({ page }) => {
+    await openAs(page, 'manager', lang, theme);
     await page.getByRole('button', { name: translate(lang, 'profile.open', { name: 'Diana Vega', role: translate(lang, 'role.manager') }) }).click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor();

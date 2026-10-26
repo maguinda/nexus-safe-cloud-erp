@@ -25,6 +25,7 @@ info:
     | GET /telemetry/summary | 403 | 403 | 403 | yes |
     | GET /network/summary | 403 | 403 | 403 | yes |
     | PATCH /me/language (your own) | yes | yes | yes | yes |
+    | PATCH /me/theme (your own) | yes | yes | yes | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
 
     **User administration.** Only a manager can list users, create one (with a role and an initial password) and change a role.
@@ -142,6 +143,46 @@ paths:
                   language: { $ref: '#/components/schemas/Language' }
         '400':
           description: Language is not es or en, or the body has other fields
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: The person no longer exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { description: Too many requests }
+  /me/theme:
+    patch:
+      tags: [Me]
+      operationId: setMyTheme
+      summary: Change the interface theme of the person who signs the token (any role)
+      description: |
+        Stores `system`, `light` or `dark` for the caller only: the person comes from the signed token, never from the body, and a body with any
+        other field is refused. The next sign-in answers with it (`user.theme`). New and existing users start in `system`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [theme]
+              additionalProperties: false
+              properties:
+                theme: { $ref: '#/components/schemas/Theme' }
+      responses:
+        '200':
+          description: The saved theme
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [theme]
+                properties:
+                  theme: { $ref: '#/components/schemas/Theme' }
+        '400':
+          description: Theme is not system, light or dark, or the body has other fields
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -432,6 +473,10 @@ components:
       type: string
       enum: [es, en]
       description: Interface language of a person. Spanish by default.
+    Theme:
+      type: string
+      enum: [system, light, dark]
+      description: Interface theme of a person. `system` (the default) follows the light or dark mode of the computer.
     LoginResponse:
       type: object
       required: [accessToken, expiresIn, user]
@@ -440,12 +485,13 @@ components:
         expiresIn: { type: integer, description: Seconds until the token expires, example: 900 }
         user:
           type: object
-          required: [email, name, role, language]
+          required: [email, name, role, language, theme]
           properties:
             email: { type: string, format: email }
             name: { type: string, example: Laura Ríos }
             role: { $ref: '#/components/schemas/Role' }
             language: { $ref: '#/components/schemas/Language' }
+            theme: { $ref: '#/components/schemas/Theme' }
     CreateProjectRequest:
       type: object
       required: [name, client]
