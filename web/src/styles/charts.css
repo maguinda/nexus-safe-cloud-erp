@@ -1,0 +1,48 @@
+/* Tokens de color de los gráficos. Aparte de tokens.css para no mezclarse con el diseño general.
+   Paleta categórica: los 6 primeros tonos de la paleta de referencia de dataviz, en su orden fijo (el orden es lo que los hace seguros
+   para daltónicos: validados con scripts/validate_palette.js contra las superficies reales de la app, #ffffff y #161e33):
+     claro   adyacentes CVD ΔE 9,1 · visión normal ΔE 19,6 · aqua, amarillo y magenta quedan bajo 3:1 sobre blanco
+             -> REGLA DE ALIVIO: todo gráfico lleva leyenda, etiquetas directas y tabla alternativa (nunca solo color).
+     oscuro  adyacentes CVD ΔE 8,4 · visión normal ΔE 19,3 · los 6 pasan 3:1 sobre la superficie.
+   Un 7.º elemento NO recibe un tono nuevo: se agrupa en «Otros» (--chart-other). El oscuro se activa igual que en tokens.css:
+   por :root[data-theme="dark"] (elección de la persona) y, sin elección (sistema), por prefers-color-scheme. */
+:root {
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-other: #7a859d;
+  /* Un solo tono, de claro a oscuro, para magnitudes (mapas de calor). Texto encima: --chart-on-seq. */
+  --chart-seq: #256abf;
+  --chart-on-seq: #ffffff;
+  --chart-grid: var(--line);
+  --chart-axis: var(--muted);
+  --chart-threshold: var(--warn);
+  --chart-band: color-mix(in oklab, var(--chart-1) 14%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --chart-6: #008300;
+    --chart-other: #8b97b4;
+    --chart-seq: #3987e5;
+    --chart-on-seq: #0b1220;
+  }
+}
+:root[data-theme="dark"] {
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-other: #8b97b4;
+  --chart-seq: #3987e5;
+  --chart-on-seq: #0b1220;
+}
