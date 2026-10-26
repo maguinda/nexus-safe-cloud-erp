@@ -23,6 +23,7 @@ info:
     | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
     | GET /dashboard | 403 | 403 | 403 | yes |
     | GET /telemetry/summary | 403 | 403 | 403 | yes |
+    | PATCH /me/language (your own) | yes | yes | yes | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
 
     **User administration.** Only a manager can list users, create one (with a role and an initial password) and change a role.
@@ -41,6 +42,8 @@ tags:
     description: Owned by identity-access
   - name: Users
     description: Owned by identity-access (manager only)
+  - name: Me
+    description: Owned by identity-access (the person who signs the token, any role)
   - name: Projects
     description: Owned by projects
   - name: Invoices
@@ -102,6 +105,46 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: That email is already registered (any letter case)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { description: Too many requests }
+  /me/language:
+    patch:
+      tags: [Me]
+      operationId: setMyLanguage
+      summary: Change the interface language of the person who signs the token (any role)
+      description: |
+        Stores `es` or `en` for the caller only: the person comes from the signed token, never from the body, and a body with any
+        other field is refused. The next sign-in answers with it (`user.language`). New and existing users start in `es`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [language]
+              additionalProperties: false
+              properties:
+                language: { $ref: '#/components/schemas/Language' }
+      responses:
+        '200':
+          description: The saved language
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [language]
+                properties:
+                  language: { $ref: '#/components/schemas/Language' }
+        '400':
+          description: Language is not es or en, or the body has other fields
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: The person no longer exists
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -365,6 +408,10 @@ components:
       properties:
         email: { type: string, format: email, example: laura.rios@nexus.example }
         password: { type: string, minLength: 1, maxLength: 128 }
+    Language:
+      type: string
+      enum: [es, en]
+      description: Interface language of a person. Spanish by default.
     LoginResponse:
       type: object
       required: [accessToken, expiresIn, user]
@@ -373,11 +420,12 @@ components:
         expiresIn: { type: integer, description: Seconds until the token expires, example: 900 }
         user:
           type: object
-          required: [email, name, role]
+          required: [email, name, role, language]
           properties:
             email: { type: string, format: email }
             name: { type: string, example: Laura Ríos }
             role: { $ref: '#/components/schemas/Role' }
+            language: { $ref: '#/components/schemas/Language' }
     CreateProjectRequest:
       type: object
       required: [name, client]

@@ -87,6 +87,11 @@ ok((await call('GET', '/dashboard')).status === 401, 'dashboard sin token -> 401
 const NEW_PW = 'Flow-Passw0rd-2026';
 const newEmail = `flow.vendedor.${Date.now()}@nexus.example`;
 ok((await call('GET', '/users', { token: sales.token })).status === 403, 'Sales NO lista usuarios (403)');
+// Idioma de la interfaz: cada persona cambia el suyo (cualquier rol), con un valor válido y con un token.
+ok((await call('PATCH', '/me/language', { token: sales.token, body: { language: 'en' } })).json?.language === 'en', 'Sales cambia su propio idioma a inglés (200)');
+ok((await call('PATCH', '/me/language', { token: sales.token, body: { language: 'fr' } })).status === 400, 'un idioma que no es es ni en se rechaza (400)');
+ok((await call('PATCH', '/me/language', { body: { language: 'en' } })).status === 401, 'cambiar el idioma sin token -> 401');
+ok((await call('PATCH', '/me/language', { token: sales.token, body: { language: 'es' } })).json?.language === 'es', 'y lo deja otra vez en español (200)');
 ok((await call('POST', '/users', { token: lead.token, body: { email: newEmail, name: 'X', role: 'manager', password: NEW_PW } })).status === 403, 'Project lead NO crea usuarios (403)');
 ok((await call('GET', '/users')).status === 401, 'listar usuarios sin token -> 401');
 const userList = await call('GET', '/users', { token: manager.token });

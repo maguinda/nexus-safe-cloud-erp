@@ -4,7 +4,7 @@ import { Rs256TokenIssuer } from './rs256-token-issuer';
 import { User } from '../domain/user';
 
 const pair = () => generateKeyPairSync('rsa', { modulusLength: 2048, publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
-const user: User = { id: '0b8c1f1a-1111-4222-8333-444455556666', email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead', passwordHash: 'x' };
+const user: User = { id: '0b8c1f1a-1111-4222-8333-444455556666', email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead', language: 'es', passwordHash: 'x' };
 
 describe('Rs256TokenIssuer', () => {
   const keys = pair();

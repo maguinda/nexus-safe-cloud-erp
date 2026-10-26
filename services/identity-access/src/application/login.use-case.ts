@@ -1,11 +1,12 @@
 import { InvalidCredentialsError } from '../domain/errors';
 import { PasswordHasher, TokenIssuer, UserRepository } from '../domain/ports';
+import { Language } from '../domain/language';
 import { Role } from '../domain/role';
 
 export interface LoginResult {
   accessToken: string;
   expiresIn: number;
-  user: { email: string; name: string; role: Role };
+  user: { email: string; name: string; role: Role; language: Language };
 }
 
 /** Hash válido de una contraseña al azar: se compara aunque el usuario no exista, para que el tiempo de respuesta no delate qué cuentas existen. */
@@ -26,7 +27,7 @@ export class LoginUseCase {
     return {
       accessToken: token,
       expiresIn,
-      user: { email: user.email, name: user.name, role: user.role },
+      user: { email: user.email, name: user.name, role: user.role, language: user.language },
     };
   }
 }
