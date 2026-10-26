@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme } from './types';
+import type { ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -15,6 +15,14 @@ export interface ApiClientOptions {
   onUnauthorized: () => void;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+}
+
+/** ?a=1&b=2 con lo que tenga valor; vacío y undefined se omiten, y todo va codificado (nunca se arma a mano con texto del usuario). */
+export function queryString(q: object): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+  const s = p.toString();
+  return s ? `?${s}` : '';
 }
 
 export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = (...a) => fetch(...a) }: ApiClientOptions) {
@@ -45,6 +53,13 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     invoices: () => request<Invoice[]>('GET', '/invoices'),
     dashboard: () => request<Dashboard>('GET', '/dashboard'),
     telemetry: () => request<TelemetrySummary>('GET', '/telemetry/summary'),
+    telemetryTrends: () => request<Trends>('GET', '/telemetry/trends'),
+    telemetryReadings: (q: ReadingsQuery = {}) => request<Page<ReadingItem>>('GET', `/telemetry/readings${queryString(q)}`),
+    telemetryFacets: () => request<TelemetryFacets>('GET', '/telemetry/facets'),
+    networkSummary: () => request<NetworkSummary>('GET', '/network/summary'),
+    networkDevices: (q: DevicesQuery = {}) => request<Page<NetworkDeviceItem>>('GET', `/network/devices${queryString(q)}`),
+    networkLinks: (q: LinksQuery = {}) => request<Page<NetworkLinkItem>>('GET', `/network/links${queryString(q)}`),
+    networkFacets: () => request<NetworkFacets>('GET', '/network/facets'),
     setLanguage: (language: Lang) => request<{ language: Lang }>('PATCH', '/me/language', { language }),
     setTheme: (theme: Theme) => request<{ theme: Theme }>('PATCH', '/me/theme', { theme }),
     users: () => request<ManagedUser[]>('GET', '/users'),

@@ -4,6 +4,8 @@ export const common = {
   'nav.modules': 'Módulos',
   'nav.dashboard': 'Tablero',
   'nav.users': 'Usuarios',
+  'nav.sensors': 'Sensores',
+  'nav.network': 'Red',
   'nav.projects': 'Proyectos',
   'nav.invoices': 'Facturas',
   'header.tokenExpires': 'el token vence en {time}',
