@@ -1,6 +1,7 @@
 import { ActivityItem } from './dashboard';
 import { AnalyticsEvent } from './events';
 import { Fact } from './fact';
+import { AttentionReading, DeviceCounters, DeviceRow, LatestReading, LocationAverage, StatusCount } from './telemetry';
 
 /** Lo que el consumidor hace dentro de UNA transacción: marcar el evento, fusionarlo en el hecho y anotar la actividad. */
 export interface EventScope {
@@ -20,4 +21,16 @@ export interface DashboardQueries {
   /** Más reciente primero. */
   recentActivity(limit: number): Promise<ActivityItem[]>;
   eventsProcessed(): Promise<number>;
+}
+
+/** Lecturas de telemetría: cada una devuelve un agregado, nunca las 4.200 filas. */
+export interface TelemetryQueries {
+  devices(): Promise<DeviceRow[]>;
+  latestPerDevice(): Promise<LatestReading[]>;
+  statusCounts(): Promise<StatusCount[]>;
+  countersPerDevice(): Promise<DeviceCounters[]>;
+  averagesByLocation(): Promise<LocationAverage[]>;
+  /** ALERT y WARNING, la más reciente primero. */
+  attention(limit: number): Promise<AttentionReading[]>;
+  window(): Promise<{ from: Date; to: Date } | null>;
 }

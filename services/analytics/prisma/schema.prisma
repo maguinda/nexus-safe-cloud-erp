@@ -54,3 +54,42 @@ model ProcessedEvent {
 
   @@map("processed_events")
 }
+
+/// Inventario de dispositivos IoT de Nexus (carpeta PROYECTO_NEXUS de la docente). Se carga con prisma/seed.ts; no viene de eventos.
+model IotDevice {
+  id          String       @id
+  name        String
+  kind        String
+  location    String
+  vlan        String
+  ipAddress   String       @map("ip_address")
+  macAddress  String       @map("mac_address")
+  /// ONLINE u OFFLINE, tal como lo trae el inventario.
+  connection  String
+  /// TEMP, HUMIDITY, STREAM, SMOKE, DETECTION, POWER o STATE.
+  readingKind String       @map("reading_kind")
+  unit        String
+  readings    IotReading[]
+
+  @@index([location])
+  @@map("iot_devices")
+}
+
+/// Lecturas de los sensores (serie de tiempo). El id es el «ID Registro» de la fuente, así que cargar dos veces no duplica nada.
+model IotReading {
+  id         Int       @id
+  deviceId   String    @map("device_id")
+  /// Sin zona horaria en la fuente: se guarda tal cual, como UTC.
+  recordedAt DateTime  @map("recorded_at")
+  /// NORMAL, WARNING, ALERT, ACTIVE, LOCKED, UNLOCKED, CLEAR, DETECTED, ON u OFF.
+  status     String
+  value      Float
+  unit       String
+  note       String?
+  device     IotDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@unique([deviceId, recordedAt])
+  @@index([recordedAt])
+  @@index([status, recordedAt])
+  @@map("iot_readings")
+}

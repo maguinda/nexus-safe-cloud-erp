@@ -22,6 +22,7 @@ info:
     | GET /invoices/reconciliation | yes | yes | 403 | 403 |
     | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
     | GET /dashboard | 403 | 403 | 403 | yes |
+    | GET /telemetry/summary | 403 | 403 | 403 | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
 
     **User administration.** Only a manager can list users, create one (with a role and an initial password) and change a role.
@@ -44,6 +45,8 @@ tags:
     description: Owned by projects
   - name: Invoices
     description: Owned by billing-receivables
+  - name: Telemetry
+    description: Owned by analytics (manager only)
 security:
   - bearerAuth: []
 paths:
@@ -271,6 +274,23 @@ paths:
               schema: { $ref: '#/components/schemas/Dashboard' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /telemetry/summary:
+    get:
+      tags: [Telemetry]
+      operationId: getTelemetrySummary
+      summary: Network and IoT telemetry from the Nexus data loaded into Analytics (role manager)
+      description: |
+        Built from the data of the PROYECTO_NEXUS folder (21 IoT devices and 4200 readings of 2026-09-13), loaded by
+        `services/analytics/prisma/seed.ts` when `SEED_DEMO=true`. The device state comes from its latest reading;
+        the warning and alert counters cover the whole data window. Timestamps carry no zone in the source and are read as UTC.
+      responses:
+        '200':
+          description: Totals, one row per device, one per office and the latest warnings and alerts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelemetrySummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /invoices/{invoiceNumber}/issue:
     patch:
       tags: [Invoices]
@@ -458,6 +478,73 @@ components:
               at: { type: string, format: date-time }
               kind: { type: string, enum: [MilestoneApproved, InvoiceDrafted, InvoiceIssued] }
               message: { type: string }
+    TelemetrySummary:
+      type: object
+      required: [asOf, window, totals, devices, byLocation, attention]
+      properties:
+        asOf: { type: string, format: date-time }
+        window:
+          type: object
+          nullable: true
+          description: First and last reading loaded; null when nothing is loaded
+          properties: { from: { type: string, format: date-time }, to: { type: string, format: date-time } }
+        totals:
+          type: object
+          required: [devices, online, readings, normal, warnings, alerts]
+          properties:
+            devices: { type: integer }
+            online: { type: integer, description: Devices whose inventory connection is ONLINE }
+            readings: { type: integer }
+            normal: { type: integer, description: Readings that are neither WARNING nor ALERT }
+            warnings: { type: integer }
+            alerts: { type: integer }
+        devices:
+          type: array
+          description: Alerts first, then warnings, devices without readings, and normal ones; ties by office and id
+          items:
+            type: object
+            required: [id, name, kind, location, readingKind, unit, connection, state, lastValue, lastStatus, lastAt, warnings, alerts]
+            properties:
+              id: { type: string, example: IOT-OF1-02 }
+              name: { type: string, example: TEMP_MON_OF1 }
+              kind: { type: string, example: Temperature Monitor }
+              location: { type: string, example: Oficina 1 }
+              readingKind: { type: string, enum: [TEMP, HUMIDITY, STREAM, SMOKE, DETECTION, POWER, STATE] }
+              unit: { type: string, example: '°C' }
+              connection: { type: string, enum: [ONLINE, OFFLINE] }
+              state: { type: string, enum: [normal, warning, alert, no_data], description: Severity of the latest reading }
+              lastValue: { type: number, nullable: true }
+              lastStatus: { type: string, nullable: true, example: WARNING }
+              lastAt: { type: string, format: date-time, nullable: true }
+              warnings: { type: integer, description: WARNING readings in the whole window }
+              alerts: { type: integer, description: ALERT readings in the whole window }
+        byLocation:
+          type: array
+          items:
+            type: object
+            required: [location, devices, warnings, alerts, avgTempC, avgHumidityPct]
+            properties:
+              location: { type: string, example: Oficina 1 }
+              devices: { type: integer }
+              warnings: { type: integer }
+              alerts: { type: integer }
+              avgTempC: { type: number, nullable: true, description: Mean of the temperature readings, one decimal }
+              avgHumidityPct: { type: number, nullable: true, description: Mean of the humidity readings, one decimal }
+        attention:
+          type: array
+          description: The latest WARNING and ALERT readings, newest first (at most 8)
+          items:
+            type: object
+            required: [at, deviceId, deviceName, location, status, value, unit, note]
+            properties:
+              at: { type: string, format: date-time }
+              deviceId: { type: string }
+              deviceName: { type: string }
+              location: { type: string }
+              status: { type: string, enum: [WARNING, ALERT] }
+              value: { type: number }
+              unit: { type: string }
+              note: { type: string, nullable: true }
     Reconciliation:
       type: object
       required: [rows, summary]
