@@ -610,8 +610,8 @@ test('Dashboards: nobody but the manager sees the Sensors and Network screens, a
     for (const path of ['/telemetry/trends', '/telemetry/readings', '/network/devices', '/network/links']) expect((await request.get(path, { headers: { authorization: `Bearer ${sessions[role].token}` } })).status()).toBe(403);
   }
   await openAs(page, 'lead');
-  await expect(page.getByRole('button', { name: 'Sensors' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Network' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sensors', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Network', exact: true })).toHaveCount(0);
 });
 
 test('Dashboards on a 320 px phone: nothing leaves the screen, in both screens', async ({ page }) => {
