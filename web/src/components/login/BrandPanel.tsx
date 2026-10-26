@@ -1,4 +1,5 @@
 import type { TFn } from '../../i18n';
+import { Hero } from './Hero';
 import { LayersIcon, PulseIcon, ShieldIcon } from './icons';
 import s from './login.module.css';
 
@@ -8,10 +9,11 @@ const POINTS = [
   { icon: <PulseIcon />, text: 'login.brand.p3' },
 ] as const;
 
-/** El lado de la marca: una frase y tres razones. La barra de la app ya trae el nombre; este panel aparece desde 900 px. */
+/** El lado de la marca: la ilustración, una frase y tres razones. En celular solo se ve una franja con la ilustración; la frase y las razones aparecen desde 900 px. */
 export function BrandPanel({ t }: { t: TFn }) {
   return (
     <aside className={s.brand} aria-label={t('app.name')}>
+      <div className={s.brandArt}><Hero t={t} /></div>
       <div className={s.brandBody}>
         <p className={s.tagline}>{t('login.brand.tagline')}</p>
         <ul className={s.points}>

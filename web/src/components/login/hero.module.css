@@ -1,0 +1,115 @@
+/* Ilustración del login. Colores solo con tokens; el movimiento solo si la persona no pidió menos. */
+.hero {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.cloudA { stop-color: color-mix(in oklab, var(--chart-1) 85%, var(--on-navy)); }
+.cloudB { stop-color: color-mix(in oklab, var(--chart-1) 70%, var(--navy)); }
+.glowA { stop-color: color-mix(in oklab, var(--chart-1) 55%, transparent); }
+.glowB { stop-color: transparent; }
+.glow {
+  opacity: 0.55;
+}
+.wires path,
+.pulses path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wires path {
+  stroke: color-mix(in oklab, var(--on-navy) 28%, transparent);
+  stroke-width: 2;
+}
+.pulses path {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 18 220;
+  stroke-dashoffset: 0;
+  opacity: 0.9;
+}
+.nodeCard {
+  fill: color-mix(in oklab, var(--on-navy) 10%, transparent);
+  stroke: color-mix(in oklab, var(--on-navy) 35%, transparent);
+  stroke-width: 1.5;
+}
+.nodeIcon {
+  fill: none;
+  stroke: var(--on-navy);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cloud {
+  stroke: color-mix(in oklab, var(--on-navy) 60%, transparent);
+  stroke-width: 2;
+}
+.shield {
+  fill: color-mix(in oklab, var(--navy) 55%, transparent);
+  stroke: var(--on-navy);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: none;
+}
+.chip1,
+.chip2,
+.chip3 {
+  position: absolute;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--on-navy) 35%, transparent);
+  background: color-mix(in oklab, var(--on-navy) 14%, var(--navy));
+  color: var(--on-navy);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip1 { left: 2%; top: 49%; }
+.chip2 { right: 0; top: 46%; }
+.chip3 { left: 38%; bottom: 0; }
+
+@media (min-width: 900px) {
+  .chips {
+    display: block;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cloudWrap { animation: hero-float 7s ease-in-out infinite; }
+  .node { animation: hero-bob 6s ease-in-out infinite; }
+  .chip1 { animation: hero-bob-html 6s ease-in-out infinite; }
+  .chip2 { animation: hero-bob-html 7s ease-in-out -2s infinite; }
+  .chip3 { animation: hero-bob-html 8s ease-in-out -4s infinite; }
+  .pulse1 { animation: hero-run 3.2s linear infinite; }
+  .pulse2 { animation: hero-run 3.2s linear -0.8s infinite; }
+  .pulse3 { animation: hero-run 3.2s linear -1.6s infinite; }
+  .pulse4 { animation: hero-run 3.2s linear -2.4s infinite; }
+}
+@keyframes hero-run {
+  from { stroke-dashoffset: 238; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes hero-bob {
+  0%, 100% { transform-box: fill-box; transform: translateY(0); }
+  50% { transform-box: fill-box; transform: translateY(5px); }
+}
+@keyframes hero-bob-html {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
