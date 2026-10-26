@@ -12,6 +12,7 @@ no other service is called and no operational database is read.
 
 - **One queue, three bindings** (`q.analytics`, dead-letter queue `q.analytics.dlq`). Delivery is at least once, so each event id is recorded in `processed_events` in the same transaction.
 - **Order does not matter.** RabbitMQ does not order events from different publishers, so the merge is a pure function (`src/domain/fact.ts`): every arrival order of the three events gives the same row, and an issued invoice never goes back to draft. The row is locked (`FOR UPDATE`) while it is merged.
+- **Nexus network and IoT data.** Besides the events, this service holds the data of the course folder `PROYECTO_NEXUS` (21 IoT devices and 4200 readings of 2026-09-13), loaded by `prisma/seed.ts` through `prisma/iot-load.ts` (`iot_devices`, `iot_readings`; migration `0002_iot_telemetry`). `GET /telemetry/summary` (role `manager` only) answers totals, one row per device (state from its latest reading), one per office and the latest alerts first, then warnings. The JSON files in `prisma/data` come from `prisma/data/convert-iot.py`.
 - **Known limit:** *pending* milestones do not appear, because projects does not publish an event when a milestone is created. The dashboard shows what was approved and what was invoiced.
 - Measured locally: an event is visible in the dashboard about 50 ms after it occurs (target ≤ 60 s) and the query p95 is under 2 ms with a few rows (target < 3 s). At large scale the facts query should become a SQL aggregation.
 

@@ -11,11 +11,11 @@ MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, anal
 | `services/identity-access` | login, JWT RS256 con rol y **administración de usuarios** (solo `manager`: `GET/POST /users`, `PATCH /users/:id/role`) | 4101 (interno) |
 | `services/projects` | proyectos, hitos, aprobar → outbox → RabbitMQ | 4102 (interno) |
 | `services/billing-receivables` | consume `MilestoneApproved`, factura borrador; emitir | 4103 (interno) |
-| `services/analytics` | modelos de lectura por eventos y `GET /dashboard` (solo `manager`) | 4104 (interno) |
+| `services/analytics` | modelos de lectura por eventos, `GET /dashboard` y `GET /telemetry/summary` con los datos de red e IoT de Nexus (ambos solo `manager`) | 4104 (interno) |
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas (2026-10-19): unitarias 375 (identity 58, projects 52, billing 106, analytics 57, web 102), e2e con PostgreSQL y RabbitMQ reales 271 (identity 95, projects 83, billing 46, analytics 47), flujo completo `scripts/e2e-flow.mjs` (51 comprobaciones), y navegador `web/` 72 (36 funcionales + 36 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
+Pruebas (2026-10-25): unitarias 415 (identity 58, projects 52, billing 106, analytics 74, web 125), e2e con PostgreSQL y RabbitMQ reales 297 (identity 95, projects 83, billing 46, analytics 73), flujo completo `scripts/e2e-flow.mjs` (51 comprobaciones), y navegador `web/` 82 (46 funcionales + 36 auditorías de pantalla en Chromium y WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px).
 
 ## Cómo correr
 ```sh
@@ -42,6 +42,15 @@ Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (p
 - **Formato de los CSS:** Marlon los formatea en su editor y quiere que tengan formato legible. Se mantiene con Prettier (`cd web && npm run format:css`, o `format:css:check`; configuración en `web/.prettierrc.json`, 2 espacios). Un formateo no debe cambiar cómo se ve: se comprueba comparando el CSS compilado tras normalizar los sufijos de clase de CSS Modules (hash y número de línea). Antes de cada commit revisar `git status` y `git diff --stat` por archivos que no se tocaron.
 - **Swagger en Safari:** `upgrade-insecure-requests` (valor por defecto de helmet) hacía que Safari pidiera los scripts del Swagger por HTTPS y la página saliera en blanco (error de TLS; Chrome lo perdona en localhost). Se quitó esa directiva en los 4 servicios; hay una prueba `test/docs.e2e.ts` por servicio. Tras reconstruir un servicio, levantar SIEMPRE con `-f docker-compose.yml -f docker-compose.docs.yml`; sin el segundo archivo el puerto 41xx del Swagger no existe.
 - **Mutaciones en la web:** una mutación que no compila (TypeScript prohíbe variables sin usar) deja el contenedor con el código bueno y la prueba «pasa» sin probar nada. Comprobar que el hash del bundle servido cambie tras reconstruir.
+
+## Datos de Nexus: red e IoT en Analytics (2026-10-25)
+La docente pidió subir al ERP, en análisis y dashboard, los datos de la carpeta compartida `PROYECTO_NEXUS` (copia en `../corte_2/PROYECTO_NEXUS/`, no va a Git). Se cargó `Datos PacketTracer.xlsx`: 21 dispositivos IoT y 4.200 lecturas (2026-09-13, sin zona horaria: se leen como UTC).
+- **Base:** migración `0002_iot_telemetry` en analytics (`iot_devices`, `iot_readings`; FK, único (dispositivo, instante) y 3 CHECK). Trampa: en PostgreSQL `NaN = NaN` es verdadero, así que un CHECK `value = value` no rechaza NaN; se compara con el literal. El cliente de Prisma ya rechaza NaN antes de llegar a la base, por eso la prueba de esa regla usa SQL directo.
+- **Carga:** `prisma/iot-load.ts` desde `prisma/seed.ts` (idempotente: el id de cada lectura viene de la fuente). Los JSON salen de `prisma/data/convert-iot.py`. El Dockerfile copia `prisma/`, por eso los JSON y el cargador viajan en la imagen (el seed no puede importar de `src/`).
+- **API:** `GET /telemetry/summary` (solo `manager`). El repositorio entrega agregados (nunca las 4.200 filas); el estado de cada dispositivo sale de su ÚLTIMA lectura; la lista de atención pone las alertas antes que las advertencias.
+- **Pantalla:** panel `Network & IoT` en el Dashboard (`TelemetryPanel.tsx`). Fecha armada a mano en UTC (el abreviado del mes cambia entre motores) y conteos con formato fijo en-US. En celular la lista de 21 dispositivos empieza plegada (el panel pasó de 6.525 a 2.099 px a 320 px).
+- **Límite:** los otros tres archivos de la carpeta (inventario de red para el proveedor, catálogo de monitoreo, captura de paquetes) no están cargados; no hay pantalla para «subir un archivo»; no se calcula nada en tiempo real (es un conjunto fijo del 13 de septiembre).
+- `reset-demo.sh` no toca estas tablas. El e2e de telemetría las borra y las vuelve a cargar al terminar.
 
 ## Fecha de vencimiento de facturas (2026-10-19)
 `domain/due-date.ts` (`dueDate(issuedAt, 30)`, días de calendario en UTC) se aplica en `issue()`: solo las facturas **emitidas** tienen `dueDate`; el borrador es `null`. Migración `0004` con relleno de las ya emitidas y dos CHECK (emitida ⇔ con fecha; vence ≥ emisión). Sale en `GET /invoices` y en `InvoiceIssued`; la tabla web tiene la columna «Due». Límite: aún no hay detección de facturas vencidas (`OverdueDetected`) ni pagos. En 320 px la tabla de facturas se desplaza de lado y «Due» queda fuera de la vista hasta deslizar.
