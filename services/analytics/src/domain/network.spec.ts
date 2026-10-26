@@ -61,12 +61,49 @@ describe('buildNetworkSummary', () => {
     expect(buildNetworkSummary(i, NOW).byCriticality.map((c) => c.criticality)).toEqual(['Crítica', 'Alta', 'Media', 'Baja']);
   });
 
+  describe('insights', () => {
+    it('no Syslog, SNMP or NTP anywhere is a high finding with the numbers', () => {
+      const i = base(); i.infrastructure = i.infrastructure.map((r) => ({ ...r, syslog: false }));
+      const f = buildNetworkSummary(i, NOW).insights.find((x) => x.code === 'monitoring_basics_missing')!;
+      expect(f).toMatchObject({ severity: 'high', params: { equipment: 4, syslog: 0, snmp: 0, ntp: 0 } });
+    });
+    it('…but not when at least one piece of equipment has one of them', () => {
+      const i = base(); i.infrastructure = i.infrastructure.map((r) => ({ ...r, syslog: false })); i.infrastructure[0] = infra('SW1 P1', 'Alta', { snmp: true });
+      const f = buildNetworkSummary(i, NOW).insights.find((x) => x.code === 'monitoring_basics_missing');
+      expect(f).toBeUndefined();
+    });
+    it('critical equipment with nothing configured is named', () => {
+      const i = base(); i.infrastructure = [infra('Zed', 'Crítica'), infra('Alfa', 'Crítica'), infra('Beta', 'Crítica', { netflow: true }), infra('Gama', 'Alta')];
+      const f = buildNetworkSummary(i, NOW).insights.find((x) => x.code === 'critical_unmonitored')!;
+      expect(f).toMatchObject({ severity: 'high', params: { count: 2, critical: 3, names: 'Alfa, Zed' } });
+    });
+    it('NetFlow on some but not all is a medium finding; on all or on none it is not', () => {
+      expect(buildNetworkSummary(base(), NOW).insights.find((x) => x.code === 'netflow_partial')).toMatchObject({ severity: 'medium', params: { withNetflow: 2, equipment: 4 } });
+      const none = base(); none.infrastructure = none.infrastructure.map((r) => ({ ...r, netflow: false }));
+      expect(buildNetworkSummary(none, NOW).insights.some((x) => x.code === 'netflow_partial')).toBe(false);
+      const all = base(); all.infrastructure = all.infrastructure.map((r) => ({ ...r, netflow: true }));
+      expect(buildNetworkSummary(all, NOW).insights.some((x) => x.code === 'netflow_partial')).toBe(false);
+    });
+    it('links that do not say whether they work are an info note', () => {
+      expect(buildNetworkSummary(base(), NOW).insights.find((x) => x.code === 'links_without_status')).toMatchObject({ severity: 'info', params: { count: 5 } });
+    });
+    it('high severity first, then medium, then info', () => {
+      const sev = buildNetworkSummary(base(), NOW).insights.map((x) => x.severity);
+      expect(sev).toEqual([...sev].sort((a, b) => ['high', 'medium', 'info'].indexOf(a) - ['high', 'medium', 'info'].indexOf(b)));
+    });
+    it('everything configured and no unknown links: one «all covered» note', () => {
+      const i = base(); i.links.noData = 0; i.infrastructure = i.infrastructure.map((r) => ({ ...r, syslog: true, snmp: true, ntp: true, netflow: true }));
+      expect(buildNetworkSummary(i, NOW).insights.map((x) => x.code)).toEqual(['all_covered']);
+    });
+  });
+
   it('with nothing loaded everything is zero and the lists are empty', () => {
     const s = buildNetworkSummary({ byCategory: [], byCriticality: [], links: { total: 0, functional: 0, notFunctional: 0, noData: 0, byType: [], byCriticality: [] }, infrastructure: [] }, NOW);
     expect(s.totals).toEqual({ devices: 0, links: 0, criticalDevices: 0, infrastructure: 0 });
     expect(s.byCategory).toEqual([]); expect(s.infrastructure).toEqual([]);
     expect(s.monitoring).toEqual({ equipment: 0, syslog: 0, snmp: 0, ntp: 0, netflow: 0, withoutAnyConfig: 0, signalsPossible: 0 });
     expect(s.byCriticality.map((c) => c.count)).toEqual([0, 0, 0]);
+    expect(s.insights.map((x) => x.code)).toEqual(['all_covered']);
   });
 
   it('does not change what it receives', () => {
