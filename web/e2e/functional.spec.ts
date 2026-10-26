@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { translate } from '../src/i18n';
-import { openAs, preferLanguage } from './helpers';
+import { openAs, preferLanguage, waitForLoginCapacity } from './helpers';
 
 const here = dirname(fileURLToPath(import.meta.url));
 test.describe.configure({ mode: 'serial' });
@@ -486,6 +486,7 @@ test('Theme: it follows the person to another computer, and language and theme d
   await expect(page.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible();
   expect([serverTheme('camila.soto@nexus.example'), serverLanguage(null, 'camila.soto@nexus.example')]).toEqual(['dark', 'en']);
   // otra computadora: un navegador que no sabe nada de ella
+  await waitForLoginCapacity(page.request); // a mitad de la suite el gateway puede estar sin cupo de inicios de sesión (429): se espera en vez de fallar
   const other = await (await browser.newContext({ baseURL })).newPage();
   await other.goto('/');
   await other.getByLabel('Correo').fill('camila.soto@nexus.example'); await other.getByLabel('Contraseña').fill(process.env.DEMO_PASSWORD ?? 'demo-password-1');
@@ -643,6 +644,7 @@ test('Advisor: the manager sees what to do first, ranked, each item with its rea
   const card = advisorCard(page);
   await expect(card.getByRole('heading', { level: 3 }).first()).toBeVisible();
   await expect(card.getByText('Ranked by rules')).toBeVisible();
+  await expect(card.getByText(/Business criteria: version \d{4}-\d{2}-\d{2}\.\d+/)).toBeVisible();
   await expect(card.getByRole('heading', { level: 3 }).first()).toHaveText('Check the alerts of 09:40 UTC'); // la alta de Sensores va primero
   const first = card.getByRole('listitem').first();
   await expect(first.getByText(/Oficina 1, Oficina 2, Oficina 3/)).toBeVisible();

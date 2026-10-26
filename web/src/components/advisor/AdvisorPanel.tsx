@@ -48,6 +48,7 @@ function Result({ advice, onOpen }: { advice: Advice; onOpen: (target: Target) =
   return (
     <>
       <p className={advice.source === 'ai' ? s.badgeAi : s.badge}>{t(advice.source === 'ai' ? 'advisor.source.ai' : 'advisor.source.rules')}</p>
+      <p className={s.version}>{t('advisor.playbook', { version: advice.playbookVersion })}</p>
       {advice.fallbackReason && advice.fallbackReason !== 'unavailable' && <p className={s.warn}>{t(FALLBACK[advice.fallbackReason])}</p>}
       {advice.items.length === 0 ? <p className={s.hint}>{t('advisor.empty')}</p> : (
         <ol className={s.list}>

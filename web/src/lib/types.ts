@@ -103,5 +103,9 @@ export interface AdviceEvidence { id: string; source: 'sensors' | 'network'; sev
 export interface Advice {
   source: 'ai' | 'rules'; language: Lang; generatedAt: string; aiAvailable: boolean;
   fallbackReason: 'unavailable' | 'error' | 'invalid' | 'limit' | null;
+  /** Versión de los criterios del negocio (el playbook) que se le dieron al agente. */
+  playbookVersion: string;
+  /** Si la respuesta de la IA se descartó: los códigos de lo que falló. */
+  violations: string[];
   evidence: AdviceEvidence[]; items: AdviceItem[];
 }

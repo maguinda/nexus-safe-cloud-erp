@@ -526,6 +526,8 @@ paths:
         With `ai: false` (default) the sentences come from templates and no external call is made. With `ai: true` the model writes them (needs `ANTHROPIC_API_KEY`);
         the server then checks the answer against the findings: every evidence id must exist and every number must appear in the findings, or the whole answer is
         discarded and the rules answer is returned with `fallbackReason` (`invalid`, `error`, `limit` or `unavailable`). The model only reads: it never changes data.
+        Besides ids and numbers the check covers device names, invented incidents, causes stated as facts, the temperature threshold shown as a reading, actions that delete data, the
+        order of priority and any high-priority finding left out; `violations` lists the codes of what failed (never the text). `playbookVersion` tells which business criteria the agent got.
         Paid calls are capped (6 a minute for the whole service); the free ones are not.
       requestBody:
         required: true
