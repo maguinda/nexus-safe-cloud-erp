@@ -104,11 +104,27 @@ La docente dejó en la carpeta compartida del curso (`PROYECTO_NEXUS`) los datos
 | Archivos en el repo | `services/analytics/prisma/data/iot-devices.json` y `iot-readings.json`, más `convert-iot.py`, el script que los genera desde el Excel |
 | Tablas | `iot_devices` e `iot_readings` (migración `0002_iot_telemetry`, con clave foránea, único por dispositivo e instante y tres CHECK) |
 | Carga | `prisma/seed.ts` (con `SEED_DEMO=true`, al arrancar el contenedor) llama a `prisma/iot-load.ts`. Se puede repetir sin duplicar nada |
-| API | `GET /telemetry/summary`, solo para el gerente (403 para los demás roles) |
-| Pantalla | panel **Network & IoT** en el Dashboard (en un celular la lista de dispositivos empieza plegada) |
+| API | `GET /telemetry/summary`, `/telemetry/trends`, `/telemetry/readings` (paginada y ordenable) y `/telemetry/facets`, solo para el gerente (403 para los demás roles) |
+| Pantalla | panel **Network & IoT** en el Dashboard y la pantalla **Sensores** (hallazgos con su evidencia, cifras, filtros, gráficos y tabla de lecturas; un hallazgo filtra la tabla) |
 
-Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/analytics/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. Los otros tres archivos de la carpeta (inventario de red para el proveedor, catálogo de monitoreo y captura de paquetes) **no** están cargados: es un alcance pendiente.
-`./scripts/reset-demo.sh` no toca estos datos.
+Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/analytics/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. `./scripts/reset-demo.sh` no toca estos datos.
+
+### Inventario de red (`Data para Proveedor ERP.xlsx`)
+
+| Qué | Dónde |
+|---|---|
+| Datos usados | Hojas «01 Inventario» (76 dispositivos), «03 Enlaces» (74 enlaces) y «06 Monitoreo» (estado de monitoreo de los 10 equipos de infraestructura). Las demás hojas no se cargan |
+| Archivos en el repo | `prisma/data/network-devices.json`, `network-links.json`, `network-monitoring.json` y `convert-network.py` |
+| Tablas | `network_devices`, `network_links`, `network_monitoring` (migración `0003_network_inventory`) |
+| Carga | `prisma/network-load.ts` desde `prisma/seed.ts`, idempotente, igual que la telemetría |
+| API | `GET /network/summary`, `/network/devices`, `/network/links` y `/network/facets`, solo gerente |
+| Pantalla | **Red**: «qué atender», cifras, matriz de monitoreo de los equipos de infraestructura (ninguno tiene Syslog, SNMP ni NTP) y explorador con filtros; de un equipo se salta a sus enlaces |
+
+Quedan sin cargar la captura de paquetes (`captura_tcp-2…xlsx`) y las demás hojas del inventario; no hay pantalla para subir archivos ni cálculo en tiempo real. Ningún dato está fijo en el código de la web: todo sale de la API.
+
+### Idioma, tema y login
+
+La interfaz está en español por defecto y en inglés a elegir desde «Mi perfil»; ahí mismo se elige el tema (Sistema, Claro u Oscuro). Ambas preferencias se guardan por persona en la base (`users.language`, `users.theme`; `PATCH /me/language` y `/me/theme`). Lo que viene de la base de datos no se traduce. El login es móvil primero (una columna) y de pantalla dividida desde 900 px.
 
 ## Idioma de la interfaz (español e inglés)
 
