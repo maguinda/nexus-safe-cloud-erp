@@ -88,8 +88,8 @@ describe('dashboards: trends, filterable readings and the network explorer (e2e,
       expect(f[2]).toMatchObject({ severity: 'medium', params: { locations: 3, total: 39, tempC: 24 } });
     });
 
-    it('per office: 200 temperature readings, 13 over the threshold (6.5 %) and a peak of 24', async () => {
-      expect((await GET('/telemetry/trends')).body.byLocation).toEqual(['Oficina 1', 'Oficina 2', 'Oficina 3'].map((location) => ({ location, tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24 })));
+    it('per office: 200 temperature readings, 13 over the threshold (6.5 %), a peak of 24 and the heater on 90 % of the time', async () => {
+      expect((await GET('/telemetry/trends')).body.byLocation).toEqual(['Oficina 1', 'Oficina 2', 'Oficina 3'].map((location) => ({ location, tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 90 })));
     });
   });
 
@@ -256,11 +256,11 @@ describe('dashboards: trends, filterable readings and the network explorer (e2e,
       ['/network/links?functional=maybe'], ['/network/links?sort=password'], ['/network/links?device=%27%3B--'], ['/network/links?offset=-5'], ['/network/links?linkType=a%0Ab'],
     ])('a bad filter %s is a 400', async (path) => { expect((await GET(path)).status).toBe(400); });
 
-    it('the summary now carries its findings: no Syslog/SNMP/NTP anywhere, 3 critical pieces with nothing configured, NetFlow on 4 of 10', async () => {
+    it('the summary now carries its findings: no Syslog/SNMP/NTP anywhere, 1 of the 5 critical pieces (ASA0) with nothing configured, NetFlow on 4 of 10', async () => {
       const f = (await GET('/network/summary')).body.insights;
       expect(f.map((x: any) => x.code)).toEqual(['monitoring_basics_missing', 'critical_unmonitored', 'netflow_partial', 'links_without_status']);
       expect(f[0]).toMatchObject({ severity: 'high', params: { equipment: 10, syslog: 0, snmp: 0, ntp: 0 } });
-      expect(f[1].params.critical).toBe(5);
+      expect(f[1]).toMatchObject({ severity: 'high', params: { count: 1, critical: 5, names: 'ASA0' } }); // el cortafuegos es el único crítico sin NetFlow ni nada
       expect(f[2]).toMatchObject({ severity: 'medium', params: { withNetflow: 4, equipment: 10 } });
       expect(f[3]).toMatchObject({ severity: 'info', params: { count: 5 } });
     });

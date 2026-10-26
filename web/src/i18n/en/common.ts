@@ -5,6 +5,8 @@ export const common: Record<keyof typeof es, string> = {
   'nav.modules': 'Modules',
   'nav.dashboard': 'Dashboard',
   'nav.users': 'Users',
+  'nav.sensors': 'Sensors',
+  'nav.network': 'Network',
   'nav.projects': 'Projects',
   'nav.invoices': 'Invoices',
   'header.tokenExpires': 'token expires in {time}',

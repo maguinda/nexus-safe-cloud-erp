@@ -3,7 +3,9 @@ import { DashboardView } from './components/DashboardView';
 import { InvoicesView } from './components/InvoicesView';
 import { JwtPanel } from './components/JwtPanel';
 import { LoginView } from './components/LoginView';
+import { NetworkView } from './components/NetworkView';
 import { ProjectsView } from './components/ProjectsView';
+import { SensorsView } from './components/SensorsView';
 import { ProfileMenu } from './components/ProfileMenu';
 import { Toast } from './components/Toast';
 import { UsersView } from './components/UsersView';
@@ -12,7 +14,7 @@ import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
 type View = 'projects' | 'invoices';
-type ManagerView = 'dashboard' | 'users';
+type ManagerView = 'dashboard' | 'sensors' | 'network' | 'users';
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
 
 function Shell() {
@@ -44,6 +46,8 @@ function Shell() {
               ? (
                 <>
                   <button type="button" aria-current={managerView === 'dashboard' ? 'page' : undefined} onClick={() => setManagerView('dashboard')}>{t('nav.dashboard')}</button>
+                  <button type="button" aria-current={managerView === 'sensors' ? 'page' : undefined} onClick={() => setManagerView('sensors')}>{t('nav.sensors')}</button>
+                  <button type="button" aria-current={managerView === 'network' ? 'page' : undefined} onClick={() => setManagerView('network')}>{t('nav.network')}</button>
                   <button type="button" aria-current={managerView === 'users' ? 'page' : undefined} onClick={() => setManagerView('users')}>{t('nav.users')}</button>
                 </>
               )
@@ -55,7 +59,7 @@ function Shell() {
               )}
           </nav>
           <main className={s.content}>
-            {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : <DashboardView key="d" />) : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <DashboardView key="d" />) : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>

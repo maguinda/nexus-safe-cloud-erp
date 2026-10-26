@@ -29,9 +29,17 @@ export class PrismaTrendsQueries implements TrendsQueries {
 
   async perLocation(): Promise<LocationStat[]> {
     const rows = await this.prisma.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
-      SELECT d.location, COUNT(*)::int AS temp_readings, COUNT(*) FILTER (WHERE r.status = ${ST.warning})::int AS warning_readings, MAX(r.value) AS peak
-      FROM iot_readings r JOIN iot_devices d ON d.id = r.device_id WHERE d.reading_kind = ${KIND.temp} GROUP BY d.location`);
-    return rows.map((r) => ({ location: String(r.location), tempReadings: Number(r.temp_readings), warningReadings: Number(r.warning_readings), peakTempC: num(r.peak) }));
+      SELECT d.location,
+        COUNT(*) FILTER (WHERE d.reading_kind = ${KIND.temp})::int AS temp_readings,
+        COUNT(*) FILTER (WHERE d.reading_kind = ${KIND.temp} AND r.status = ${ST.warning})::int AS warning_readings,
+        MAX(r.value) FILTER (WHERE d.reading_kind = ${KIND.temp}) AS peak,
+        COUNT(*) FILTER (WHERE d.reading_kind = ${KIND.power})::int AS heater_readings,
+        COUNT(*) FILTER (WHERE d.reading_kind = ${KIND.power} AND r.status = ${ST.on})::int AS heater_on
+      FROM iot_readings r JOIN iot_devices d ON d.id = r.device_id GROUP BY d.location`);
+    return rows.map((r) => ({
+      location: String(r.location), tempReadings: Number(r.temp_readings), warningReadings: Number(r.warning_readings), peakTempC: num(r.peak),
+      heaterReadings: Number(r.heater_readings), heaterOn: Number(r.heater_on),
+    }));
   }
 
   async events(): Promise<EventRow[]> {

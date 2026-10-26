@@ -46,3 +46,53 @@ export interface TelemetrySummary {
 
 /** Rol -> clave del diccionario (`t(roleKey(role))`): el nombre del rol se traduce, el id del rol no. */
 export const roleKey = (r: Role) => `role.${r}` as const;
+
+/** Un hallazgo: la regla que lo detectó y los números para decirlo. La pantalla arma la frase en el idioma de la persona a partir del código. */
+export interface Insight<C extends string = string> { code: C; severity: 'high' | 'medium' | 'info'; params: Record<string, string | number> }
+export type TrendsInsightCode = 'simultaneous_alerts' | 'periodic_warnings' | 'warnings_everywhere' | 'office_hotter' | 'all_normal';
+export type NetworkInsightCode = 'monitoring_basics_missing' | 'critical_unmonitored' | 'netflow_partial' | 'links_without_status' | 'all_covered';
+
+export interface TrendPoint {
+  at: string; avgTempC: number | null; maxTempC: number | null; avgHumidityPct: number | null; maxSmokePpm: number | null; heaterOnPct: number | null;
+  motionDetections: number; doorUnlocks: number; warnings: number; alerts: number;
+}
+/** GET /telemetry/trends: tramos de 10 minutos por oficina, eventos y hallazgos. */
+export interface Trends {
+  asOf: string; bucketMinutes: number; window: { from: string; to: string } | null; thresholds: { tempWarningC: number | null };
+  locations: string[];
+  series: { location: string; points: TrendPoint[] }[];
+  byLocation: { location: string; tempReadings: number; warningReadings: number; warningSharePct: number; peakTempC: number | null; heaterReadings: number; heaterOnPct: number | null }[];
+  events: { at: string; location: string; deviceName: string; status: string; value: number; unit: string; note: string | null }[];
+  insights: Insight<TrendsInsightCode>[];
+}
+
+export type Severity = 'normal' | 'warning' | 'alert';
+export interface ReadingItem {
+  id: number; at: string; deviceId: string; deviceName: string; location: string; deviceKind: string; readingKind: string;
+  status: string; severity: Severity; value: number; unit: string; note: string | null;
+}
+export interface Page<T> { total: number; limit: number; offset: number; items: T[] }
+export interface ReadingsQuery {
+  location?: string; deviceKind?: string; deviceId?: string; severity?: Severity; status?: string; from?: string; to?: string;
+  sort?: 'at' | 'value' | 'status' | 'device'; order?: 'asc' | 'desc'; limit?: number; offset?: number;
+}
+export interface TelemetryFacets { locations: string[]; deviceKinds: string[]; statuses: { status: string; severity: Severity; count: number }[]; window: { from: string; to: string } | null }
+
+export interface NetworkSummary {
+  asOf: string;
+  totals: { devices: number; links: number; criticalDevices: number; infrastructure: number };
+  byCategory: { category: string; count: number }[];
+  byCriticality: { criticality: string; count: number }[];
+  links: { total: number; functional: number; notFunctional: number; noData: number; byType: { type: string; count: number }[]; byCriticality: { criticality: string; count: number }[] };
+  monitoring: { equipment: number; syslog: number; snmp: number; ntp: number; netflow: number; withoutAnyConfig: number; signalsPossible: number };
+  infrastructure: { name: string; model: string; role: string; criticality: string; ips: string | null; syslog: boolean; snmp: boolean; ntp: boolean; netflow: boolean; signals: number }[];
+  insights: Insight<NetworkInsightCode>[];
+}
+export interface NetworkDeviceItem {
+  id: number; name: string; model: string; category: string; role: string; criticality: string; ips: string | null; gateways: string | null;
+  monitored: boolean; syslog: boolean | null; snmp: boolean | null; ntp: boolean | null; netflow: boolean | null; links: number;
+}
+export interface NetworkLinkItem { id: number; origin: string; originPort: string; destination: string; destinationPort: string; linkType: string; cableType: string | null; functional: boolean | null; length: number | null; criticality: string }
+export interface DevicesQuery { category?: string; criticality?: string; monitored?: 'yes' | 'no'; q?: string; sort?: 'id' | 'name' | 'category' | 'criticality' | 'model'; order?: 'asc' | 'desc'; limit?: number; offset?: number }
+export interface LinksQuery { linkType?: string; criticality?: string; functional?: 'yes' | 'no' | 'unknown'; device?: string; q?: string; sort?: 'id' | 'origin' | 'destination' | 'criticality' | 'length'; order?: 'asc' | 'desc'; limit?: number; offset?: number }
+export interface NetworkFacets { categories: string[]; criticalities: string[]; linkTypes: string[] }
