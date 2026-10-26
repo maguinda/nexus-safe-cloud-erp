@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { Fragment, useCallback, useState } from 'react';
+import { AdvisorPanel } from './components/advisor/AdvisorPanel';
 import { DashboardView } from './components/DashboardView';
 import { InvoicesView } from './components/InvoicesView';
 import { JwtPanel } from './components/JwtPanel';
@@ -59,7 +60,7 @@ function Shell() {
               )}
           </nav>
           <main className={s.content}>
-            {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <DashboardView key="d" />) : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>) : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>

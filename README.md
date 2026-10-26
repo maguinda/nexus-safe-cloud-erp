@@ -122,6 +122,19 @@ Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 se
 
 Quedan sin cargar la captura de paquetes (`captura_tcp-2…xlsx`) y las demás hojas del inventario; no hay pantalla para subir archivos ni cálculo en tiempo real. Ningún dato está fijo en el código de la web: todo sale de la API.
 
+### Asesor de decisiones («Qué hacer primero»)
+
+Un panel en el Tablero del gerente que ordena los hallazgos de Sensores y Red por urgencia y dice, para cada uno, **por qué importa, qué hacer y en qué evidencia se apoya**, con un botón que abre la pantalla correspondiente.
+
+| Qué | Cómo |
+|---|---|
+| Por defecto | **Reglas**: plantillas en español e inglés sobre los hallazgos que ya calculan Sensores y Red. No hace llamadas externas y siempre responde |
+| Con IA | Botón «Redactar con IA»: un modelo de Claude redacta las recomendaciones. Solo **lee** los hallazgos (no tiene herramientas ni puede cambiar datos). El servidor revisa la respuesta: todo `evidenceId` debe existir y todo número debe estar en los hallazgos; si algo no cuadra se descarta y se muestran las reglas, con el motivo |
+| Llave | `ANTHROPIC_API_KEY` en tu `.env` (Git lo ignora; no la pegues en chats ni commits) y opcional `ADVISOR_MODEL` (por defecto `claude-sonnet-5-5`). Sin llave el botón queda apagado y avisa por qué |
+| Costo | Tope de 6 llamadas a la IA por minuto para todo el servicio; las de reglas no lo gastan. Si se pasa, responde con reglas y el motivo `limit` |
+| API | `POST /advisor/brief` con `{ "language": "es" \| "en", "ai": true \| false }`, solo gerente (403 a los demás) |
+| Seguridad | Los nombres que vienen del Excel se envían como **datos** dentro de un bloque JSON y el modelo no obedece instrucciones que estén ahí; lo peor que puede pasar es una respuesta descartada |
+
 ### Idioma, tema y login
 
 La interfaz está en español por defecto y en inglés a elegir desde «Mi perfil»; ahí mismo se elige el tema (Sistema, Claro u Oscuro). Ambas preferencias se guardan por persona en la base (`users.language`, `users.theme`; `PATCH /me/language` y `/me/theme`). Lo que viene de la base de datos no se traduce. El login es móvil primero (una columna) y de pantalla dividida desde 900 px.

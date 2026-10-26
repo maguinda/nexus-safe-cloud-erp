@@ -25,6 +25,7 @@ info:
     | GET /telemetry/summary | 403 | 403 | 403 | yes |
     | GET /network/summary, /network/devices, /network/links, /network/facets | 403 | 403 | 403 | yes |
     | GET /telemetry/trends, /telemetry/readings, /telemetry/facets | 403 | 403 | 403 | yes |
+    | POST /advisor/brief | 403 | 403 | 403 | yes |
     | PATCH /me/language (your own) | yes | yes | yes | yes |
     | PATCH /me/theme (your own) | yes | yes | yes | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
@@ -54,6 +55,8 @@ tags:
   - name: Telemetry
     description: Owned by analytics (manager only)
   - name: Network
+    description: Owned by analytics (manager only)
+  - name: Advisor
     description: Owned by analytics (manager only)
 security:
   - bearerAuth: []
@@ -511,6 +514,37 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NetworkSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /advisor/brief:
+    post:
+      tags: [Advisor]
+      operationId: getAdvisorBrief
+      summary: What to do first, from the findings of Sensors and Network (role manager)
+      description: |
+        Ranks the findings the rules of Sensors and Network already computed and writes, for each one, why it matters and what to do, always citing its evidence.
+        With `ai: false` (default) the sentences come from templates and no external call is made. With `ai: true` the model writes them (needs `ANTHROPIC_API_KEY`);
+        the server then checks the answer against the findings: every evidence id must exist and every number must appear in the findings, or the whole answer is
+        discarded and the rules answer is returned with `fallbackReason` (`invalid`, `error`, `limit` or `unavailable`). The model only reads: it never changes data.
+        Paid calls are capped (6 a minute for the whole service); the free ones are not.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [language]
+              additionalProperties: false
+              properties:
+                language: { type: string, enum: [es, en] }
+                ai: { type: boolean, default: false }
+      responses:
+        '200':
+          description: The ranked recommendations with their evidence
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /invoices/{invoiceNumber}/issue:

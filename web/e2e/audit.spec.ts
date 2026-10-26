@@ -33,6 +33,8 @@ test.beforeEach(async ({ page }) => {
     if (r.method() === 'POST' && r.url().endsWith('/csp-report')) { cspReports.push(r.postData() ?? ''); return route.fulfill({ status: 204 }); }
     const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(r.method());
     if (isRead || (r.method() === 'POST' && r.url().endsWith('/auth/login'))) return route.continue();
+    // El asesor pide por POST pero solo LEE (y sin IA no gasta nada): pasa únicamente con ai:false; con ai:true se bloquea como cualquier otra escritura.
+    if (r.method() === 'POST' && r.url().endsWith('/advisor/brief') && r.postDataJSON()?.ai === false) return route.continue();
     blocked.push(`${r.method()} ${r.url()} ${(r.postData() ?? '').slice(0, 500)}`);
     return route.fulfill({ status: 599, body: '{"message":"blocked by audit"}', contentType: 'application/json' });
   });
@@ -45,7 +47,7 @@ const screensFor = (lang: Lang): { name: string; role: RoleKey | null; go: (p: P
     { name: 'login', role: null, go: async (p) => { await p.goto('/'); await p.getByRole('heading', { name: T('login.title') }).waitFor(); } },
     { name: 'projects', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Branch network upgrade' }).waitFor(); } },
     { name: 'invoices', role: 'lead', go: async (p) => { await p.getByRole('button', { name: T('nav.invoices') }).click(); await p.getByRole('table').waitFor(); } },
-    { name: 'dashboard', role: 'manager', go: async (p) => { await p.getByRole('heading', { name: T('dashboard.title'), exact: true }).waitFor(); await p.getByRole('heading', { name: T('iot.devices'), exact: true }).waitFor(); } }, // incluye el panel Network & IoT
+    { name: 'dashboard', role: 'manager', go: async (p) => { await p.getByRole('region', { name: T('advisor.title') }).getByRole('listitem').first().waitFor(); await p.getByRole('heading', { name: T('dashboard.title'), exact: true }).waitFor(); await p.getByRole('heading', { name: T('iot.devices'), exact: true }).waitFor(); } }, // incluye el panel Network & IoT
     { name: 'sensors', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.sensors'), exact: true }).click(); await p.getByRole('heading', { name: T('sensors.table.title'), exact: true }).waitFor(); await p.locator('table:visible').filter({ has: p.locator('caption') }).last().locator('tbody tr').first().waitFor(); await p.getByRole('img').nth(3).waitFor(); } },
     { name: 'network', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.network'), exact: true }).click(); await p.getByRole('heading', { name: T('netview.explorer.title'), exact: true }).waitFor(); await p.locator('table:visible').filter({ has: p.locator('caption') }).last().locator('tbody tr').nth(5).waitFor(); await p.getByRole('img').nth(2).waitFor(); } },
     { name: 'users', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.users') }).click(); await p.getByRole('heading', { name: T('users.form.newUser') }).waitFor(); await p.getByRole('table').waitFor(); } },

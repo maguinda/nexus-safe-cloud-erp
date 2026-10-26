@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { Advice, ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -60,6 +60,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     networkDevices: (q: DevicesQuery = {}) => request<Page<NetworkDeviceItem>>('GET', `/network/devices${queryString(q)}`),
     networkLinks: (q: LinksQuery = {}) => request<Page<NetworkLinkItem>>('GET', `/network/links${queryString(q)}`),
     networkFacets: () => request<NetworkFacets>('GET', '/network/facets'),
+    advisorBrief: (language: Lang, ai: boolean) => request<Advice>('POST', '/advisor/brief', { language, ai }),
     setLanguage: (language: Lang) => request<{ language: Lang }>('PATCH', '/me/language', { language }),
     setTheme: (theme: Theme) => request<{ theme: Theme }>('PATCH', '/me/theme', { theme }),
     users: () => request<ManagedUser[]>('GET', '/users'),
