@@ -6,7 +6,7 @@ export function severityOf(status: string): Severity {
   return status === 'ALERT' ? 'alert' : status === 'WARNING' ? 'warning' : 'normal';
 }
 
-/** Estados que piden atención del gerente (la lista «attention» del resumen). */
+/** Estados que piden atención del gerente (la lista «attention» del resumen), de más grave a menos: las alertas van antes que las advertencias. */
 export const ATTENTION_STATUSES = ['ALERT', 'WARNING'];
 
 export interface DeviceRow {
@@ -30,7 +30,7 @@ export interface TelemetryInput {
   statusCounts: StatusCount[];
   perDevice: DeviceCounters[];
   averages: LocationAverage[];
-  /** ALERT y WARNING, la más reciente primero. */
+  /** ALERT primero y luego WARNING; dentro de cada grupo, la más reciente primero. */
   attention: AttentionReading[];
   window: { from: Date; to: Date } | null;
 }

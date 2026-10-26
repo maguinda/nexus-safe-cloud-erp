@@ -30,7 +30,7 @@ export interface TelemetryQueries {
   statusCounts(): Promise<StatusCount[]>;
   countersPerDevice(): Promise<DeviceCounters[]>;
   averagesByLocation(): Promise<LocationAverage[]>;
-  /** ALERT y WARNING, la más reciente primero. */
+  /** ALERT primero y luego WARNING (hasta `limit` en total); dentro de cada grupo, la más reciente primero. */
   attention(limit: number): Promise<AttentionReading[]>;
   window(): Promise<{ from: Date; to: Date } | null>;
 }

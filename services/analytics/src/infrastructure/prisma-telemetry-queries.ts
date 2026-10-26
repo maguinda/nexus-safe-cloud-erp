@@ -42,11 +42,17 @@ export class PrismaTelemetryQueries implements TelemetryQueries {
       WHERE d.reading_kind IN ('TEMP', 'HUMIDITY') GROUP BY d.location, d.reading_kind`;
   }
 
-  attention(limit: number): Promise<AttentionReading[]> {
-    return this.prisma.iotReading.findMany({
-      where: { status: { in: ATTENTION_STATUSES } }, orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }], take: limit,
-      select: { recordedAt: true, deviceId: true, status: true, value: true, unit: true, note: true },
-    });
+  /** Las alertas primero y, con el cupo que sobre, las advertencias más recientes: 3 alertas viejas no deben quedar tapadas por 8 advertencias nuevas. */
+  async attention(limit: number): Promise<AttentionReading[]> {
+    const out: AttentionReading[] = [];
+    for (const status of ATTENTION_STATUSES) {
+      if (out.length >= limit) break;
+      out.push(...await this.prisma.iotReading.findMany({
+        where: { status }, orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }], take: limit - out.length,
+        select: { recordedAt: true, deviceId: true, status: true, value: true, unit: true, note: true },
+      }));
+    }
+    return out;
   }
 
   async window(): Promise<{ from: Date; to: Date } | null> {

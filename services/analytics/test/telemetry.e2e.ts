@@ -63,12 +63,15 @@ describe('telemetry: the Nexus data loaded into Analytics and read by the manage
       }
     });
 
-    it('the attention list holds only warnings and alerts, newest first, with the device named', async () => {
+    it('the attention list puts the 3 alerts first, then the newest warnings, each group newest first, with the device named', async () => {
       const b = (await get(manager())).body;
       expect(b.attention).toHaveLength(8);
-      expect(b.attention.every((a: any) => ['ALERT', 'WARNING'].includes(a.status))).toBe(true);
-      const times = b.attention.map((a: any) => a.at); expect([...times].sort().reverse()).toEqual(times);
-      expect(b.attention[0]).toEqual(expect.objectContaining({ deviceName: expect.any(String), location: expect.stringMatching(/^Oficina \d$/) }));
+      expect(b.attention.map((a: any) => a.status)).toEqual(['ALERT', 'ALERT', 'ALERT', 'WARNING', 'WARNING', 'WARNING', 'WARNING', 'WARNING']);
+      for (const group of [b.attention.slice(0, 3), b.attention.slice(3)]) { const t = group.map((a: any) => a.at); expect([...t].sort().reverse()).toEqual(t); }
+      expect(b.attention[0]).toEqual(expect.objectContaining({ deviceName: expect.any(String), location: expect.stringMatching(/^Oficina \d$/), note: expect.any(String) }));
+      // exactamente lo que dice el archivo fuente: las 3 alertas y las 5 advertencias más recientes (empates por id), en ese orden
+      const newest = (status: string, n: number) => readings.filter((r) => r.status === status).sort((x, y) => y.recordedAt.localeCompare(x.recordedAt) || y.id - x.id).slice(0, n).map((r) => [r.deviceId, r.recordedAt]);
+      expect(b.attention.map((a: any) => [a.deviceId, a.at])).toEqual([...newest('ALERT', 3), ...newest('WARNING', 5)]);
     });
 
     it('answers fast: the dashboard never loads the 4200 rows', async () => {
