@@ -1,7 +1,9 @@
 /** Tipos según docs/openapi.yaml. */
 export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager';
 
-export interface User { email: string; name: string; role: Role }
+import type { Lang } from '../i18n/core';
+
+export interface User { email: string; name: string; role: Role; /** Idioma de la interfaz de esta persona (viene del servidor). */ language?: Lang }
 /** Usuario tal como lo devuelve la administración de usuarios (identity-access): nunca trae contraseña ni hash. */
 export interface ManagedUser { id: string; email: string; name: string; role: Role; createdAt: string }
 export interface LoginResponse { accessToken: string; expiresIn: number; user: User }
@@ -39,4 +41,5 @@ export interface TelemetrySummary {
   attention: { at: string; deviceId: string; deviceName: string; location: string; status: 'WARNING' | 'ALERT'; value: number; unit: string; note: string | null }[];
 }
 
-export const ROLE_LABEL: Record<Role, string> = { project_lead: 'Project lead', billing_analyst: 'Billing analyst', sales: 'Sales', manager: 'Manager' };
+/** Rol -> clave del diccionario (`t(roleKey(role))`): el nombre del rol se traduce, el id del rol no. */
+export const roleKey = (r: Role) => `role.${r}` as const;

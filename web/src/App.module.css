@@ -4,6 +4,7 @@
   flex-direction: column;
 }
 .top {
+  position: relative; /* el menú de perfil se ancla aquí en pantallas angostas */
   display: flex;
   flex-wrap: wrap;
   align-items: center;

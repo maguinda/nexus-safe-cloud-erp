@@ -1,3 +1,4 @@
+import type { Lang } from '../i18n/core';
 import type { ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
@@ -44,6 +45,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     invoices: () => request<Invoice[]>('GET', '/invoices'),
     dashboard: () => request<Dashboard>('GET', '/dashboard'),
     telemetry: () => request<TelemetrySummary>('GET', '/telemetry/summary'),
+    setLanguage: (language: Lang) => request<{ language: Lang }>('PATCH', '/me/language', { language }),
     users: () => request<ManagedUser[]>('GET', '/users'),
     createUser: (u: { email: string; name: string; role: Role; password: string }) => request<ManagedUser>('POST', '/users', u),
     changeRole: (id: string, role: Role) => request<ManagedUser>('PATCH', `/users/${encodeURIComponent(id)}/role`, { role }),

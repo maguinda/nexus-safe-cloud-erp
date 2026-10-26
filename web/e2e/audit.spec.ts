@@ -2,7 +2,9 @@ import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, Page, test } from '@playwright/test';
-import { openAs, RoleKey } from './helpers';
+import { translate } from '../src/i18n';
+import type { Lang } from '../src/i18n/core';
+import { openAs, preferLanguage, RoleKey } from './helpers';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
@@ -36,18 +38,22 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-const screens: { name: string; role: RoleKey | null; go: (p: Page) => Promise<void> }[] = [
-  { name: 'login', role: null, go: async (p) => { await p.goto('/'); await p.getByRole('heading', { name: 'Sign in' }).waitFor(); } },
-  { name: 'projects', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Branch network upgrade' }).waitFor(); } },
-  { name: 'invoices', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Invoices' }).click(); await p.getByRole('table').waitFor(); } },
-  { name: 'dashboard', role: 'manager', go: async (p) => { await p.getByRole('heading', { name: 'Dashboard' }).waitFor(); await p.getByRole('heading', { name: 'Devices', exact: true }).waitFor(); } }, // incluye el panel Network & IoT
-  { name: 'users', role: 'manager', go: async (p) => { await p.getByRole('button', { name: 'Users' }).click(); await p.getByRole('heading', { name: 'New user' }).waitFor(); await p.getByRole('table').waitFor(); } },
-  { name: 'forbidden', role: 'sales', go: async (p) => { await p.getByRole('button', { name: 'Invoices' }).click(); await p.getByText('403 Forbidden').waitFor(); } },
-];
+/** Las pantallas se miden en los DOS idiomas (el español es más largo y es donde se desborda): los textos de espera salen del propio diccionario. */
+const screensFor = (lang: Lang): { name: string; role: RoleKey | null; go: (p: Page) => Promise<void> }[] => {
+  const T = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) => translate(lang, key, params);
+  return [
+    { name: 'login', role: null, go: async (p) => { await p.goto('/'); await p.getByRole('heading', { name: T('login.title') }).waitFor(); } },
+    { name: 'projects', role: 'lead', go: async (p) => { await p.getByRole('button', { name: 'Branch network upgrade' }).waitFor(); } },
+    { name: 'invoices', role: 'lead', go: async (p) => { await p.getByRole('button', { name: T('nav.invoices') }).click(); await p.getByRole('table').waitFor(); } },
+    { name: 'dashboard', role: 'manager', go: async (p) => { await p.getByRole('heading', { name: T('dashboard.title'), exact: true }).waitFor(); await p.getByRole('heading', { name: T('iot.devices'), exact: true }).waitFor(); } }, // incluye el panel Network & IoT
+    { name: 'users', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.users') }).click(); await p.getByRole('heading', { name: T('users.form.newUser') }).waitFor(); await p.getByRole('table').waitFor(); } },
+    { name: 'forbidden', role: 'sales', go: async (p) => { await p.getByRole('button', { name: T('nav.invoices') }).click(); await p.getByText(T('invoices.denied.title')).waitFor(); } },
+  ];
+};
 
-for (const s of screens) {
-  test(`layout: ${s.name}`, async ({ page }, info) => {
-    if (s.role) await openAs(page, s.role);
+for (const lang of ['en', 'es'] as const) for (const s of screensFor(lang)) {
+  test(`layout: ${s.name} [${lang}]`, async ({ page }, info) => {
+    if (s.role) await openAs(page, s.role, lang); else await preferLanguage(page, lang);
     await s.go(page);
     const m = await page.evaluate(() => {
       const vw = window.innerWidth;
@@ -78,7 +84,7 @@ for (const s of screens) {
     // Las violaciones de la política de contenido de LA APP deben ser 0 antes de la captura: en WebKit la propia captura de Playwright
     // inyecta una hoja de estilos y genera un reporte (se comprobó aparte), así que solo cuentan las anteriores.
     const violationsBeforeShot = [...cspReports];
-    await page.screenshot({ path: `test-results/shots/${info.project.name}-${s.name}.png`, fullPage: false, caret: 'initial', animations: 'allow' });
+    await page.screenshot({ path: `test-results/shots/${info.project.name}-${s.name}-${lang}.png`, fullPage: false, caret: 'initial', animations: 'allow' });
     expect(m.pageOverflow, `la página se desborda a ${m.vw}px`).toBe(false);
     expect(m.wide, 'elementos fuera de la vista (fuera de un contenedor con scroll)').toEqual([]);
     expect(m.small, 'objetivos táctiles menores de 32 px').toEqual([]);
@@ -86,5 +92,21 @@ for (const s of screens) {
     expect(m.minFont, 'letra más chica que 11 px').toBeGreaterThanOrEqual(11);
     expect(violationsBeforeShot, 'violaciones de la política de contenido de la app').toEqual([]);
     expect(blocked, 'la auditoría intentó escribir').toEqual([]);
+  });
+}
+
+// El menú de perfil se abre desde la barra superior: en un celular debe quedar entero dentro de la pantalla (antes se salía por la izquierda).
+for (const lang of ['en', 'es'] as const) {
+  test(`layout: profile menu inside the screen [${lang}]`, async ({ page }) => {
+    await openAs(page, 'manager', lang);
+    await page.getByRole('button', { name: translate(lang, 'profile.open', { name: 'Diana Vega', role: translate(lang, 'role.manager') }) }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    const m = await page.evaluate(() => { const r = document.querySelector('[role=dialog]')!.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, vw: window.innerWidth, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }; });
+    expect(m.left, 'el panel empieza dentro de la pantalla').toBeGreaterThanOrEqual(0);
+    expect(m.right, 'el panel termina dentro de la pantalla').toBeLessThanOrEqual(m.vw + 0.5);
+    expect(m.overflow, 'la página se desborda').toBe(false);
+    for (const name of ['Español', 'English']) { const b = await dialog.getByRole('button', { name, exact: true }).boundingBox(); expect(b!.height, `${name} es un objetivo táctil`).toBeGreaterThanOrEqual(36); }
+    expect(blocked, 'abrir el menú no escribe nada').toEqual([]);
   });
 }

@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { formatCop, formatDay, timeAgo } from '../lib/format';
-import { countByStatus, dueState, filterInvoices, sortInvoices } from '../lib/invoice-table';
+import { countByStatus, dueChip, dueState, filterInvoices, sortInvoices } from '../lib/invoice-table';
 import type { SortDir, SortKey, StatusFilter } from '../lib/invoice-table';
+import { errorText } from '../i18n/server';
+import type { MsgKey } from '../i18n';
 import type { Invoice } from '../lib/types';
+import { roleKey } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import s from './InvoicesView.module.css';
 
 /** Solo en teléfono: las columnas pasan a tarjetas y sin encabezados no hay dónde pulsar para ordenar; estos botones hacen lo mismo. */
-const SORT_CHIPS: [SortKey, string][] = [['created', 'Created'], ['total', 'Total'], ['due', 'Due'], ['number', 'Invoice'], ['project', 'Project']];
+const SORT_CHIPS: [SortKey, MsgKey][] = [['created', 'invoices.col.created'], ['total', 'invoices.chip.total'], ['due', 'invoices.col.due'], ['number', 'invoices.col.invoice'], ['project', 'invoices.col.project']];
 
 export function InvoicesView({ toast }: { toast: (m: string) => void }) {
-  const { api, user } = useSession();
+  const { api, user, t, lang } = useSession();
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [denied, setDenied] = useState('');
-  const [error, setError] = useState('');
+  // Se guarda la causa y no el texto: así, si la persona cambia de idioma con el error a la vista, el aviso se vuelve a escribir en el idioma nuevo.
+  const [error, setError] = useState<{ cause: unknown } | null>(null);
   const [busy, setBusy] = useState('');
   const [now, setNow] = useState(Date.now());
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -27,11 +31,11 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
   const load = useCallback(async () => {
     try {
       const list = await api.invoices();
-      if (alive.current) { setInvoices(list); setError(''); setDenied(''); }
+      if (alive.current) { setInvoices(list); setError(null); setDenied(''); }
     } catch (e) {
       if (!alive.current) return;
       if (e instanceof ApiError && e.status === 403) setDenied(e.message);
-      else setError(e instanceof ApiError ? e.message : 'We could not load the invoices. Check your connection.');
+      else setError({ cause: e });
     }
   }, [api]);
 
@@ -45,94 +49,97 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
 
   async function issue(n: string) {
     setBusy(n);
-    try { await api.issue(n); toast(`${n} issued`); await load(); }
-    catch (e) { toast(e instanceof ApiError ? (e.status === 409 ? `${n} is not a draft anymore.` : e.message) : 'The invoice could not be issued. Try again.'); await load(); }
+    try { await api.issue(n); toast(t('invoices.toast.issued', { n })); await load(); }
+    catch (e) { toast(e instanceof ApiError && e.status === 409 ? t('invoices.toast.notDraft', { n }) : errorText(e, t, 'invoices.toast.issueFailed')); await load(); }
     finally { if (alive.current) setBusy(''); }
   }
 
   function sortBy(key: SortKey) {
     setSort((c) => (c.key === key ? { key, dir: c.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'created' || key === 'total' ? 'desc' : 'asc' }));
   }
-  const header = (key: SortKey, label: string, num = false) => (
+  const header = (key: SortKey, labelKey: MsgKey, num = false) => {
+    const label = t(labelKey);
+    return (
     <th className={num ? ui.num : undefined} aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className={ui.sortBtn} onClick={() => sortBy(key)} aria-label={`Sort by ${label}`}>
+      <button type="button" className={ui.sortBtn} onClick={() => sortBy(key)} aria-label={t('invoices.sortBy', { label })}>
         {label}<span aria-hidden="true">{sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
       </button>
     </th>
-  );
+    );
+  };
 
   if (denied) {
     return (
       <div className={ui.panelError} role="alert">
-        <strong>403 Forbidden</strong>
-        <span>Your role ({user?.role}) cannot read invoices. The API checks the role on every request, not only the menu.</span>
+        <strong>{t('invoices.denied.title')}</strong>
+        <span>{t('invoices.denied.body', { role: user ? t(roleKey(user.role)) : '' })}</span>
       </div>
     );
   }
-  if (error) return <div className={ui.panelError} role="alert"><strong>Something went wrong</strong><span>{error}</span><button type="button" className={ui.btnGhost} onClick={() => void load()}>Try again</button></div>;
+  if (error) return <div className={ui.panelError} role="alert"><strong>{t('invoices.error.title')}</strong><span>{errorText(error.cause, t, 'invoices.error.load')}</span><button type="button" className={ui.btnGhost} onClick={() => void load()}>{t('invoices.error.retry')}</button></div>;
 
   const all = invoices ?? [];
   const counts = countByStatus(all);
   const visible = sortInvoices(filterInvoices(all, { status, query }), sort.key, sort.dir);
   const filtered = status !== 'all' || query.trim() !== '';
   const clear = () => { setStatus('all'); setQuery(''); };
-  const tabs: [StatusFilter, string][] = [['all', 'All'], ['draft', 'Draft'], ['issued', 'Issued']];
+  const tabs: [StatusFilter, MsgKey][] = [['all', 'invoices.tab.all'], ['draft', 'invoices.tab.draft'], ['issued', 'invoices.tab.issued']];
 
   return (
     <section aria-labelledby="inv-h" className={s.stack}>
-      <h2 id="inv-h" className={ui.h2}>Invoices</h2>
-      {invoices === null ? <p role="status" className={ui.muted}>Loading invoices…</p> : all.length === 0 ? (
-        <div className={s.empty}><strong>No invoices yet</strong><span className={ui.muted}>A draft appears a moment after a milestone is approved.</span></div>
+      <h2 id="inv-h" className={ui.h2}>{t('invoices.title')}</h2>
+      {invoices === null ? <p role="status" className={ui.muted}>{t('invoices.loading')}</p> : all.length === 0 ? (
+        <div className={s.empty}><strong>{t('invoices.empty.title')}</strong><span className={ui.muted}>{t('invoices.empty.hint')}</span></div>
       ) : (
         <>
           <div className={s.toolbar}>
             <label className={`${ui.field} ${s.search}`}>
-              <span className={s.sr}>Search invoices</span>
-              <input id="inv-search" type="search" maxLength={120} placeholder="Search invoice, project or milestone" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <span className={s.sr}>{t('invoices.search.label')}</span>
+              <input id="inv-search" type="search" maxLength={120} placeholder={t('invoices.search.placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
-            <div className={ui.seg} role="group" aria-label="Filter by status">
-              {tabs.map(([k, label]) => (
-                <button key={k} type="button" className={status === k ? ui.segBtnOn : ui.segBtn} aria-pressed={status === k} onClick={() => setStatus(k)}>{label} ({counts[k]})</button>
+            <div className={ui.seg} role="group" aria-label={t('invoices.filter.label')}>
+              {tabs.map(([k, labelKey]) => (
+                <button key={k} type="button" className={status === k ? ui.segBtnOn : ui.segBtn} aria-pressed={status === k} onClick={() => setStatus(k)}>{t(labelKey)} ({counts[k]})</button>
               ))}
             </div>
-            <div className={s.sortChips} role="group" aria-label="Sort cards by">
-              {SORT_CHIPS.map(([k, label]) => (
-                <button key={k} type="button" className={sort.key === k ? ui.segBtnOn : ui.segBtn} aria-pressed={sort.key === k} aria-label={`Sort by ${label}`} onClick={() => sortBy(k)}>
-                  {label}<span aria-hidden="true">{sort.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
+            <div className={s.sortChips} role="group" aria-label={t('invoices.sortCards.label')}>
+              {SORT_CHIPS.map(([k, labelKey]) => (
+                <button key={k} type="button" className={sort.key === k ? ui.segBtnOn : ui.segBtn} aria-pressed={sort.key === k} aria-label={t('invoices.sortBy', { label: t(labelKey) })} onClick={() => sortBy(k)}>
+                  {t(labelKey)}<span aria-hidden="true">{sort.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
                 </button>
               ))}
             </div>
-            <span className={s.count} role="status">Showing {visible.length} of {all.length}</span>
+            <span className={s.count} role="status">{t('invoices.showing', { shown: visible.length, total: all.length })}</span>
           </div>
           {visible.length === 0 ? (
-            <div className={s.empty} role="status"><strong>No invoices match these filters</strong><button type="button" className={ui.btnGhost} onClick={clear}>Clear filters</button></div>
+            <div className={s.empty} role="status"><strong>{t('invoices.noMatch')}</strong><button type="button" className={ui.btnGhost} onClick={clear}>{t('invoices.clearFilters')}</button></div>
           ) : (
             <div className={ui.scrollTall}>
               <table className={`${ui.tableDense} ${ui.cardsOnPhone} ${s.invCards}`}>
-                <caption className={s.sr}>Invoices, sorted by {sort.key} ({sort.dir === 'asc' ? 'ascending' : 'descending'}){filtered ? ', filtered' : ''}</caption>
-                <thead><tr>{header('number', 'Invoice')}{header('project', 'Project')}<th>Milestone</th><th className={ui.num}>Subtotal (COP)</th><th className={ui.num}>IVA 19 %</th>{header('total', 'Total (COP)', true)}<th>Status</th>{header('due', 'Due')}{header('created', 'Created')}<th>Action</th></tr></thead>
+                <caption className={s.sr}>{t(filtered ? 'invoices.captionFiltered' : 'invoices.caption', { key: t(`invoices.key.${sort.key}`), dir: t(sort.dir === 'asc' ? 'invoices.dir.asc' : 'invoices.dir.desc') })}</caption>
+                <thead><tr>{header('number', 'invoices.col.invoice')}{header('project', 'invoices.col.project')}<th>{t('invoices.col.milestone')}</th><th className={ui.num}>{t('invoices.col.subtotal')}</th><th className={ui.num}>{t('invoices.col.iva')}</th>{header('total', 'invoices.col.total', true)}<th>{t('invoices.col.status')}</th>{header('due', 'invoices.col.due')}{header('created', 'invoices.col.created')}<th>{t('invoices.col.action')}</th></tr></thead>
                 <tbody>
                   {visible.map((i) => {
                     const due = dueState(i.dueDate, now);
+                    const chip = dueChip(due, t);
                     return (
                       <tr key={i.number}>
                         <td className={ui.mono}>{i.number}</td>
-                        <td data-label="Project">{i.projectName}</td>
-                        <td data-label="Milestone">{i.milestoneName}</td>
-                        <td className={ui.num} data-label="Subtotal (COP)">{formatCop(i.amountCop)}</td>
-                        <td className={ui.num} data-label="IVA 19 %">{formatCop(i.taxCop)}</td>
-                        <td className={ui.num} data-label="Total (COP)"><strong>{formatCop(i.totalCop)}</strong></td>
-                        <td data-label="Status"><span className={ui[i.status]}>{i.status === 'draft' ? 'Draft' : 'Issued'}</span></td>
-                        <td data-label="Due">{i.dueDate ? (
+                        <td data-label={t('invoices.col.project')}>{i.projectName}</td>
+                        <td data-label={t('invoices.col.milestone')}>{i.milestoneName}</td>
+                        <td className={ui.num} data-label={t('invoices.col.subtotal')}>{formatCop(i.amountCop)}</td>
+                        <td className={ui.num} data-label={t('invoices.col.iva')}>{formatCop(i.taxCop)}</td>
+                        <td className={ui.num} data-label={t('invoices.col.total')}><strong>{formatCop(i.totalCop)}</strong></td>
+                        <td data-label={t('invoices.col.status')}><span className={ui[i.status]}>{t(i.status === 'draft' ? 'invoices.status.draft' : 'invoices.status.issued')}</span></td>
+                        <td data-label={t('invoices.col.due')}>{i.dueDate ? (
                           <span className={s.dueCell}>
-                            <span className={ui.muted}>{formatDay(i.dueDate)}</span>
-                            {due.state === 'overdue' && <span className={ui.overdue}>Overdue {Math.abs(due.days as number)} d</span>}
-                            {due.state === 'soon' && <span className={ui.soon}>{due.days === 0 ? 'Due today' : `In ${due.days} d`}</span>}
+                            <span className={ui.muted}>{formatDay(i.dueDate, lang)}</span>
+                            {chip && <span className={due.state === 'overdue' ? ui.overdue : ui.soon}>{chip}</span>}
                           </span>
                         ) : <span className={ui.muted}>—</span>}</td>
-                        <td className={ui.muted} data-label="Created">{timeAgo(i.createdAt, now)}</td>
-                        <td data-label="Action">{i.status === 'draft' && user?.role === 'billing_analyst'
-                          ? <button type="button" className={ui.btnGhost} disabled={busy === i.number} onClick={() => void issue(i.number)}>{busy === i.number ? 'Issuing…' : 'Issue invoice'}</button>
+                        <td className={ui.muted} data-label={t('invoices.col.created')}>{timeAgo(i.createdAt, now, t)}</td>
+                        <td data-label={t('invoices.col.action')}>{i.status === 'draft' && user?.role === 'billing_analyst'
+                          ? <button type="button" className={ui.btnGhost} disabled={busy === i.number} onClick={() => void issue(i.number)}>{busy === i.number ? t('invoices.action.issuing') : t('invoices.action.issue')}</button>
                           : <span className={ui.muted}>—</span>}</td>
                       </tr>
                     );
@@ -143,7 +150,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
           )}
         </>
       )}
-      <p className={ui.muted}>A draft shows up a moment after a milestone is approved. The “Created” column says how fresh each row is.</p>
+      <p className={ui.muted}>{t('invoices.note', { created: t('invoices.col.created') })}</p>
     </section>
   );
 }
