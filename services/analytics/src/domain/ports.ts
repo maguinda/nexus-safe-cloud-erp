@@ -1,6 +1,7 @@
 import { ActivityItem } from './dashboard';
 import { AnalyticsEvent } from './events';
 import { Fact } from './fact';
+import { InfrastructureRow, NetworkInput } from './network';
 import { AttentionReading, DeviceCounters, DeviceRow, LatestReading, LocationAverage, StatusCount } from './telemetry';
 
 /** Lo que el consumidor hace dentro de UNA transacción: marcar el evento, fusionarlo en el hecho y anotar la actividad. */
@@ -33,4 +34,12 @@ export interface TelemetryQueries {
   /** ALERT primero y luego WARNING (hasta `limit` en total); dentro de cada grupo, la más reciente primero. */
   attention(limit: number): Promise<AttentionReading[]>;
   window(): Promise<{ from: Date; to: Date } | null>;
+}
+
+/** Lecturas del inventario de red: cada una devuelve un agregado, nunca los 76 dispositivos ni los 74 enlaces. */
+export interface NetworkQueries {
+  devicesByCategory(): Promise<NetworkInput['byCategory']>;
+  devicesByCriticality(): Promise<NetworkInput['byCriticality']>;
+  links(): Promise<NetworkInput['links']>;
+  infrastructure(): Promise<InfrastructureRow[]>;
 }
