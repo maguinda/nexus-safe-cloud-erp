@@ -23,7 +23,8 @@ info:
     | PATCH /invoices/{number}/issue | 403 | yes | 403 | 403 |
     | GET /dashboard | 403 | 403 | 403 | yes |
     | GET /telemetry/summary | 403 | 403 | 403 | yes |
-    | GET /network/summary | 403 | 403 | 403 | yes |
+    | GET /network/summary, /network/devices, /network/links, /network/facets | 403 | 403 | 403 | yes |
+    | GET /telemetry/trends, /telemetry/readings, /telemetry/facets | 403 | 403 | 403 | yes |
     | PATCH /me/language (your own) | yes | yes | yes | yes |
     | PATCH /me/theme (your own) | yes | yes | yes | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
@@ -378,6 +379,123 @@ paths:
               schema: { $ref: '#/components/schemas/TelemetrySummary' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /telemetry/trends:
+    get:
+      tags: [Telemetry]
+      operationId: getTelemetryTrends
+      summary: Sensor trends by office every 10 minutes, the alert and warning events, and rule-based findings (role manager)
+      description: |
+        `series` has one point per office and 10-minute slot (temperature, humidity, smoke, heater on %, motion, door unlocks, warnings, alerts).
+        `insights` are findings from rules over the data, each with the numbers needed to say it: `simultaneous_alerts` (alerts at the same instant in 2+ offices),
+        `periodic_warnings` (the same interval again and again), `warnings_everywhere` or `office_hotter`, and `all_normal`. High severity comes first.
+      responses:
+        '200':
+          description: Series, per-office counters, events and findings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trends' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /telemetry/readings:
+    get:
+      tags: [Telemetry]
+      operationId: listTelemetryReadings
+      summary: Filterable, sortable and paged list of the loaded readings (role manager)
+      description: Filters combine with AND. Names are validated (letters, numbers and a few signs); a bad filter, `from` after `to` or `limit` over 200 answers 400.
+      parameters:
+        - { name: location, in: query, schema: { type: string }, example: Oficina 1 }
+        - { name: deviceKind, in: query, schema: { type: string }, example: Temperature Monitor }
+        - { name: deviceId, in: query, schema: { type: string }, example: IOT-OF1-02 }
+        - { name: severity, in: query, schema: { type: string, enum: [normal, warning, alert] } }
+        - { name: status, in: query, schema: { type: string }, example: WARNING }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: sort, in: query, schema: { type: string, enum: [at, value, status, device], default: at } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 100000, default: 0 } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+      responses:
+        '200':
+          description: Total, page and items
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadingsPage' }
+        '400': { description: A filter is not valid, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /telemetry/facets:
+    get:
+      tags: [Telemetry]
+      operationId: getTelemetryFacets
+      summary: Values available for the readings filters, with how many readings each status has (role manager)
+      responses:
+        '200':
+          description: Offices, kinds of device, statuses with counts and the time window
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /network/devices:
+    get:
+      tags: [Network]
+      operationId: listNetworkDevices
+      summary: Filterable, sortable and paged list of the 76 devices of the inventory (role manager)
+      parameters:
+        - { name: category, in: query, schema: { type: string }, example: Switch Acceso }
+        - { name: criticality, in: query, schema: { type: string, enum: [Crítica, Alta, Media] } }
+        - { name: monitored, in: query, description: 'yes = the 10 pieces of infrastructure with a monitoring row', schema: { type: string, enum: [yes, no] } }
+        - { name: q, in: query, description: Text inside the name, model, role or IP, schema: { type: string, maxLength: 60 } }
+        - { name: sort, in: query, schema: { type: string, enum: [id, name, category, criticality, model], default: name } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 100000, default: 0 } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+      responses:
+        '200':
+          description: Total, page and items (a monitored device carries its Syslog, SNMP, NTP and NetFlow flags; the others have null)
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { description: A filter is not valid, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /network/links:
+    get:
+      tags: [Network]
+      operationId: listNetworkLinks
+      summary: Filterable, sortable and paged list of the 74 links (role manager)
+      parameters:
+        - { name: linkType, in: query, schema: { type: string }, example: eCopper }
+        - { name: criticality, in: query, schema: { type: string, enum: [Crítica, Alta, Media] } }
+        - { name: functional, in: query, schema: { type: string, enum: [yes, no, unknown] } }
+        - { name: device, in: query, description: Exact device name, as origin or destination, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string, maxLength: 60 } }
+        - { name: sort, in: query, schema: { type: string, enum: [id, origin, destination, criticality, length], default: id } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 100000, default: 0 } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+      responses:
+        '200':
+          description: Total, page and items
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { description: A filter is not valid, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /network/facets:
+    get:
+      tags: [Network]
+      operationId: getNetworkFacets
+      summary: Values available for the network filters (role manager)
+      responses:
+        '200':
+          description: Categories, the three criticalities in order and the link types
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /network/summary:
     get:
       tags: [Network]
@@ -659,9 +777,55 @@ components:
               value: { type: number }
               unit: { type: string }
               note: { type: string, nullable: true }
+    Insight:
+      type: object
+      required: [code, severity, params]
+      description: A finding from a rule over the data; the screen writes the sentence in the person's language from the code and the numbers
+      properties:
+        code: { type: string, example: simultaneous_alerts }
+        severity: { type: string, enum: [high, medium, info] }
+        params: { type: object, additionalProperties: true }
+    ReadingsPage:
+      type: object
+      required: [total, limit, offset, items]
+      properties:
+        total: { type: integer, description: Readings that match the filters, example: 39 }
+        limit: { type: integer }
+        offset: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, at, deviceId, deviceName, location, deviceKind, readingKind, status, severity, value, unit, note]
+            properties:
+              id: { type: integer }
+              at: { type: string, format: date-time }
+              deviceId: { type: string, example: IOT-OF1-02 }
+              deviceName: { type: string, example: TEMP_MON_OF1 }
+              location: { type: string, example: Oficina 1 }
+              deviceKind: { type: string, example: Temperature Monitor }
+              readingKind: { type: string, example: TEMP }
+              status: { type: string, example: WARNING }
+              severity: { type: string, enum: [normal, warning, alert] }
+              value: { type: number }
+              unit: { type: string }
+              note: { type: string, nullable: true }
+    Trends:
+      type: object
+      required: [asOf, bucketMinutes, window, thresholds, locations, series, byLocation, events, insights]
+      properties:
+        asOf: { type: string, format: date-time }
+        bucketMinutes: { type: integer, example: 10 }
+        window: { type: object, nullable: true }
+        thresholds: { type: object, properties: { tempWarningC: { type: number, nullable: true, example: 24 } } }
+        locations: { type: array, items: { type: string } }
+        series: { type: array, items: { type: object } }
+        byLocation: { type: array, items: { type: object } }
+        events: { type: array, description: The alerts and warnings, in time order, items: { type: object } }
+        insights: { type: array, items: { $ref: '#/components/schemas/Insight' } }
     NetworkSummary:
       type: object
-      required: [asOf, totals, byCategory, byCriticality, links, monitoring, infrastructure]
+      required: [asOf, totals, byCategory, byCriticality, links, monitoring, infrastructure, insights]
       properties:
         asOf: { type: string, format: date-time }
         totals:
@@ -701,6 +865,7 @@ components:
             netflow: { type: integer, example: 4 }
             withoutAnyConfig: { type: integer, description: Equipment with none of the four configured, example: 6 }
             signalsPossible: { type: integer, description: Signals each piece could report (CPU, memory, interfaces…), example: 12 }
+        insights: { type: array, description: 'Findings: monitoring_basics_missing, critical_unmonitored, netflow_partial, links_without_status, all_covered', items: { $ref: '#/components/schemas/Insight' } }
         infrastructure:
           type: array
           description: Crítica first, then by name
