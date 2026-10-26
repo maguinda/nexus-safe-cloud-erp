@@ -5,6 +5,9 @@ import { Role } from '../domain/role';
 
 const SUMMARY = { id: true, email: true, name: true, role: true, createdAt: true } as const; // sin passwordHash: nunca sale de aquí
 
+/** Cuánto espera una petición su turno (por una conexión y por el bloqueo) antes de rendirse: una ráfaga de cambios de rol debe formarse en fila, no fallar. */
+const ROLE_CHANGE_TX = { maxWait: 20_000, timeout: 20_000 };
+
 export class PrismaUserAdminStore implements UserAdminStore {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -33,7 +36,14 @@ export class PrismaUserAdminStore implements UserAdminStore {
    * Todo lo que el caso de uso lee ocurre ya dentro del bloqueo, así que ve el estado real aunque otra petición esté a punto de cambiarlo.
    */
   runRoleChange<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T> {
+    // Los cambios de rol se ejecutan de uno en uno, así que los demás ESPERAN su turno. Prisma por defecto da 2 s para conseguir una conexión y
+    // 5 s en total: en una ráfaga con pocas conexiones (el CI tiene 5) los últimos se rendían con un 500 en vez de esperar.
     return this.prisma.$transaction(async (tx) => {
+      // Un candado único y global para TODO cambio de rol, antes de tocar ninguna fila. Sin él, el bloqueo de las filas de los gerentes no basta:
+      // quien empezó antes de que alguien fuera ascendido no ve a ese nuevo gerente, y toma sus bloqueos en otro orden que quien ya lo ve
+      // (una pide la fila de la persona ascendida después de la del gerente y la otra al revés): PostgreSQL detecta el bloqueo mutuo (40P01)
+      // y una de las dos recibía un 500. Con el candado se ejecutan de una en una y no puede haber ciclo.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('identity.role-change'))`;
       await tx.$queryRaw`SELECT id FROM users WHERE role = 'manager'::"Role" ORDER BY id FOR UPDATE`;
       return work({
         findById: async (id) => {
@@ -43,6 +53,6 @@ export class PrismaUserAdminStore implements UserAdminStore {
         countManagers: () => tx.user.count({ where: { role: 'manager' } }),
         setRole: (id: string, role: Role) => tx.user.update({ where: { id }, data: { role }, select: SUMMARY }),
       });
-    });
+    }, ROLE_CHANGE_TX);
   }
 }
