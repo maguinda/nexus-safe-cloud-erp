@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { countByStatus, dueState, filterInvoices, sortInvoices } from './invoice-table';
+import { makeT } from '../i18n';
+import { countByStatus, dueChip, dueState, filterInvoices, sortInvoices } from './invoice-table';
+import type { SortKey } from './invoice-table';
 import type { Invoice } from './types';
 
 const inv = (number: string, o: Partial<Invoice> = {}): Invoice => ({
@@ -78,4 +80,45 @@ describe('dueState (UTC calendar days)', () => {
 describe('countByStatus', () => {
   it('counts all, draft and issued', () => { expect(countByStatus([inv('A'), draft('B'), inv('C')])).toEqual({ all: 3, draft: 1, issued: 2 }); });
   it('is all zeros for an empty list', () => { expect(countByStatus([])).toEqual({ all: 0, draft: 0, issued: 0 }); });
+});
+
+describe('dueChip: the text of the chip, in the language of the screen', () => {
+  const now = Date.parse('2026-11-10T15:00:00Z');
+  const en = makeT('en'), es = makeT('es');
+  const chip = (due: string | null, t = en) => dueChip(dueState(due, now), t);
+  it.each([
+    ['2026-11-09T23:59:59Z', 'Overdue 1 d', 'Vencida hace 1 d'],
+    ['2026-10-31T10:00:00Z', 'Overdue 10 d', 'Vencida hace 10 d'],
+    ['2026-11-10T23:59:59Z', 'Due today', 'Vence hoy'],
+    ['2026-11-13T10:00:00Z', 'In 3 d', 'En 3 d'],
+    ['2026-11-17T10:00:00Z', 'In 7 d', 'En 7 d'],
+  ])('%s', (due, english, spanish) => { expect(chip(due)).toBe(english); expect(chip(due, es)).toBe(spanish); });
+  it.each([[null], ['2026-11-18T10:00:00Z'], ['2027-01-01T00:00:00Z']])('no chip when there is nothing to warn about (%s)', (due) => { expect(chip(due)).toBeNull(); expect(chip(due, es)).toBeNull(); });
+  it('the English text matches what the screen showed before the translation (the browser tests look for /^Overdue \\d+ d$/)', () => { expect(chip('2026-11-01T00:00:00Z')).toMatch(/^Overdue \d+ d$/); });
+});
+
+describe('the invoices dictionary', () => {
+  const en = makeT('en'), es = makeT('es');
+  it.each<SortKey>(['number', 'project', 'total', 'due', 'created'])('has a name for the sort key «%s» in both languages (it goes into the table caption)', (k) => {
+    const key = `invoices.key.${k}` as const;
+    expect(en(key)).toBe(k);
+    expect(es(key)).not.toBe('');
+  });
+  it('the table caption reads the same in English as before and in Spanish now', () => {
+    expect(en('invoices.caption', { key: 'created', dir: 'descending' })).toBe('Invoices, sorted by created (descending)');
+    expect(en('invoices.captionFiltered', { key: 'due', dir: 'ascending' })).toBe('Invoices, sorted by due (ascending), filtered');
+    expect(es('invoices.caption', { key: 'creación', dir: 'descendente' })).toBe('Facturas, ordenadas por creación (descendente)');
+  });
+  it('messages with values keep the English wording', () => {
+    expect(en('invoices.toast.issued', { n: 'INV-0103' })).toBe('INV-0103 issued');
+    expect(en('invoices.toast.notDraft', { n: 'INV-0103' })).toBe('INV-0103 is not a draft anymore.');
+    expect(en('invoices.showing', { shown: 1, total: 4 })).toBe('Showing 1 of 4');
+    expect(en('invoices.sortBy', { label: 'Due' })).toBe('Sort by Due');
+    expect(en('invoices.note', { created: en('invoices.col.created') })).toBe('A draft shows up a moment after a milestone is approved. The “Created” column says how fresh each row is.');
+    expect(es('invoices.note', { created: es('invoices.col.created') })).toContain('«Creada»');
+  });
+  it('the 403 panel names the role in the language of the screen', () => {
+    expect(en('invoices.denied.body', { role: en('role.sales') })).toBe('Your role (Sales) cannot read invoices. The API checks the role on every request, not only the menu.');
+    expect(es('invoices.denied.body', { role: es('role.sales') })).toBe('Tu rol (Ventas) no puede ver las facturas. La API revisa el rol en cada solicitud, no solo en el menú.');
+  });
 });

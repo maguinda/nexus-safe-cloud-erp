@@ -66,7 +66,8 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 5. Entra como Camila: Invoices responde 403. Con **Simulate expired token** la sesión se cierra con «Your session expired».
 6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
 7. Opcional: detén RabbitMQ con `docker compose stop rabbitmq`, aprueba otro hito (responde 200 igual), vuelve a arrancarlo con `docker compose start rabbitmq` y espera unos 15 segundos a que la factura aparezca.
-8. Opcional: como Diana, pestaña **Users**, crea un vendedor y entra con él en otra pestaña.
+8. Opcional: como Diana, pestaña **Usuarios**, crea un vendedor y entra con él en otra pestaña.
+9. Idioma: pulsa el botón con tu rol (arriba, a la derecha) para abrir **Mi perfil** y cambia entre **Español** y **English**. La pantalla cambia al instante y el idioma queda guardado para esa persona, así que la sigue a cualquier computadora.
 
 **Comprobar que todo funciona de punta a punta** (opcional)
 ```sh
@@ -108,6 +109,16 @@ La docente dejó en la carpeta compartida del curso (`PROYECTO_NEXUS`) los datos
 
 Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/analytics/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. Los otros tres archivos de la carpeta (inventario de red para el proveedor, catálogo de monitoreo y captura de paquetes) **no** están cargados: es un alcance pendiente.
 `./scripts/reset-demo.sh` no toca estos datos.
+
+## Idioma de la interfaz (español e inglés)
+
+La interfaz está en **español por defecto** y cada persona puede pasarla a inglés desde su perfil.
+
+- **Qué se traduce:** todo lo que es de la aplicación (pantallas, menús, botones, tablas, avisos y validaciones). **No** se traduce lo que viene de la base de datos: nombres de proyectos e hitos, la frase de «Actividad reciente», y las notas y tipos de dispositivo de los datos de la docente se muestran como están.
+- **Dónde se guarda:** en la base de identity (`users.language`, `es` o `en`, con un CHECK; migración `0004_user_language`). Por eso el idioma sigue a la persona a cualquier computadora. El login devuelve `user.language` y la pantalla abre en él. Los usuarios nuevos y los que ya existían quedan en español. Antes de iniciar sesión, la pantalla de entrada usa el último idioma que se usó en ese navegador.
+- **API:** `PATCH /me/language` con `{ "language": "es" | "en" }`, cualquier rol con un token válido. La persona sale del token, nunca del cuerpo; un campo de más se rechaza (400).
+- **En la web:** `web/src/i18n/` (diccionarios `es/` y `en/` por área, con las mismas claves: si falta una en un idioma, no compila) y el menú `ProfileMenu`. Los avisos que manda el servidor en inglés se traducen en pantalla (`i18n/server.ts`); si uno no se reconoce, se muestra el original.
+- `./scripts/reset-demo.sh` deja a los 4 usuarios de la demo en español.
 
 ## Where things live
 

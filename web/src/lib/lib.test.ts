@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { makeT } from '../i18n';
 import { ApiError, createApi } from './api';
 import { formatCop, formatDay, mmss, timeAgo } from './format';
 import { decodeClaims, secondsLeft } from './jwt';
@@ -25,11 +26,11 @@ describe('format', () => {
   it('formats pesos with Colombian separators', () => expect(formatCop(18500000)).toBe('18.500.000'));
   it('says how long ago', () => {
     const now = Date.parse('2026-10-18T12:00:00Z');
-    expect(timeAgo('2026-10-18T11:59:58Z', now)).toBe('just now');
-    expect(timeAgo('2026-10-18T11:59:30Z', now)).toBe('30 s ago');
-    expect(timeAgo('2026-10-18T11:30:00Z', now)).toBe('30 min ago');
-    expect(timeAgo('2026-10-15T12:00:00Z', now)).toBe('3 days ago');
-    expect(timeAgo('not a date', now)).toBe('—');
+    expect(timeAgo('2026-10-18T11:59:58Z', now, makeT('en'))).toBe('just now');
+    expect(timeAgo('2026-10-18T11:59:30Z', now, makeT('en'))).toBe('30 s ago');
+    expect(timeAgo('2026-10-18T11:30:00Z', now, makeT('en'))).toBe('30 min ago');
+    expect(timeAgo('2026-10-15T12:00:00Z', now, makeT('en'))).toBe('3 days ago');
+    expect(timeAgo('not a date', now, makeT('en'))).toBe('—');
   });
   it('formats mm:ss', () => expect(mmss(905)).toBe('15:05'));
 });

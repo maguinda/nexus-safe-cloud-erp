@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError } from '../lib/api';
+import { errorText } from '../i18n/server';
+import type { MsgKey } from '../i18n';
 import { formatCop, timeAgo } from '../lib/format';
 import type { Dashboard } from '../lib/types';
 import { useSession } from '../session';
@@ -8,11 +9,12 @@ import ui from '../styles/ui.module.css';
 import s from './DashboardView.module.css';
 
 const REFRESH_MS = 5000;
-const KIND_LABEL: Record<string, string> = { MilestoneApproved: 'Approved', InvoiceDrafted: 'Draft', InvoiceIssued: 'Issued' };
+/** Tipo de evento -> etiqueta de la app (se traduce); la frase del evento que guardó analytics es un dato y se muestra tal cual. */
+const KIND_KEY: Record<string, MsgKey> = { MilestoneApproved: 'dashboard.kind.MilestoneApproved', InvoiceDrafted: 'dashboard.kind.InvoiceDrafted', InvoiceIssued: 'dashboard.kind.InvoiceIssued' };
 
 /** Tablero del gerente: se lee SOLO del servicio Analytics (modelos de lectura armados con eventos) y se actualiza solo. */
 export function DashboardView() {
-  const { api } = useSession();
+  const { api, t } = useSession();
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState('');
   const [stale, setStale] = useState(false);
@@ -29,9 +31,9 @@ export function DashboardView() {
       if (!alive.current) return;
       // Si ya había datos, se conservan y se avisa; si no, se muestra el error.
       setStale(true);
-      setError(e instanceof ApiError ? e.message : 'We could not load the dashboard. Check your connection.');
+      setError(errorText(e, t, 'dashboard.loadError'));
     }
-  }, [api]);
+  }, [api, t]);
 
   useEffect(() => {
     void load();
@@ -42,47 +44,47 @@ export function DashboardView() {
 
   if (!data) {
     return error
-      ? <div className={ui.panelError} role="alert"><strong>Something went wrong</strong><span>{error}</span><button type="button" className={ui.btnGhost} onClick={() => void load()}>Try again</button></div>
-      : <p className={ui.muted} role="status">Loading the dashboard…</p>;
+      ? <div className={ui.panelError} role="alert"><strong>{t('dashboard.errorTitle')}</strong><span>{error}</span><button type="button" className={ui.btnGhost} onClick={() => void load()}>{t('dashboard.retry')}</button></div>
+      : <p className={ui.muted} role="status">{t('dashboard.loading')}</p>;
   }
-  const t = data.totals;
+  const tot = data.totals;
   const f = data.freshness;
 
   return (
     <section aria-labelledby="dash-h" className={s.stack}>
       <div className={s.head}>
-        <h2 id="dash-h" className={ui.h2}>Dashboard</h2>
+        <h2 id="dash-h" className={ui.h2}>{t('dashboard.title')}</h2>
         <p className={`${s.fresh} ${stale ? s.stale : ''}`}>
-          <span className={s.live}><span className={s.liveDot} aria-hidden />{stale ? 'Not refreshing' : 'Live'}</span>
-          <span>updated {timeAgo(data.asOf, now)}</span>
-          {f.lastEventAt && <span>· last event {timeAgo(f.lastEventAt, now)}, reached the dashboard {f.lastEventLagMs} ms after it happened</span>}
+          <span className={s.live}><span className={s.liveDot} aria-hidden />{stale ? t('dashboard.notRefreshing') : t('dashboard.live')}</span>
+          <span>{t('dashboard.updated', { ago: timeAgo(data.asOf, now, t) })}</span>
+          {f.lastEventAt && <span>{t('dashboard.lastEvent', { ago: timeAgo(f.lastEventAt, now, t), ms: f.lastEventLagMs ?? 0 })}</span>}
         </p>
       </div>
-      {stale && <p className={s.warn} role="status">We could not refresh just now ({error}). Showing the last data.</p>}
+      {stale && <p className={s.warn} role="status">{t('dashboard.stale', { error })}</p>}
 
       <div className={ui.kpis}>
-        <div className={ui.card}><small className={ui.muted}>Approved milestones</small><strong className={ui.kpi}>{t.milestonesApproved}</strong><span className={ui.kpiSub}>{formatCop(t.approvedCop)} COP</span></div>
-        <div className={ui.card}><small className={ui.muted}>Waiting for an invoice</small><strong className={ui.kpi}>{t.waitingForInvoice.count}</strong><span className={ui.kpiSub}>{formatCop(t.waitingForInvoice.cop)} COP</span></div>
-        <div className={ui.card}><small className={ui.muted}>Draft invoices</small><strong className={ui.kpi}>{t.draft.count}</strong><span className={ui.kpiSub}>{formatCop(t.draft.totalCop)} COP with IVA</span></div>
-        <div className={ui.card}><small className={ui.muted}>Issued invoices</small><strong className={ui.kpi}>{t.issued.count}</strong><span className={ui.kpiSub}>{formatCop(t.issued.totalCop)} COP with IVA</span></div>
+        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.approved')}</small><strong className={ui.kpi}>{tot.milestonesApproved}</strong><span className={ui.kpiSub}>{t('dashboard.copAmount', { amount: formatCop(tot.approvedCop) })}</span></div>
+        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.waiting')}</small><strong className={ui.kpi}>{tot.waitingForInvoice.count}</strong><span className={ui.kpiSub}>{t('dashboard.copAmount', { amount: formatCop(tot.waitingForInvoice.cop) })}</span></div>
+        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.draft')}</small><strong className={ui.kpi}>{tot.draft.count}</strong><span className={ui.kpiSub}>{t('dashboard.copWithIva', { amount: formatCop(tot.draft.totalCop) })}</span></div>
+        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.issued')}</small><strong className={ui.kpi}>{tot.issued.count}</strong><span className={ui.kpiSub}>{t('dashboard.copWithIva', { amount: formatCop(tot.issued.totalCop) })}</span></div>
       </div>
 
       <section aria-labelledby="dash-proj-h">
-        <h3 id="dash-proj-h" className={ui.h2}>By project</h3>
+        <h3 id="dash-proj-h" className={ui.h2}>{t('dashboard.byProject')}</h3>
         <div className={ui.scroll}>
           <table className={`${ui.table} ${ui.cardsOnPhone}`}>
-            <caption className={s.sr}>Approved and invoiced amounts for each project, in Colombian pesos</caption>
-            <thead><tr><th>Project</th><th className={ui.num}>Approved</th><th className={ui.num}>Waiting for invoice</th><th className={ui.num}>Draft (with IVA)</th><th className={ui.num}>Issued (with IVA)</th></tr></thead>
+            <caption className={s.sr}>{t('dashboard.projectsCaption')}</caption>
+            <thead><tr><th>{t('dashboard.col.project')}</th><th className={ui.num}>{t('dashboard.col.approved')}</th><th className={ui.num}>{t('dashboard.col.waiting')}</th><th className={ui.num}>{t('dashboard.col.draft')}</th><th className={ui.num}>{t('dashboard.col.issued')}</th></tr></thead>
             <tbody>
               {data.projects.length === 0
-                ? <tr><td colSpan={5} className={ui.muted}>No approved milestones yet.</td></tr>
+                ? <tr><td colSpan={5} className={ui.muted}>{t('dashboard.noProjects')}</td></tr>
                 : data.projects.map((p) => (
                   <tr key={p.projectName}>
                     <td>{p.projectName}</td>
-                    <td className={ui.num} data-label="Approved">{p.milestonesApproved} · {formatCop(p.approvedCop)}</td>
-                    <td className={ui.num} data-label="Waiting for invoice">{p.waitingForInvoice}</td>
-                    <td className={ui.num} data-label="Draft (with IVA)">{formatCop(p.draftTotalCop)}</td>
-                    <td className={ui.num} data-label="Issued (with IVA)">{formatCop(p.issuedTotalCop)}</td>
+                    <td className={ui.num} data-label={t('dashboard.col.approved')}>{p.milestonesApproved} · {formatCop(p.approvedCop)}</td>
+                    <td className={ui.num} data-label={t('dashboard.col.waiting')}>{p.waitingForInvoice}</td>
+                    <td className={ui.num} data-label={t('dashboard.col.draft')}>{formatCop(p.draftTotalCop)}</td>
+                    <td className={ui.num} data-label={t('dashboard.col.issued')}>{formatCop(p.issuedTotalCop)}</td>
                   </tr>
                 ))}
             </tbody>
@@ -91,14 +93,14 @@ export function DashboardView() {
       </section>
 
       <section className={ui.card} aria-labelledby="dash-act-h">
-        <h3 id="dash-act-h" className={ui.h2}>Recent activity</h3>
+        <h3 id="dash-act-h" className={ui.h2}>{t('dashboard.activity')}</h3>
         {data.recentActivity.length === 0
-          ? <p className={ui.muted}>No events since Analytics started. Approve a milestone as the project lead and watch this list.</p>
+          ? <p className={ui.muted}>{t('dashboard.noActivity')}</p>
           : (
             <ol className={s.activity}>
               {data.recentActivity.map((a, i) => (
                 <li key={`${a.at}-${i}`}>
-                  <span className={s.when}>{timeAgo(a.at, now)} · {KIND_LABEL[a.kind] ?? a.kind}</span>
+                  <span className={s.when}>{timeAgo(a.at, now, t)} · {KIND_KEY[a.kind] ? t(KIND_KEY[a.kind]) : a.kind}</span>
                   <span className={s.msg}>{a.message}</span>
                 </li>
               ))}
@@ -108,7 +110,7 @@ export function DashboardView() {
 
       <TelemetryPanel />
 
-      <p className={s.note}>Built only from events by the Analytics service, so it never reads the operational databases. Pending milestones are not shown: Projects does not publish an event when a milestone is created.</p>
+      <p className={s.note}>{t('dashboard.note')}</p>
     </section>
   );
 }

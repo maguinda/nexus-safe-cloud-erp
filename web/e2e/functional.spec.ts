@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import { openAs } from './helpers';
+import { translate } from '../src/i18n';
+import { openAs, preferLanguage } from './helpers';
 
 const here = dirname(fileURLToPath(import.meta.url));
 test.describe.configure({ mode: 'serial' });
@@ -12,8 +13,9 @@ test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });
 
 let problems: string[] = [];
-test.beforeEach(({ page }) => {
+test.beforeEach(async ({ page }) => {
   problems = [];
+  await preferLanguage(page, 'en'); // el login y las pantallas previas salen en inglés; las pruebas de español lo piden aparte
   // En Chromium también aparecen los avisos de la política de contenido en modo solo-reporte.
   // Los 401/403/409 de la API son comportamiento esperado (se provocan a propósito); cualquier otro error sí cuenta.
   const expected = /status of (401|403|409)/;
@@ -297,10 +299,123 @@ test('Network & IoT: on a 320 px phone every figure of both tables is inside the
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
+// ---- Idioma de la interfaz: español por defecto, y cada persona lo cambia en su perfil (se guarda en el servidor) ----
+const T = (lang: 'es' | 'en') => (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) => translate(lang, key, params);
+const profileButton = (page: any, name: string, role: string, lang: 'es' | 'en') => page.getByRole('button', { name: T(lang)('profile.open', { name, role }) });
+/** Lo que el servidor tiene guardado, leído de la base (no por el login: el gateway deja pasar solo 10 inicios de sesión por minuto y la suite ya usa varios). */
+const serverLanguage = (_request: unknown, email: string): string => execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d identity -Atc "select language from users where email='${email}'"`, { cwd: join(here, '..', '..'), shell: '/bin/sh' }).toString().trim();
+
+test('Language: in Spanish the screens and options are Spanish and the stored data stays as stored', async ({ page }) => {
+  const es = T('es');
+  await openAs(page, 'manager', 'es');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.getByRole('button', { name: es('nav.dashboard'), exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: es('nav.users'), exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: es('dashboard.title'), exact: true })).toBeVisible();
+  const panel = page.getByRole('region', { name: es('iot.title') });
+  await expect(panel.locator('small', { hasText: es('iot.kpi.online') }).locator('xpath=following-sibling::strong')).toHaveText('21 / 21');
+  await expect(panel.locator('small', { hasText: es('iot.kpi.readings') }).locator('xpath=following-sibling::strong')).toHaveText('4.200'); // separador de miles del español
+  await expect(panel.getByText('13 sep 2026, 08:01–11:20 UTC')).toBeVisible();
+  // los datos se muestran como están: nombres y notas de los dispositivos, nombres de proyecto
+  await expect(panel.getByText('TEMP_MON_OF1').first()).toBeVisible();
+  await expect(panel.getByText(/Umbral Ligero Superado/).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Branch network upgrade' })).toBeVisible();
+  // nada de lo que es de la app quedó en inglés
+  for (const english of ['Approved milestones', 'Draft invoices', 'By project', 'Recent activity', 'Sign out', 'token expires in']) await expect(page.getByText(english, { exact: false })).toHaveCount(0);
+});
+
+test('Language: the profile shows the person and switches the language at once, and the server keeps it', async ({ page, request }) => {
+  await openAs(page, 'sales', 'es');
+  await profileButton(page, 'Camila Soto', 'Ventas', 'es').click();
+  const dialog = page.getByRole('dialog', { name: T('es')('profile.title') });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('camila.soto@nexus.example')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Español', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.getByRole('button', { name: 'English', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await dialog.getByRole('button', { name: 'English', exact: true }).click();
+  // la pantalla cambia sin recargar, el aviso sale ya en el idioma nuevo y el atributo lang cambia
+  await expect(page.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Language changed to English.' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  expect(serverLanguage(request, 'camila.soto@nexus.example')).toBe('en'); // el servidor lo guardó: la sigue a cualquier equipo
+  await expect(page.getByRole('dialog', { name: 'My profile' }).getByRole('button', { name: 'English', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // y se puede volver
+  await page.getByRole('dialog', { name: 'My profile' }).getByRole('button', { name: 'Español', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Facturas', exact: true })).toBeVisible();
+  expect(serverLanguage(request, 'camila.soto@nexus.example')).toBe('es');
+});
+
+test('Language: Escape closes the profile and gives the focus back; the dialog also closes by clicking outside', async ({ page }) => {
+  await openAs(page, 'lead', 'en');
+  const trigger = profileButton(page, 'Laura Ríos', 'Project lead', 'en');
+  await trigger.click();
+  await expect(page.getByRole('dialog', { name: 'My profile' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.getByRole('navigation').click({ position: { x: 5, y: 200 } });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('Language: if the server cannot save it, the screen does not change and says why', async ({ page }) => {
+  await page.route('**/me/language', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ statusCode: 500, message: 'Internal Server Error' }) }));
+  await openAs(page, 'lead', 'en');
+  await profileButton(page, 'Laura Ríos', 'Project lead', 'en').click();
+  const dialog = page.getByRole('dialog', { name: 'My profile' });
+  await dialog.getByRole('button', { name: 'Español', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('The language could not be changed:');
+  await expect(dialog.getByRole('button', { name: 'English', exact: true })).toHaveAttribute('aria-pressed', 'true'); // sigue en inglés
+  await expect(page.getByRole('button', { name: 'Projects', exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  problems = problems.filter((m) => !/status of 500/.test(m)); // el 500 lo provocamos a propósito
+});
+
+test('Language: the choice follows the person to another computer: a browser that knows nothing opens the login in Spanish and, once inside, shows hers', async ({ page, browser, baseURL }) => {
+  await openAs(page, 'lead', 'es');
+  await profileButton(page, 'Laura Ríos', 'Líder de proyecto', 'es').click();
+  await page.getByRole('dialog', { name: 'Mi perfil' }).getByRole('button', { name: 'English', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible();
+  expect(serverLanguage(null, 'laura.rios@nexus.example')).toBe('en');
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible(); // en ESTE navegador la pantalla de entrada recuerda el último idioma
+
+  // Otra computadora: un contexto nuevo, sin localStorage ni sesión. La entrada sale en español (el predeterminado)...
+  const es = T('es');
+  const other = await (await browser.newContext({ baseURL })).newPage();
+  await other.goto('/');
+  await expect(other.getByRole('heading', { name: es('login.title') })).toBeVisible();
+  await other.getByLabel(es('login.email')).fill('laura.rios@nexus.example');
+  await other.getByLabel(es('login.password')).fill(process.env.DEMO_PASSWORD ?? 'demo-password-1');
+  await other.getByRole('button', { name: es('login.submit'), exact: true }).click();
+  // ...y al entrar el servidor le devuelve SU idioma: la pantalla pasa a inglés sin que ese navegador lo supiera.
+  await expect(other.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible();
+  await expect(other.locator('html')).toHaveAttribute('lang', 'en');
+  // se deja como estaba
+  await profileButton(other, 'Laura Ríos', 'Project lead', 'en').click();
+  await other.getByRole('dialog', { name: 'My profile' }).getByRole('button', { name: 'Español', exact: true }).click();
+  await expect(other.getByRole('button', { name: 'Facturas', exact: true })).toBeVisible();
+  expect(serverLanguage(null, 'laura.rios@nexus.example')).toBe('es');
+  await other.context().close();
+});
+
+test('Language: a known server warning is translated and an unknown one is shown as it came', async ({ page }) => {
+  await page.route('**/invoices', (route) => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ statusCode: 400, message: 'Invalid invoice number' }) }));
+  await openAs(page, 'lead', 'es');
+  await page.getByRole('button', { name: 'Facturas', exact: true }).click();
+  await expect(page.getByText('El número de factura no es válido.')).toBeVisible(); // «Invalid invoice number» llega en inglés del servicio y se traduce
+  await page.unroute('**/invoices');
+  await page.route('**/invoices', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ statusCode: 500, message: 'A brand new server problem' }) }));
+  await page.getByRole('button', { name: 'Proyectos', exact: true }).click();
+  await page.getByRole('button', { name: 'Facturas', exact: true }).click();
+  await expect(page.getByText('A brand new server problem')).toBeVisible();
+  problems = problems.filter((m) => !/status of (400|500)/.test(m));
+});
+
 const PW = 'Qa-Passw0rd-long!';
 const roleButton = (page: any, name: string) => page.getByRole('group', { name: 'Role', exact: true }).getByRole('button', { name, exact: true });
 
-test('the manager creates two salespeople who can sign in, and changes a role', async ({ page }) => {
+test('the manager creates two salespeople who can sign in, and changes a role', async ({ page, request }) => {
   await openAs(page, 'manager');
   await page.getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
@@ -317,14 +432,24 @@ test('the manager creates two salespeople who can sign in, and changes a role', 
     await expect(page.getByLabel('Email')).toHaveValue(''); // el formulario queda limpio para el siguiente
   }
   // El vendedor nuevo inicia sesión de verdad (otra pestaña: la sesión es por pestaña) y se comporta como Sales.
+  // «Solo lectura» solo aparece en un hito PENDIENTE: la prueba crea el suyo (antes dependía de qué proyecto quedara seleccionado, y fallaba a veces en el CI).
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  const lead = { headers: { authorization: `Bearer ${sessions.lead.token}` } };
+  const readOnlyProject = await (await request.post('/projects', { ...lead, data: { name: 'Read-only check', client: 'Nexus Safe-Cloud' } })).json();
+  expect((await request.post(`/projects/${readOnlyProject.id}/milestones`, { ...lead, data: { name: 'Pending milestone', amountCop: 1000000 } })).status()).toBe(201);
   const other = await page.context().newPage();
   await other.goto('/');
   await other.getByLabel('Email').fill('qa.carlos@nexus.example');
   await other.getByLabel('Password').fill(PW);
   await other.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(other.getByText('Sales', { exact: true }).first()).toBeVisible();
-  await expect(other.getByRole('button', { name: 'Users' })).toHaveCount(0);
-  await expect(other.getByText('Read only for Sales').first()).toBeVisible();
+  // Una persona nueva empieza en español (así lo guarda el servidor): el login ya le devuelve su idioma.
+  const es = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) => translate('es', key, params);
+  await expect(other.getByText(es('role.sales'), { exact: true }).first()).toBeVisible();
+  await expect(other.getByRole('button', { name: es('nav.users') })).toHaveCount(0);
+  await other.getByRole('button', { name: 'Read-only check' }).click();
+  await expect(other.getByText(es('projects.readOnly', { role: es('role.sales') })).first()).toBeVisible();
+  await expect(other.getByRole('button', { name: es('projects.approve') })).toHaveCount(0); // y no tiene el botón de aprobar
+  await expect(other.locator('html')).toHaveAttribute('lang', 'es');
   await other.close();
   // Cambio de rol de otra persona: panel aparte, aviso de que vale desde el siguiente inicio de sesión.
   await page.getByRole('button', { name: 'Change role for Carlos Pérez' }).click();

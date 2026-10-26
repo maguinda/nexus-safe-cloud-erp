@@ -1,3 +1,4 @@
+import type { TFn } from '../i18n';
 import type { Invoice } from './types';
 
 export type StatusFilter = 'all' | 'draft' | 'issued';
@@ -46,6 +47,13 @@ export function dueState(dueIso: string | null, nowMs: number): DueState {
   if (dueIso === null) return { state: 'none', days: null };
   const days = Math.round((utcDay(Date.parse(dueIso)) - utcDay(nowMs)) / 86_400_000);
   return { state: days < 0 ? 'overdue' : days <= SOON_DAYS ? 'soon' : 'ok', days };
+}
+
+/** El texto del chip de vencimiento (solo «pronto» y «vencida» tienen chip; en cualquier otro caso, null). */
+export function dueChip(due: DueState, t: TFn): string | null {
+  if (due.state === 'overdue') return t('invoices.due.overdue', { n: Math.abs(due.days as number) });
+  if (due.state === 'soon') return due.days === 0 ? t('invoices.due.today') : t('invoices.due.in', { n: due.days as number });
+  return null;
 }
 
 export function countByStatus(list: Invoice[]): Record<StatusFilter, number> {

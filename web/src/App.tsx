@@ -4,10 +4,10 @@ import { InvoicesView } from './components/InvoicesView';
 import { JwtPanel } from './components/JwtPanel';
 import { LoginView } from './components/LoginView';
 import { ProjectsView } from './components/ProjectsView';
+import { ProfileMenu } from './components/ProfileMenu';
 import { Toast } from './components/Toast';
 import { UsersView } from './components/UsersView';
 import { mmss } from './lib/format';
-import { ROLE_LABEL } from './lib/types';
 import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
@@ -16,7 +16,7 @@ type ManagerView = 'dashboard' | 'users';
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
 
 function Shell() {
-  const { user, secondsLeft, signOut } = useSession();
+  const { user, secondsLeft, signOut, t } = useSession();
   const [view, setView] = useState<View>('projects');
   const [managerView, setManagerView] = useState<ManagerView>('dashboard');
   const [toast, setToast] = useState('');
@@ -26,31 +26,31 @@ function Shell() {
   return (
     <div className={s.app}>
       <header className={s.top}>
-        <div className={s.brand}><span className={s.logo} aria-hidden>VS</span><span>Nexus Safe-Cloud ERP</span></div>
+        <div className={s.brand}><span className={s.logo} aria-hidden>VS</span><span>{t('app.name')}</span></div>
         <span className={s.sp} />
         {user && (
           <>
-            <span className={s.chip}>{ROLE_LABEL[user.role]}</span>
-            <span className={s.chip}>token expires in {mmss(secondsLeft)}</span>
-            <button type="button" className={s.out} onClick={signOut}>Sign out</button>
+            <ProfileMenu onChanged={setToast} />
+            <span className={s.chip}>{t('header.tokenExpires', { time: mmss(secondsLeft) })}</span>
+            <button type="button" className={s.out} onClick={signOut}>{t('header.signOut')}</button>
           </>
         )}
       </header>
 
       {!user ? <LoginView /> : (
         <div className={s.body}>
-          <nav className={s.nav} aria-label="Modules">
+          <nav className={s.nav} aria-label={t('nav.modules')}>
             {isManager
               ? (
                 <>
-                  <button type="button" aria-current={managerView === 'dashboard' ? 'page' : undefined} onClick={() => setManagerView('dashboard')}>Dashboard</button>
-                  <button type="button" aria-current={managerView === 'users' ? 'page' : undefined} onClick={() => setManagerView('users')}>Users</button>
+                  <button type="button" aria-current={managerView === 'dashboard' ? 'page' : undefined} onClick={() => setManagerView('dashboard')}>{t('nav.dashboard')}</button>
+                  <button type="button" aria-current={managerView === 'users' ? 'page' : undefined} onClick={() => setManagerView('users')}>{t('nav.users')}</button>
                 </>
               )
               : (
                 <>
-                  <button type="button" aria-current={view === 'projects' ? 'page' : undefined} onClick={() => setView('projects')}>Projects</button>
-                  <button type="button" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => setView('invoices')}>Invoices</button>
+                  <button type="button" aria-current={view === 'projects' ? 'page' : undefined} onClick={() => setView('projects')}>{t('nav.projects')}</button>
+                  <button type="button" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => setView('invoices')}>{t('nav.invoices')}</button>
                 </>
               )}
           </nav>
