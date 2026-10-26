@@ -3,7 +3,7 @@ import { InvalidCredentialsError } from '../domain/errors';
 import { PasswordHasher, TokenIssuer, UserRepository } from '../domain/ports';
 import { User } from '../domain/user';
 
-const lead: User = { id: 'u1', email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead', passwordHash: 'HASH-OK' };
+const lead: User = { id: 'u1', email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead', language: 'es', passwordHash: 'HASH-OK' };
 
 function build(users: User[] = [lead]) {
   const verifyCalls: string[] = [];
@@ -26,9 +26,14 @@ describe('LoginUseCase', () => {
     expect(r).toEqual({
       accessToken: 'token-for-u1',
       expiresIn: 900,
-      user: { email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead' },
+      user: { email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead', language: 'es' },
     });
     expect(JSON.stringify(r)).not.toContain('HASH');
+  });
+
+  it('returns the language the person chose, so the screen opens in it', async () => {
+    const { useCase } = build([{ ...lead, language: 'en' }]);
+    expect((await useCase.execute('laura.rios@nexus.example', 'right-password')).user.language).toBe('en');
   });
 
   it('normalizes the email (case and spaces)', async () => {

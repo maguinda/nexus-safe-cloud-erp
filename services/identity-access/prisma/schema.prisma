@@ -19,6 +19,8 @@ model User {
   email        String   @unique
   name         String
   role         Role
+  /// Idioma de la interfaz de esta persona: es o en (CHECK en la base).
+  language     String   @default("es")
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
 

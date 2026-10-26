@@ -22,7 +22,7 @@ describe('POST /auth/login (e2e, real PostgreSQL)', () => {
     const res = await login({ email: EMAIL, password: process.env.DEMO_PASSWORD });
     expect(res.status).toBe(200);
     expect(res.body.expiresIn).toBe(900);
-    expect(res.body.user).toEqual({ email: EMAIL, name: 'Laura Ríos', role: 'project_lead' });
+    expect(res.body.user).toEqual({ email: EMAIL, name: 'Laura Ríos', role: 'project_lead', language: 'es' });
     const claims: any = verify(res.body.accessToken, PUBLIC_KEY, { algorithms: ['RS256'], issuer: 'identity-access', audience: 'erp-api' });
     expect(claims.role).toBe('project_lead');
     expect(claims.email).toBe(EMAIL);

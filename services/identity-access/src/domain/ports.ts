@@ -1,3 +1,4 @@
+import { Language } from './language';
 import { Role } from './role';
 import { User } from './user';
 
@@ -18,6 +19,12 @@ export interface AccessToken {
 
 export interface TokenIssuer {
   issue(user: User): AccessToken;
+}
+
+/** Preferencias de la propia persona (hoy solo el idioma de la interfaz). Una sola sentencia, sin bloqueos: la última escritura gana. */
+export interface UserPreferencesStore {
+  /** false si la persona ya no existe. */
+  setLanguage(userId: string, language: Language): Promise<boolean>;
 }
 
 /** Lo que se muestra de un usuario: NUNCA incluye la contraseña ni su hash. */

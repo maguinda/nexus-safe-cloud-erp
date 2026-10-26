@@ -1,3 +1,4 @@
+import { Language } from './language';
 import { Role } from './role';
 
 export interface User {
@@ -5,5 +6,6 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  language: Language;
   passwordHash: string;
 }
