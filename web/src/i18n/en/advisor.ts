@@ -15,6 +15,7 @@ export const advisor: Record<keyof typeof es, string> = {
   'advisor.fallback.error': 'We could not reach the AI; the rules are shown.',
   'advisor.fallback.invalid': 'The AI answer did not match the data and was discarded; the rules are shown.',
   'advisor.fallback.limit': 'Several AI requests were already made this minute; wait a moment. The rules are shown.',
+  'advisor.playbook': 'Business criteria: version {version}',
   'advisor.item.why': 'Why:',
   'advisor.item.action': 'What to do:',
   'advisor.item.evidence': 'Evidence:',

@@ -1,4 +1,5 @@
-import { actionable, adviceByRules, buildEvidence, buildPrompt, evidenceLabel, Lang, parseAiAdvice, Recommendation } from '../domain/advisor';
+import { actionable, adviceByRules, buildEvidence, buildPrompt, checkAiAdvice, evidenceLabel, Lang, PLAYBOOK_VERSION, Recommendation } from '../domain/advisor';
+import { Logger } from '@nestjs/common';
 import { AdviceWriter } from '../domain/ports';
 import { GetNetworkUseCase } from './get-network.use-case';
 import { GetTrendsUseCase } from './explore.use-cases';
@@ -12,6 +13,10 @@ export interface AdviceResponse {
   aiAvailable: boolean;
   /** Si se pidió IA y no se usó: por qué. */
   fallbackReason: 'unavailable' | 'error' | 'invalid' | 'limit' | null;
+  /** Qué criterios del negocio se le dieron al agente (versión del playbook). */
+  playbookVersion: string;
+  /** Si la respuesta de la IA se descartó por «invalid»: los códigos de lo que falló (nunca el texto). */
+  violations: string[];
   evidence: { id: string; source: string; severity: string; code: string; label: string }[];
   items: Recommendation[];
 }
@@ -31,6 +36,7 @@ export class GetAdviceUseCase {
   ) {}
 
   private readonly aiCalls: number[] = [];
+  private readonly log = new Logger('advisor');
 
   /** true si todavía hay cupo (y lo gasta). Ventana deslizante de un minuto. */
   private takeAiSlot(now: number): boolean {
@@ -43,8 +49,8 @@ export class GetAdviceUseCase {
   async execute(lang: Lang, useAi: boolean): Promise<AdviceResponse> {
     const [t, n] = await Promise.all([this.trends.execute(), this.network.execute()]);
     const evidence = buildEvidence(t.insights, n.insights);
-    const base = { language: lang, generatedAt: this.clock().toISOString(), aiAvailable: this.writer !== null, evidence: actionable(evidence).map((e) => ({ id: e.id, source: e.source, severity: e.severity, code: e.code, label: evidenceLabel(e, lang) })) };
-    const rules = (fallbackReason: AdviceResponse['fallbackReason']): AdviceResponse => ({ ...base, source: 'rules', fallbackReason, items: adviceByRules(evidence, lang) });
+    const base = { language: lang, playbookVersion: PLAYBOOK_VERSION, generatedAt: this.clock().toISOString(), aiAvailable: this.writer !== null, evidence: actionable(evidence).map((e) => ({ id: e.id, source: e.source, severity: e.severity, code: e.code, label: evidenceLabel(e, lang) })) };
+    const rules = (fallbackReason: AdviceResponse['fallbackReason'], violations: string[] = []): AdviceResponse => ({ ...base, source: 'rules', fallbackReason, violations, items: adviceByRules(evidence, lang) });
     if (!useAi) return rules(null);
     if (!this.writer) return rules('unavailable');
     if (base.evidence.length === 0) return rules(null); // nada que decidir: no se gasta una llamada
@@ -53,8 +59,9 @@ export class GetAdviceUseCase {
     const timer = setTimeout(() => ctrl.abort(), this.timeoutMs);
     try {
       const raw = await this.writer.write(buildPrompt(evidence, lang), ctrl.signal);
-      const items = parseAiAdvice(raw, evidence);
-      return items ? { ...base, source: 'ai', fallbackReason: null, items } : rules('invalid');
+      const { items, violations, detail } = checkAiAdvice(raw, evidence);
+      if (!items) { this.log.warn(`an AI answer was discarded: ${violations.join(', ')}${detail ? ` (${detail})` : ''}`); return rules('invalid', violations); }
+      return { ...base, source: 'ai', fallbackReason: null, violations: [], items };
     } catch {
       return rules('error');
     } finally {

@@ -14,6 +14,7 @@ export const advisor = {
   'advisor.fallback.error': 'No pudimos hablar con la IA; se muestran las reglas.',
   'advisor.fallback.invalid': 'La respuesta de la IA no coincidía con los datos y se descartó; se muestran las reglas.',
   'advisor.fallback.limit': 'Ya se hicieron varias consultas a la IA en este minuto; espera un momento. Se muestran las reglas.',
+  'advisor.playbook': 'Criterios del negocio: versión {version}',
   'advisor.item.why': 'Por qué:',
   'advisor.item.action': 'Qué hacer:',
   'advisor.item.evidence': 'Evidencia:',

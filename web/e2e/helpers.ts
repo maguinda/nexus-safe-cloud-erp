@@ -22,3 +22,15 @@ export async function openAs(page: Page, role: RoleKey, lang: Lang = 'en', theme
 export async function preferLanguage(page: Page, lang: Lang, theme: Theme = 'system') {
   await page.addInitScript(([l, t]) => { try { localStorage.setItem('erp.lang', l as string); localStorage.setItem('erp.theme', t as string); } catch { /* sin almacenamiento */ } }, [lang, theme]);
 }
+
+/**
+ * Espera a que el gateway vuelva a aceptar inicios de sesión (límite de 10 por minuto por IP). Un login por la interfaz a mitad de la suite recibía 429 y la
+ * prueba parecía fallar «sola». Prueba con una cuenta que no existe (401, sin efectos): un 429 no gasta cupo, así que el sondeo no empeora nada.
+ */
+export async function waitForLoginCapacity(request: { post: (url: string, o: { data: object }) => Promise<{ status(): number }> }, maxMs = 75_000): Promise<void> {
+  const until = Date.now() + maxMs;
+  while (Date.now() < until) {
+    if ((await request.post('/auth/login', { data: { email: 'sin.cupo@nexus.example', password: 'x' } })).status() !== 429) return;
+    await new Promise((ok) => setTimeout(ok, 4_000));
+  }
+}

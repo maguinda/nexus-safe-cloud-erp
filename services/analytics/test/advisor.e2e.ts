@@ -97,13 +97,22 @@ describe('advisor: what to do first, with a fake Claude API (e2e, real PostgreSQ
 
   describe('with the model (ai: true)', () => {
     const evidenceIds = async () => (await post({ language: 'es' }, manager())).body.evidence.map((e: { id: string }) => e.id) as string[];
+    /** Una respuesta buena: una recomendación por hallazgo de prioridad alta, en el orden en que los da el servicio, con texto sin cifras ni nombres. */
+    const goodItems = async () => (await post({ language: 'es' }, manager())).body.evidence
+      .filter((e: { severity: string }) => e.severity === 'high')
+      .map((e: { id: string }) => ({ evidenceIds: [e.id], title: 'Revisa este hallazgo', why: 'Es un hallazgo de prioridad alta que apunta a algo que conviene confirmar.', action: 'Confirma con la persona responsable.' }));
     it('asks the right model with the key and the findings as data, and returns its checked answer', async () => {
       const ids = await evidenceIds();
-      answerWith([{ evidenceIds: [ids[0]], title: 'Revisa primero las alertas', why: 'Hubo alertas a la vez en 3 oficinas.', action: 'Abre las lecturas de esa hora.' }]);
+      const good = await goodItems();
+      expect(good.length).toBeGreaterThanOrEqual(2);
+      answerWith(good);
       const r = await post({ language: 'es', ai: true }, manager());
       expect(r.status).toBe(200);
       expect(r.body).toMatchObject({ source: 'ai', fallbackReason: null });
-      expect(r.body.items).toEqual([{ evidenceIds: [ids[0]], target: 'sensors', title: 'Revisa primero las alertas', why: 'Hubo alertas a la vez en 3 oficinas.', action: 'Abre las lecturas de esa hora.' }]);
+      expect(r.body.items).toEqual(good.map((g: { evidenceIds: string[] }) => ({ ...g, target: g.evidenceIds[0].startsWith('sensors') ? 'sensors' : 'network' })));
+      expect(r.body.playbookVersion).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/);
+      expect(seen[0].body.system).toContain('Business playbook');
+      expect(seen[0].body.system).toContain('umbral de advertencia de temperatura');
       expect(seen).toHaveLength(1);
       expect(seen[0]).toMatchObject({ key: KEY, version: '2023-06-01' });
       expect(seen[0].body.model).toBe('claude-test-model');
@@ -119,14 +128,18 @@ describe('advisor: what to do first, with a fake Claude API (e2e, real PostgreSQ
       expect(JSON.stringify(r.headers)).not.toContain(KEY);
     });
     it.each([
-      ['an invented evidence id', [{ evidenceIds: ['sensors:nope:9'], title: 't', why: 'w', action: 'a' }]],
-      ['an invented number', [{ evidenceIds: ['sensors:simultaneous_alerts:1'], title: 't', why: 'Hubo 77 alertas.', action: 'a' }]],
-      ['an answer that is not a list', { hello: 'world' }],
-    ])('falls back to rules when the model sends %s', async (_n, bad) => {
-      answer = { status: 200, text: JSON.stringify(bad) };
+      ['an invented evidence id', (g: any[]) => [{ ...g[0], evidenceIds: ['sensors:nope:9'] }, ...g.slice(1)], 'unknown_evidence'],
+      ['an invented number', (g: any[]) => [{ ...g[0], why: 'Hubo 77 alertas.' }, ...g.slice(1)], 'number_not_in_evidence'],
+      ['a device that is not in the data', (g: any[]) => [{ ...g[0], why: 'Falló el equipo ZZ99.' }, ...g.slice(1)], 'entity_not_in_evidence'],
+      ['an invented incident', (g: any[]) => [{ ...g[0], why: 'Parece un incendio.' }, ...g.slice(1)], 'forbidden_claim'],
+      ['a cause stated as a fact', (g: any[]) => [{ ...g[0], why: 'La causa es un fallo eléctrico.' }, ...g.slice(1)], 'definitive_cause'],
+      ['a high-priority finding left out', (g: any[]) => g.slice(0, 1), 'missed_high'],
+      ['an answer that is not a list', () => ({ hello: 'world' }), 'malformed'],
+    ])('falls back to rules, and says why, when the model sends %s', async (_n, make, why) => {
+      answer = { status: 200, text: JSON.stringify(make(await goodItems())) };
       const r = await post({ language: 'es', ai: true }, manager());
       expect(r.status).toBe(200);
-      expect(r.body).toMatchObject({ source: 'rules', fallbackReason: 'invalid' });
+      expect(r.body).toMatchObject({ source: 'rules', fallbackReason: 'invalid', violations: [why] });
       expect(r.body.items.length).toBeGreaterThanOrEqual(2);
     });
     it('falls back to rules when the model sends text that is not JSON', async () => {
