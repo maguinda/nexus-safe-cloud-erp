@@ -1,0 +1,23 @@
+[
+{"id":"IOT-OF1-01","name":"WEBCAM_OF1","kind":"Webcam / Cámara IP","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.14","macAddress":"000A.F311.A001","connection":"ONLINE","readingKind":"STREAM","unit":"FPS"},
+{"id":"IOT-OF1-02","name":"TEMP_MON_OF1","kind":"Temperature Monitor","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.15","macAddress":"000A.F311.A002","connection":"ONLINE","readingKind":"TEMP","unit":"°C"},
+{"id":"IOT-OF1-03","name":"HUMID_OF1","kind":"Humidifier","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.16","macAddress":"000A.F311.A003","connection":"ONLINE","readingKind":"HUMIDITY","unit":"%"},
+{"id":"IOT-OF1-04","name":"MOTION_OF1","kind":"Motion Detector","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.17","macAddress":"000A.F311.A004","connection":"ONLINE","readingKind":"DETECTION","unit":"BOOL"},
+{"id":"IOT-OF1-05","name":"IoT10","kind":"Smoke Detector","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.18","macAddress":"000A.F311.A005","connection":"ONLINE","readingKind":"SMOKE","unit":"PPM"},
+{"id":"IOT-OF1-06","name":"IoT14(1)","kind":"Heating Element","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.19","macAddress":"000A.F311.A006","connection":"ONLINE","readingKind":"POWER","unit":"W"},
+{"id":"IOT-OF1-07","name":"DOOR_OF1","kind":"Door / Lock","location":"Oficina 1","vlan":"VLAN 10","ipAddress":"192.168.10.20","macAddress":"000A.F311.A007","connection":"ONLINE","readingKind":"STATE","unit":"BOOL"},
+{"id":"IOT-OF2-01","name":"WEBCAM_OF2","kind":"Webcam / Cámara IP","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.14","macAddress":"000B.C422.B001","connection":"ONLINE","readingKind":"STREAM","unit":"FPS"},
+{"id":"IOT-OF2-02","name":"TEMP_MON_OF2","kind":"Temperature Monitor","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.15","macAddress":"000B.C422.B002","connection":"ONLINE","readingKind":"TEMP","unit":"°C"},
+{"id":"IOT-OF2-03","name":"HUMID_OF2","kind":"Humidifier","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.16","macAddress":"000B.C422.B003","connection":"ONLINE","readingKind":"HUMIDITY","unit":"%"},
+{"id":"IOT-OF2-04","name":"MOTION_OF2","kind":"Motion Detector","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.17","macAddress":"000B.C422.B004","connection":"ONLINE","readingKind":"DETECTION","unit":"BOOL"},
+{"id":"IOT-OF2-05","name":"IoT10(1)","kind":"Smoke Detector","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.18","macAddress":"000B.C422.B005","connection":"ONLINE","readingKind":"SMOKE","unit":"PPM"},
+{"id":"IOT-OF2-06","name":"IoT14","kind":"Heating Element","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.19","macAddress":"000B.C422.B006","connection":"ONLINE","readingKind":"POWER","unit":"W"},
+{"id":"IOT-OF2-07","name":"DOOR_OF2","kind":"Door / Lock","location":"Oficina 2","vlan":"VLAN 20","ipAddress":"192.168.20.20","macAddress":"000B.C422.B007","connection":"ONLINE","readingKind":"STATE","unit":"BOOL"},
+{"id":"IOT-OF3-01","name":"WEBCAM_OF3","kind":"Webcam / Cámara IP","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.14","macAddress":"000C.D533.C001","connection":"ONLINE","readingKind":"STREAM","unit":"FPS"},
+{"id":"IOT-OF3-02","name":"TEMP_MON_OF3","kind":"Temperature Monitor","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.15","macAddress":"000C.D533.C002","connection":"ONLINE","readingKind":"TEMP","unit":"°C"},
+{"id":"IOT-OF3-03","name":"HUMID_OF3","kind":"Humidifier","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.16","macAddress":"000C.D533.C003","connection":"ONLINE","readingKind":"HUMIDITY","unit":"%"},
+{"id":"IOT-OF3-04","name":"MOTION_OF3","kind":"Motion Detector","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.17","macAddress":"000C.D533.C004","connection":"ONLINE","readingKind":"DETECTION","unit":"BOOL"},
+{"id":"IOT-OF3-05","name":"IoT10(2)","kind":"Smoke Detector","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.18","macAddress":"000C.D533.C005","connection":"ONLINE","readingKind":"SMOKE","unit":"PPM"},
+{"id":"IOT-OF3-06","name":"IoT13","kind":"Heating Element","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.19","macAddress":"000C.D533.C006","connection":"ONLINE","readingKind":"POWER","unit":"W"},
+{"id":"IOT-OF3-07","name":"DOOR_OF3","kind":"Door / Lock","location":"Oficina 3","vlan":"VLAN 30","ipAddress":"192.168.30.20","macAddress":"000C.D533.C007","connection":"ONLINE","readingKind":"STATE","unit":"BOOL"}
+]
