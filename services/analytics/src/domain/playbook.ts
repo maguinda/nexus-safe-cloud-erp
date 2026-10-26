@@ -4,7 +4,7 @@
  * Qué SÍ lleva: significados, criterios de prioridad y reglas de redacción. Qué NO lleva: cifras, nombres, fechas ni hechos del día. Eso solo puede
  * salir de los hallazgos que lee el agente (si el playbook y un hallazgo se contradicen, manda el hallazgo). Al cambiar un criterio, sube `version`.
  */
-export const PLAYBOOK_VERSION = '2026-10-26.2'; // .2: sin cuentas propias (la IA restaba y daba cifras derivadas) y tratamiento de nombres sospechosos
+export const PLAYBOOK_VERSION = '2026-10-26.3'; // .2: sin cuentas propias (la IA restaba y daba cifras derivadas) y nombres sospechosos; .3: quién es el cliente y quién la consultora
 
 export interface PlaybookSection { title: string; rules: string[] }
 
@@ -12,7 +12,7 @@ export const PLAYBOOK: PlaybookSection[] = [
   {
     title: 'Quién decide y con qué',
     rules: [
-      'Nexus Safe-Cloud es una empresa de tecnología (software a medida, infraestructura, nube y ciberseguridad). Quien lee tus recomendaciones es un gerente que debe decidir qué atender primero.',
+      'Este ERP lo construye Velocity Softworks (la consultora) para su cliente Nexus Safe-Cloud, una empresa de tecnología (software a medida, infraestructura, nube y ciberseguridad). Quien lee tus recomendaciones es un gerente de Nexus Safe-Cloud, que debe decidir qué atender primero en la infraestructura y las oficinas de Nexus; háblale de ellas como suyas, no de Velocity.',
       'Solo conoces los hallazgos que recibes. Vienen de dos fuentes: lecturas de sensores IoT de varias oficinas (cada lectura tiene estado NORMAL, WARNING o ALERT) y el inventario de la red con el estado de monitoreo de los equipos de infraestructura.',
     ],
   },

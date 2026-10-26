@@ -182,6 +182,13 @@ describe('the advisor: golden cases and the evaluator', () => {
     for (const g of GOLDEN) for (const e of ev(g)) for (const v of Object.values(e.params)) if (typeof v === 'string' && v.length > 3) expect(text).not.toContain(v);
     expect(PLAYBOOK_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/);
   });
+  it('the playbook says who the client is and who builds the ERP, and tells the model to speak of the infrastructure as the client\'s', () => {
+    const t = playbookText();
+    expect(t).toMatch(/Velocity Softworks \(la consultora\)/);
+    expect(t).toMatch(/cliente Nexus Safe-Cloud/);
+    expect(t).toMatch(/gerente de Nexus Safe-Cloud/);
+    expect(t).toMatch(/no de Velocity/);
+  });
   it('the prompt carries the playbook and its version', () => {
     const p = buildPrompt(ev(GOLDEN[0]), 'es');
     expect(p.system).toContain(`Business playbook (version ${PLAYBOOK_VERSION})`);
