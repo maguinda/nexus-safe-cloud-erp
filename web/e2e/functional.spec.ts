@@ -629,6 +629,79 @@ test('Network: the explorer filters the 76 devices and the 74 links exactly as t
   await expect(page.getByRole('tab', { name: 'Links (74)' })).toBeVisible();
 });
 
+// ---- Asesor de decisiones «Qué hacer primero» ----
+const advisorCard = (page: any) => page.getByRole('region', { name: 'What to do first' });
+
+test('Advisor: the manager sees what to do first, ranked, each item with its reason, action and evidence', async ({ page }) => {
+  await openAs(page, 'manager');
+  const card = advisorCard(page);
+  await expect(card.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  await expect(card.getByText('Ranked by rules')).toBeVisible();
+  await expect(card.getByRole('heading', { level: 3 }).first()).toHaveText('Check the alerts of 09:40 UTC'); // la alta de Sensores va primero
+  const first = card.getByRole('listitem').first();
+  await expect(first.getByText(/Oficina 1, Oficina 2, Oficina 3/)).toBeVisible();
+  await expect(first.getByText('Evidence:')).toBeVisible();
+  await expect(first.getByText(/Simultaneous alerts at 09:40 UTC in 3 offices/)).toBeVisible();
+  expect(await card.getByRole('listitem').count()).toBeGreaterThanOrEqual(2);
+  await expect(card.getByText(/Nothing is urgent/)).toHaveCount(0);
+});
+
+test('Advisor: an item opens the screen it talks about', async ({ page }) => {
+  await openAs(page, 'manager');
+  await advisorCard(page).getByRole('button', { name: 'Open Network' }).first().click();
+  await expect(page.getByRole('heading', { name: 'What needs attention' })).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await advisorCard(page).getByRole('button', { name: 'Open Sensors' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Findings' })).toBeVisible();
+});
+
+test('Advisor: with no AI key configured the button is off and says why; the rules still work', async ({ page }) => {
+  await openAs(page, 'manager');
+  const card = advisorCard(page);
+  await expect(card.getByRole('heading', { level: 3 }).first()).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Write with AI' })).toBeDisabled();
+  await expect(card.getByText(/not configured on this machine/)).toBeVisible();
+});
+
+test('Advisor: an answer written by the AI is labelled as such, and a discarded one shows the rules with the reason', async ({ page }) => {
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  const real = await (await page.request.post('/advisor/brief', { headers: { authorization: `Bearer ${sessions.manager.token}` }, data: { language: 'en' } })).json();
+  const id = real.evidence[0].id;
+  const ai = { ...real, source: 'ai', aiAvailable: true, fallbackReason: null, items: [{ evidenceIds: [id], target: 'sensors', title: 'Look at the 09:40 alerts first', why: 'They fired together in 3 offices.', action: 'Open the readings of that time.' }] };
+  let mode: 'ai' | 'invalid' = 'ai';
+  await page.route('**/advisor/brief', async (route) => {
+    const body = route.request().postDataJSON();
+    if (!body.ai) return route.fulfill({ json: { ...real, aiAvailable: true } });
+    return route.fulfill({ json: mode === 'ai' ? ai : { ...real, aiAvailable: true, fallbackReason: 'invalid' } });
+  });
+  await openAs(page, 'manager');
+  const card = advisorCard(page);
+  await card.getByRole('button', { name: 'Write with AI' }).click();
+  await expect(card.getByText('Written with AI and checked against the data')).toBeVisible();
+  await expect(card.getByRole('heading', { level: 3, name: 'Look at the 09:40 alerts first' })).toBeVisible();
+  await expect(card.getByText('Evidence:')).toBeVisible();
+  mode = 'invalid';
+  await card.getByRole('button', { name: 'Write with AI' }).click();
+  await expect(card.getByText('Ranked by rules')).toBeVisible();
+  await expect(card.getByText(/did not match the data and was discarded/)).toBeVisible();
+});
+
+test('Advisor in Spanish: the screen and the sentences come in Spanish', async ({ page }) => {
+  await openAs(page, 'manager', 'es');
+  const card = page.getByRole('region', { name: 'Qué hacer primero' });
+  await expect(card.getByRole('heading', { level: 3 }).first()).toHaveText('Revisa las alertas de las 09:40 UTC');
+  await expect(card.getByText('Ordenado por reglas')).toBeVisible();
+  await expect(card.getByText('Por qué:').first()).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Redactar con IA' })).toBeDisabled();
+});
+
+test('Advisor: only the manager gets it (the others have no panel and the API says 403)', async ({ page, request }) => {
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  for (const role of ['lead', 'billing', 'sales'] as const) expect((await request.post('/advisor/brief', { headers: { authorization: `Bearer ${sessions[role].token}` }, data: { language: 'en', ai: true } })).status()).toBe(403);
+  await openAs(page, 'lead');
+  await expect(page.getByRole('region', { name: 'What to do first' })).toHaveCount(0);
+});
+
 test('Dashboards: nobody but the manager sees the Sensors and Network screens, and the API refuses the others', async ({ page, request }) => {
   const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
   for (const role of ['lead', 'billing', 'sales'] as const) {

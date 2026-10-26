@@ -96,3 +96,12 @@ export interface NetworkLinkItem { id: number; origin: string; originPort: strin
 export interface DevicesQuery { category?: string; criticality?: string; monitored?: 'yes' | 'no'; q?: string; sort?: 'id' | 'name' | 'category' | 'criticality' | 'model'; order?: 'asc' | 'desc'; limit?: number; offset?: number }
 export interface LinksQuery { linkType?: string; criticality?: string; functional?: 'yes' | 'no' | 'unknown'; device?: string; q?: string; sort?: 'id' | 'origin' | 'destination' | 'criticality' | 'length'; order?: 'asc' | 'desc'; limit?: number; offset?: number }
 export interface NetworkFacets { categories: string[]; criticalities: string[]; linkTypes: string[] }
+
+/** Respuesta del asesor de decisiones (Analytics, solo gerente). Las frases vienen escritas en el idioma pedido; cada recomendación cita los hallazgos que la respaldan. */
+export interface AdviceItem { evidenceIds: string[]; target: 'sensors' | 'network'; title: string; why: string; action: string }
+export interface AdviceEvidence { id: string; source: 'sensors' | 'network'; severity: 'high' | 'medium' | 'info'; code: string; label: string }
+export interface Advice {
+  source: 'ai' | 'rules'; language: Lang; generatedAt: string; aiAvailable: boolean;
+  fallbackReason: 'unavailable' | 'error' | 'invalid' | 'limit' | null;
+  evidence: AdviceEvidence[]; items: AdviceItem[];
+}

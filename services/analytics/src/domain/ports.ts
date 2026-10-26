@@ -81,3 +81,8 @@ export interface NetworkExplorer {
   links(filter: LinksFilter): Promise<{ total: number; items: NetworkLinkItem[] }>;
   facets(): Promise<{ categories: string[]; criticalities: string[]; linkTypes: string[] }>;
 }
+
+/** Quien redacta la recomendación (hoy, el modelo de Claude por su API). Si falla, quien lo usa se queda con la recomendación por reglas. */
+export interface AdviceWriter {
+  write(prompt: { system: string; user: string }, signal: AbortSignal): Promise<string>;
+}

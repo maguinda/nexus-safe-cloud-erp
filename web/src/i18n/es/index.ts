@@ -10,6 +10,7 @@ import { charts } from './charts';
 import { sensors } from './sensors';
 import { netview } from './netview';
 import { summary } from './summary';
+import { advisor } from './advisor';
 
 /** El español es la fuente de las claves: el inglés tiene que tener exactamente las mismas (si falta una, no compila). */
-export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary } as const;
+export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor } as const;

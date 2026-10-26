@@ -113,6 +113,9 @@ services:
       JWT_AUDIENCE: erp-api
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       SEED_DEMO: ${SEED_DEMO:-false}
+      # Opcional: sin llave el asesor de decisiones responde con reglas. La llave va en .env (que Git ignora), nunca en el repo.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ADVISOR_MODEL: ${ADVISOR_MODEL:-claude-sonnet-5-5}
       TLS_ENABLED: "true"
       TLS_CERT_PATH: /run/secrets/tls_analytics_cert
       TLS_KEY_PATH: /run/secrets/tls_analytics_key

@@ -1,0 +1,23 @@
+/** Asesor de decisiones del gerente («Qué hacer primero»). Las frases de cada recomendación las escribe el servicio en el idioma pedido. */
+export const advisor = {
+  'advisor.title': 'Qué hacer primero',
+  'advisor.subtitle': 'Los hallazgos de Sensores y Red, ordenados por urgencia. Cada recomendación cita el hallazgo que la respalda.',
+  'advisor.loading': 'Preparando las recomendaciones…',
+  'advisor.error': 'No pudimos preparar las recomendaciones.',
+  'advisor.retry': 'Reintentar',
+  'advisor.empty': 'No hay nada urgente: los hallazgos están en orden.',
+  'advisor.source.rules': 'Ordenado por reglas',
+  'advisor.source.ai': 'Redactado con IA y revisado contra los datos',
+  'advisor.ai.ask': 'Redactar con IA',
+  'advisor.ai.asking': 'Redactando…',
+  'advisor.fallback.unavailable': 'La IA no está configurada en este equipo; se muestran las reglas.',
+  'advisor.fallback.error': 'No pudimos hablar con la IA; se muestran las reglas.',
+  'advisor.fallback.invalid': 'La respuesta de la IA no coincidía con los datos y se descartó; se muestran las reglas.',
+  'advisor.fallback.limit': 'Ya se hicieron varias consultas a la IA en este minuto; espera un momento. Se muestran las reglas.',
+  'advisor.item.why': 'Por qué:',
+  'advisor.item.action': 'Qué hacer:',
+  'advisor.item.evidence': 'Evidencia:',
+  'advisor.open.sensors': 'Abrir Sensores',
+  'advisor.open.network': 'Abrir Red',
+  'advisor.note': 'Es una ayuda, no una orden: revisa las cifras contra la evidencia antes de decidir.',
+} as const;
