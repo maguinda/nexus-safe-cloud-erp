@@ -1,6 +1,17 @@
 /** Pantalla «Sensores» (dashboard de los datos IoT de la docente). */
 export const sensors = {
   'sensors.title': 'Sensores',
+  'sensors.live.on': 'En vivo',
+  'sensors.live.onShort': 'Los datos se actualizan solos',
+  'sensors.live.updated': 'actualizado {age}',
+  'sensors.live.offline': 'Sin conexión · últimos datos {age}',
+  'sensors.live.offlineShort': 'Sin conexión: se muestran los últimos datos recibidos',
+  'sensors.live.age.s': 'hace {n} s',
+  'sensors.live.age.min': 'hace {n} min',
+  'sensors.live.age.h': 'hace {n} h',
+  'sensors.live.added': 'Lecturas nuevas desde que abriste esta pantalla: {n}',
+  'sensors.live.newer': 'Llegaron lecturas nuevas; esta página no se movió. ',
+  'sensors.live.showLatest': 'Ver las más recientes',
   'sensors.subtitle': 'Datos de sensores de Nexus · {offices} oficinas · {readings} lecturas · {window}',
   'sensors.loading': 'Cargando los sensores…',
   'sensors.loadError': 'No pudimos cargar los datos de los sensores. Revisa tu conexión.',

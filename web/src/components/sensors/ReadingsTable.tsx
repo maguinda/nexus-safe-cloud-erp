@@ -16,7 +16,7 @@ const SEV_PILL = { normal: ui.stateNormal, warning: ui.stateWarning, alert: ui.s
 export const readingValue = (r: Pick<ReadingItem, 'value' | 'unit'>, lang: Lang): string => (r.unit === 'BOOL' ? formatNumber(r.value, lang, 1) : `${formatNumber(r.value, lang, 1)} ${r.unit}`);
 
 /** Tabla explorable de lecturas: orden por columna, paginación y estados cargando/vacío/error. Las notas, los dispositivos y los estados son de la fuente y NO se traducen. */
-export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispatch: Dispatch<ExplorerAction>; headingRef: RefObject<HTMLHeadingElement | null>; onRetry: () => void; lang: Lang; t: TFn }> = ({ load, state, dispatch, headingRef, onRetry, lang, t }) => {
+export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispatch: Dispatch<ExplorerAction>; headingRef: RefObject<HTMLHeadingElement | null>; onRetry: () => void; newer?: boolean; onLatest?: () => void; lang: Lang; t: TFn }> = ({ load, state, dispatch, headingRef, onRetry, newer, onLatest, lang, t }) => {
   const info = load.status === 'ready' ? pageInfo(load.page.total, load.page.offset, load.page.limit, load.page.items.length) : null;
   const sortHead = (key: SortKey, label: string, num = false) => (
     <th className={num ? ui.num : undefined} aria-sort={state.sort === key ? (state.order === 'asc' ? 'ascending' : 'descending') : 'none'}>
@@ -37,6 +37,7 @@ export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispa
         </span>
       </div>
 
+      {newer && load.status === 'ready' && <p className={s.newer} role="status">{t('sensors.live.newer')}<button type="button" className={ui.btnGhost} onClick={onLatest}>{t('sensors.live.showLatest')}</button></p>}
       {load.status === 'error' && <div className={ui.panelError} role="alert"><strong>{t('sensors.table.error')}</strong><span>{load.message}</span><button type="button" className={ui.btnGhost} onClick={onRetry}>{t('sensors.retry')}</button></div>}
       {load.status === 'loading' && <p className={s.loading} role="status">{t('sensors.table.loading')}</p>}
       {load.status === 'ready' && load.page.total === 0 && <div className={s.empty}><strong>{t('sensors.table.empty')}</strong><span className={s.sub}>{t('sensors.table.emptyHint')}</span></div>}
