@@ -37,3 +37,12 @@ export class CannotChangeOwnRoleError extends Error {
 export class LastManagerError extends Error {
   constructor() { super('The last manager cannot lose the manager role'); this.name = 'LastManagerError'; }
 }
+
+/** La sesión no se puede renovar (falta la cookie, el token no existe, venció, lo revocaron o la persona ya no existe): hay que iniciar sesión de nuevo. */
+export class InvalidSessionError extends Error {
+  constructor() { super('Invalid or expired session'); this.name = 'InvalidSessionError'; }
+}
+/** Dos renovaciones con el mismo token casi a la vez: la otra ganó. No se revoca nada; el reintento usa la cookie nueva. */
+export class SessionRetryError extends Error {
+  constructor() { super('Session renewal in progress, retry'); this.name = 'SessionRetryError'; }
+}

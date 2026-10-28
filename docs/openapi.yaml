@@ -31,6 +31,8 @@ info:
     | PATCH /me/theme (your own) | yes | yes | yes | yes |
     | GET /users, POST /users, PATCH /users/{id}/role | 403 | 403 | 403 | yes |
 
+    **Session renewal.** The JWT lasts 15 minutes. `POST /auth/login` also sets an opaque renewal token in an `HttpOnly; SameSite=Strict` cookie limited to `/auth` (never in the response body, so page scripts cannot read it). Before the JWT expires the web app calls `POST /auth/refresh` (cookie plus the `X-Requested-With: erp-web` header) and gets a new JWT and a **new** cookie: each renewal spends the token (rotation), so a copied token works once. Using a token that was already spent, outside a 10-second margin for two tabs renewing at once, revokes the whole session. The session ends after 30 minutes without renewing or 8 hours in total; renewal re-reads the person (a role change shows in the new JWT; a deleted person cannot renew). `POST /auth/logout` revokes the session.
+
     **Sensor ingestion.** `POST /telemetry/readings` is for the sensors (or the simulator), not for people: it takes a service key in the `x-ingest-key` header, never a user token (a manager's token does not work here, and the key opens no other route).
     A batch has 1 to 50 readings and is all or nothing: if any reading is invalid nothing is stored and the 400 lists every problem. It is idempotent per device and instant, so sending a batch again stores nothing new (the answer says how many were duplicates).
     If the server has no key configured (or one shorter than 32 characters) it answers 503 instead of accepting readings.
@@ -85,6 +87,36 @@ paths:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshSession
+      summary: Renew the session with the renewal cookie (rotation)
+      description: "Needs the `erp_refresh` cookie and the header `X-Requested-With: erp-web` (extra defense against cross-site requests). The answer replaces the cookie. Limited per IP (60 per minute by default)."
+      security: []
+      parameters:
+        - { name: X-Requested-With, in: header, required: true, schema: { type: string, enum: [erp-web] } }
+      responses:
+        '200':
+          description: New JWT and the person's data (the renewal token is only in the Set-Cookie header)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { description: "No cookie, or it does not exist, expired, was revoked or the person no longer exists - sign in again (the cookie is cleared)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: Missing X-Requested-With header, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "Another renewal with the same cookie won a moment ago - retry (nothing is revoked, the cookie is kept)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: Too many renewals from this IP }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: signOut
+      summary: Sign out - revokes the whole session and clears the cookie
+      security: []
+      parameters:
+        - { name: X-Requested-With, in: header, required: true, schema: { type: string, enum: [erp-web] } }
+      responses:
+        '204': { description: Signed out (also when there was no session) }
+        '403': { description: Missing X-Requested-With header, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /users:
     get:
       tags: [Users]

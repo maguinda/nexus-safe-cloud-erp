@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { createSign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1157,5 +1158,134 @@ test('Sensors: on another page the table does not move; it says new readings arr
   await expect(page.getByText(/New readings arrived; this page did not move\./)).toHaveCount(0);
   await expect(page.getByRole('row').filter({ hasText: '11:22' }).first()).toBeVisible(); // la más reciente arriba
 });
+
+// ---- Renovación de sesión: el token de acceso dura 15 min y se renueva solo con una cookie HttpOnly mientras la persona siga ahí ----
+// Estas pruebas inician sesión POR LA PANTALLA (así el servidor pone la cookie). «Simulate expired token» deja el token de esta pestaña vencido: la app debe
+// renovarlo sola con la cookie. Cada inicio de sesión espera cupo (nginx deja pasar 1 cada 6 s).
+const refreshCookie = async (page: import('@playwright/test').Page) => (await page.context().cookies()).find((c) => c.name === 'erp_refresh');
+/** El idioma de la persona vive en la base y la pantalla lo usa al entrar: se deja en inglés para que estas pruebas lean los mismos textos (el reset del final lo devuelve a español). */
+const setServerLanguage = (email: string, lang: 'es' | 'en') => { execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d identity -Atc "update users set language='${lang}' where email='${email}'"`, { cwd: join(here, '..', '..'), shell: '/bin/sh', stdio: 'ignore' }); };
+let lastSignInAt = 0;
+async function signInThroughTheScreen(page: import('@playwright/test').Page, email: string) {
+  setServerLanguage(email, 'en');
+  await waitForLoginCapacity(page.request);
+  lastSignInAt = Date.now();
+  await page.goto('/');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(process.env.DEMO_PASSWORD ?? 'demo-password-1');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible();
+}
+const simulateExpiredToken = async (page: import('@playwright/test').Page) => {
+  await page.getByText('JWT sample').click();
+  await page.getByRole('button', { name: 'Simulate expired token' }).click();
+};
+
+test('Session: the app renews itself by itself with the cookie, a dormant tab wakes up signed in, and with no cookie it asks to sign in again', async ({ page }) => {
+  test.setTimeout(90_000);
+  await signInThroughTheScreen(page, 'laura.rios@nexus.example');
+  const before = await refreshCookie(page);
+  expect(before, 'el servidor puso la cookie de renovación').toBeTruthy();
+  expect({ httpOnly: before!.httpOnly, sameSite: before!.sameSite, path: before!.path }).toEqual({ httpOnly: true, sameSite: 'Strict', path: '/auth' });
+  expect(await page.evaluate(() => document.cookie), 'el JavaScript de la página no puede leer la cookie').not.toContain('erp_refresh');
+  expect(await page.evaluate(() => JSON.stringify(Object.entries(sessionStorage)) + JSON.stringify(Object.entries(localStorage))), 'el token de renovación no está en el almacenamiento de la página').not.toContain(before!.value);
+
+  // 1) El token «vence»: la app lo renueva sola con la cookie y la persona sigue dentro.
+  let renewals = 0;
+  page.on('response', (r) => { if (new URL(r.url()).pathname === '/auth/refresh' && r.status() === 200) renewals++; });
+  await simulateExpiredToken(page);
+  await expect.poll(() => renewals, { timeout: 10_000, message: 'renovaciones con respuesta 200' }).toBe(1);
+  await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
+  await expect(page.getByText(/token expires in 1[45]:/)).toBeVisible(); // el contador volvió a ~15:00
+  expect((await refreshCookie(page))!.value, 'la cookie rota en cada renovación').not.toBe(before!.value);
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click(); // y el token nuevo abre la API
+  await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
+
+  // 2) Una pestaña «dormida» (token guardado ya vencido) despierta al recargar y sigue dentro, sin pasar por el inicio de sesión.
+  const expireStoredToken = () => page.evaluate(() => { const s = JSON.parse(sessionStorage.getItem('erp.session')!); const [h, , sig] = s.token.split('.'); s.token = `${h}.${btoa(JSON.stringify({ exp: 1 })).replace(/=+$/, '')}.${sig}`; sessionStorage.setItem('erp.session', JSON.stringify(s)); });
+  await expireStoredToken();
+  await page.reload();
+  await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
+
+  // 3) Sin cookie ya no hay nada que renovar: pide iniciar sesión de nuevo y lo explica.
+  await page.context().clearCookies();
+  await expireStoredToken();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Your session expired. Sign in again.')).toBeVisible();
+});
+
+test('Session: a session with no renewal cookie is NOT closed before its token really expires (it only stops renewing)', async ({ page }) => {
+  test.setTimeout(60_000);
+  // Un token firmado de verdad (con la llave del entorno de pruebas) que vence en 70 s: ya está dentro de los 2 minutos en que la app intenta renovar, y no hay cookie.
+  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  const claims = JSON.parse(Buffer.from(sessions.lead.token.split('.')[1], 'base64url').toString());
+  const now = Math.floor(Date.now() / 1000);
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const data = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ sub: claims.sub, email: claims.email, name: claims.name, role: claims.role, iss: 'identity-access', aud: 'erp-api', iat: now, exp: now + 70, jti: `short-${now}` })}`;
+  const token = `${data}.${createSign('RSA-SHA256').update(data).sign(readFileSync(join(here, '..', '..', 'infra', 'keys', 'jwt-private.pem'))).toString('base64url')}`;
+  await preferLanguage(page, 'en');
+  await page.addInitScript(([k, v]) => sessionStorage.setItem(k as string, v as string), ['erp.session', JSON.stringify({ token, user: { ...sessions.lead.user, language: 'en' } })]);
+  let refreshAnswers: number[] = [];
+  page.on('response', (r) => { if (new URL(r.url()).pathname === '/auth/refresh') refreshAnswers.push(r.status()); });
+  await page.goto('/');
+  await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible();
+  await expect.poll(() => refreshAnswers.length, { timeout: 8_000, message: 'la app intentó renovar' }).toBeGreaterThanOrEqual(1);
+  expect(refreshAnswers.every((c) => c === 401), `respuestas de /auth/refresh: ${refreshAnswers}`).toBe(true);
+  await page.waitForTimeout(5_000); // y 5 s después SIGUE dentro: a su token le quedan más de 60 s
+  await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click(); // y el token sigue abriendo la API
+  await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
+  expect(refreshAnswers.length, 'no insiste con una renovación que ya dijo que no (un solo intento)').toBeLessThanOrEqual(2);
+});
+
+test('Session: signing out also ends the session on the server: the old cookie renews nothing', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await signInThroughTheScreen(page, 'laura.rios@nexus.example');
+  const cookie = (await refreshCookie(page))!.value;
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  expect(await refreshCookie(page), 'el servidor borró la cookie').toBeUndefined();
+  const replay = await request.post('/auth/refresh', { headers: { 'X-Requested-With': 'erp-web', Cookie: `erp_refresh=${cookie}` } });
+  expect(replay.status(), 'la cookie copiada antes de cerrar sesión ya no sirve').toBe(401);
+});
+
+test('Session: another person signing in in the same browser does NOT silently turn this tab into that person', async ({ page }) => {
+  test.setTimeout(90_000);
+  await signInThroughTheScreen(page, 'laura.rios@nexus.example'); // pestaña A: la líder
+  const other = await page.context().newPage(); // pestaña B del MISMO navegador: entra la gerente y la cookie pasa a ser la suya
+  await preferLanguage(other, 'en');
+  await signInThroughTheScreen(other, 'diana.vega@nexus.example');
+  await expect(other.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible();
+  await page.bringToFront();
+  await simulateExpiredToken(page); // la renovación de A usaría la cookie de la gerente
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Your session expired. Sign in again.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Dashboard', exact: true })).toHaveCount(0); // A nunca llegó a ser la gerente
+  await other.close();
+});
+
+test('Session: two tabs renewing at the same moment both stay signed in (they take turns, no 409 reaches the person)', async ({ page }) => {
+  test.setTimeout(90_000);
+  await signInThroughTheScreen(page, 'laura.rios@nexus.example');
+  const second = await page.context().newPage();
+  await preferLanguage(second, 'en');
+  await signInThroughTheScreen(second, 'laura.rios@nexus.example'); // la misma persona: la cookie del navegador es la de esta segunda sesión
+  const statuses: number[] = [];
+  for (const p of [page, second]) p.on('response', (r) => { if (new URL(r.url()).pathname === '/auth/refresh') statuses.push(r.status()); });
+  await Promise.all([simulateExpiredToken(page), simulateExpiredToken(second)]);
+  await expect.poll(() => statuses.filter((c) => c === 200).length, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+  await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible();
+  await expect(second.getByRole('navigation', { name: 'Modules' })).toBeVisible();
+  expect(statuses.every((c) => c === 200 || c === 409), `respuestas de /auth/refresh: ${statuses}`).toBe(true);
+  await second.close();
+});
+
+// Estas pruebas gastan el cupo de inicios de sesión de nginx (1 cada 6 s, ráfaga de 5). Se espera a que se reponga entero ANTES de que empiece el archivo en el otro
+// navegador (o el siguiente archivo): si no, sus primeras pruebas de inicio de sesión recibían «Too many attempts».
+test.afterAll(async () => { const rest = 36_000 - (Date.now() - lastSignInAt); if (lastSignInAt > 0 && rest > 0) await new Promise((r) => setTimeout(r, rest)); });
 
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });

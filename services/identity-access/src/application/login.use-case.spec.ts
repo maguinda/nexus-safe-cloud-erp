@@ -7,7 +7,7 @@ const lead: User = { id: 'u1', email: 'laura.rios@nexus.example', name: 'Laura R
 
 function build(users: User[] = [lead]) {
   const verifyCalls: string[] = [];
-  const repo: UserRepository = { findByEmail: async (e) => users.find((u) => u.email === e) ?? null };
+  const repo: UserRepository = { findByEmail: async (e) => users.find((u) => u.email === e) ?? null, findById: async (id) => users.find((u) => u.id === id) ?? null };
   const hasher: PasswordHasher = {
     hash: async () => { throw new Error('login never hashes'); },
     verify: async (plain, hash) => {
