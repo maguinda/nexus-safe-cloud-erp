@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetTelemetryUseCase } from '../application/get-telemetry.use-case';
 import { ExploreReadingsUseCase, GetTrendsUseCase } from '../application/explore.use-cases';
 import { IngestReadingsUseCase, IngestRejectedError } from '../application/ingest-readings.use-case';
@@ -35,14 +35,16 @@ export class TelemetryController {
     return this.getTelemetry.execute();
   }
 
-  /** Series cada 10 minutos por oficina, eventos y hallazgos (reglas sobre los datos) para los gráficos del gerente. */
+  /** Series por oficina, eventos y hallazgos (reglas sobre los datos) de un rango: 1d (por defecto), 7d, 30d, 180d o 365d, contado hacia atrás desde la lectura más reciente. */
   @Get('trends')
   @Roles('manager')
-  @ApiOperation({ summary: 'Sensor trends by office every 10 minutes, the alert and warning events, and rule-based findings (role manager)' })
+  @ApiOperation({ summary: 'Sensor trends by office for a range (1d default, 7d, 30d, 180d, 365d back from the latest reading; the slot widens with the range: 10 min, 2 h, 6 h, 2 days, 4 days), the latest alert and warning events, and rule-based findings (role manager)' })
+  @ApiQuery({ name: 'range', required: false, enum: ['1d', '7d', '30d', '180d', '365d'] })
+  @ApiResponse({ status: 400, description: 'Unknown range' })
   @ApiResponse({ status: 401, description: 'Missing, invalid or expired token' })
   @ApiResponse({ status: 403, description: 'Role not allowed' })
-  trends() {
-    return this.getTrends.execute();
+  trends(@Query('range') range?: string | string[]) {
+    return this.getTrends.execute(Array.isArray(range) ? '' : range); // «?range=1d&range=7d» no es un rango válido
   }
 
   /** Explorador de lecturas con filtros (oficina, tipo, dispositivo, severidad, estado, horas), orden y paginación. */

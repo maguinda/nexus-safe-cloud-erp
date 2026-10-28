@@ -56,9 +56,17 @@ export interface TrendPoint {
   at: string; avgTempC: number | null; maxTempC: number | null; avgHumidityPct: number | null; maxSmokePpm: number | null; heaterOnPct: number | null;
   motionDetections: number; doorUnlocks: number; warnings: number; alerts: number;
 }
-/** GET /telemetry/trends: tramos de 10 minutos por oficina, eventos y hallazgos. */
+/** Los rangos de Sensores (hacia atrás desde la lectura más reciente): 24 horas, 7 días, 30 días, 6 y 12 meses. */
+export type RangeKey = '1d' | '7d' | '30d' | '180d' | '365d';
+/** GET /telemetry/trends?range=: tramos por oficina (más anchos cuanto más largo el rango), los últimos eventos y hallazgos. */
 export interface Trends {
   asOf: string; bucketMinutes: number; window: { from: string; to: string } | null; thresholds: { tempWarningC: number | null };
+  /** El rango que se pidió (null si no hay datos); `window` sigue siendo todo lo guardado. */
+  range: { key: RangeKey; from: string; to: string } | null;
+  /** Lecturas DEL RANGO por estado. */
+  statusCounts: { status: string; severity: Severity; count: number }[];
+  /** Cuántos eventos hay en el rango; `events` trae, como mucho, los 300 más recientes. */
+  eventsTotal: number;
   locations: string[];
   series: { location: string; points: TrendPoint[] }[];
   byLocation: { location: string; tempReadings: number; warningReadings: number; warningSharePct: number; peakTempC: number | null; heaterReadings: number; heaterOnPct: number | null }[];

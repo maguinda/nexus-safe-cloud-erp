@@ -1132,14 +1132,83 @@ test('Sensors: if a refresh fails the data stays and the badge says offline, and
   test.setTimeout(90_000);
   await openSensors(page);
   await expect(page.getByText('Live', { exact: true })).toBeVisible();
-  await page.route('**/telemetry/trends', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"statusCode":500,"error":"Internal Server Error","message":"x"}' }));
+  await page.route('**/telemetry/trends*', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"statusCode":500,"error":"Internal Server Error","message":"x"}' }));
   await expect(page.getByText(/Offline · last data/)).toBeVisible({ timeout: 25_000 });
   await expect(page.getByText(/Nexus sensor data/)).toBeVisible(); // los datos de antes siguen en pantalla
   await expect(page.getByText('Live', { exact: true })).toHaveCount(0);
-  await page.unroute('**/telemetry/trends');
+  await page.unroute('**/telemetry/trends*');
   await expect(page.getByText('Live', { exact: true })).toBeVisible({ timeout: 25_000 });
   await expect(page.getByText(/Offline · last data/)).toHaveCount(0);
   problems = problems.filter((m) => !/status of 500/.test(m)); // el 500 lo provocamos a propósito
+});
+
+/** 21 lecturas (una por dispositivo) `daysBefore` días antes de las 08:00 UTC del 13-sep: datos viejos para probar los rangos. Se borran al terminar la prueba. */
+async function sendOldReadings(request: Parameters<typeof sendReadings>[0], daysBefore: number) {
+  const at = new Date(Date.UTC(2026, 8, 13, 8, 0) - daysBefore * 86_400_000).toISOString();
+  const r = await request.post('/telemetry/readings', { headers: { 'x-ingest-key': ingestKey() }, data: { readings: IOT_DEVICES.map((d, i) => ({ deviceId: d.id, recordedAt: at, status: 'NORMAL', value: 20 + i, unit: d.unit, note: 'e2e rango' })) } });
+  expect(r.status()).toBe(200);
+  expect((await r.json()).accepted).toBe(IOT_DEVICES.length);
+}
+const deleteOldReadings = () => { execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d analytics -Atc "DELETE FROM iot_readings WHERE note = 'e2e rango'"`, { cwd: join(here, '..', '..'), stdio: 'ignore' }); };
+const cardsValue = (page: import('@playwright/test').Page, label: string) => page.locator('section[aria-labelledby="sensors-cards-h"]').getByText(label, { exact: true }).locator('xpath=following-sibling::strong[1]');
+const numberOf = async (loc: import('@playwright/test').Locator): Promise<number> => Number((await loc.innerText()).replace(/,/g, ''));
+const pressed = (page: import('@playwright/test').Page, name: string) => page.getByRole('button', { name, exact: true });
+
+test('Sensors: it opens on the last 24 hours and the 1 week, 1 month, 6 and 12 months buttons count older readings', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await sendOldReadings(request, 3); // entra en 1 semana y más
+  await sendOldReadings(request, 40); // entra en 6 y 12 meses
+  try {
+    await openSensors(page);
+    await expect(pressed(page, '24 hours')).toHaveAttribute('aria-pressed', 'true');
+    for (const other of ['1 week', '1 month', '6 months', '12 months']) await expect(pressed(page, other)).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByText('Mean of each slot of 10 minutes, with the warning threshold')).toBeVisible();
+    const day = await numberOf(cardsValue(page, 'Readings'));
+    const expected: [string, number, string][] = [['1 week', day + IOT_DEVICES.length, 'slots of 2 hours'], ['1 month', day + IOT_DEVICES.length, 'slots of 6 hours'], ['6 months', day + 2 * IOT_DEVICES.length, 'slots of 2 days'], ['12 months', day + 2 * IOT_DEVICES.length, 'slots of 4 days'], ['24 hours', day, 'slots of 10 minutes']];
+    for (const [name, readings, slot] of expected) {
+      const asked = page.waitForRequest((r) => new URL(r.url()).pathname === '/telemetry/trends' && new URL(r.url()).searchParams.get('range') === ({ '24 hours': '1d', '1 week': '7d', '1 month': '30d', '6 months': '180d', '12 months': '365d' } as Record<string, string>)[name]);
+      await pressed(page, name).click();
+      await asked;
+      await expect(pressed(page, name)).toHaveAttribute('aria-pressed', 'true');
+      await expect.poll(() => numberOf(cardsValue(page, 'Readings')), { timeout: 10_000, message: `lecturas con «${name}»` }).toBe(readings);
+      await expect(page.locator('section[aria-labelledby="sensors-cards-h"]').getByText(slot, { exact: false })).toBeVisible();
+      await expect(page.getByText(`Mean of each ${slot.replace('slots', 'slot')}`, { exact: false }).first()).toBeVisible();
+    }
+    // el día-mes aparece en las etiquetas cuando el rango pasa de un día
+    await pressed(page, '1 week').click();
+    await expect(page.locator('section[aria-labelledby="sensors-cards-h"]').getByText(/\d+ Sep \d\d:\d\d – 13 Sep \d\d:\d\d/)).toBeVisible();
+  } finally { deleteOldReadings(); }
+});
+
+test('Sensors: if the range fails to load the old data stays, the error says so with Retry, and Retry loads it', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openSensors(page);
+  await page.route('**/telemetry/trends?range=30d', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"statusCode":500,"error":"Internal Server Error","message":"x"}' }));
+  await pressed(page, '1 month').click();
+  const alert = page.getByRole('alert').filter({ hasText: /unavailable|Sensors/i });
+  await expect(alert).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/Nexus sensor data/)).toBeVisible(); // los datos del rango anterior siguen a la vista
+  await page.unroute('**/telemetry/trends?range=30d');
+  await alert.getByRole('button').click();
+  await expect(alert).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.locator('section[aria-labelledby="sensors-cards-h"]').getByText('slots of 6 hours')).toBeVisible();
+  problems = problems.filter((m) => !/status of 500/.test(m)); // el 500 lo provocamos a propósito
+});
+
+test('Sensors: choosing another range while one is still loading ends on the LAST one chosen (a slow answer never wins)', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openSensors(page);
+  let slowAnswered = false;
+  await page.route('**/telemetry/trends?range=7d', async (route) => { await new Promise((r) => setTimeout(r, 3_000)); await route.continue(); slowAnswered = true; });
+  await pressed(page, '1 week').click(); // esta tarda 3 s…
+  await pressed(page, '1 month').click(); // …y antes de que llegue se elige otra
+  await expect(page.locator('section[aria-labelledby="sensors-cards-h"]').getByText('slots of 6 hours')).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => slowAnswered, { timeout: 10_000, message: 'la respuesta lenta de «1 semana» llegó' }).toBe(true);
+  await page.waitForTimeout(1_500); // la tardía ya llegó; el refresco automático (cada 10 s) todavía no la habría corregido
+  // Lectura inmediata, SIN reintentos: una aserción de Playwright reintenta 5 s y el refresco automático arreglaría la pantalla antes de que fallara.
+  expect(await pressed(page, '1 month').getAttribute('aria-pressed')).toBe('true');
+  expect(await page.locator('section[aria-labelledby="sensors-cards-h"]').getByText(/slots of/).innerText()).toContain('slots of 6 hours'); // la de «1 semana» se descartó
+  await page.unroute('**/telemetry/trends?range=7d');
 });
 
 test('Sensors: on another page the table does not move; it says new readings arrived and «Show the latest» goes back to the first page', async ({ page, request }) => {

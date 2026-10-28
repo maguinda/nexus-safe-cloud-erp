@@ -1,4 +1,4 @@
-import { buildTrends, TrendsInput } from './trends';
+import { buildTrends, EVENTS_SHOWN, isRangeKey, RANGES, rangeFor, TrendsInput } from './trends';
 
 const NOW = new Date('2026-10-26T12:00:00Z');
 const at = (h: number, m: number) => new Date(Date.UTC(2026, 8, 13, h, m));
@@ -10,6 +10,7 @@ const ev = (h: number, m: number, location: string, status: string, over: Partia
 });
 const base = (): TrendsInput => ({
   window: { from: at(8, 1), to: at(11, 20) },
+  range: rangeFor('1d', at(11, 20)), eventsTotal: 14, statusCounts: [{ status: 'NORMAL', count: 90 }, { status: 'WARNING', count: 13 }, { status: 'ALERT', count: 1 }],
   tempWarningC: 24,
   buckets: [bucket('Oficina 2', 8, 10), bucket('Oficina 1', 8, 20), bucket('Oficina 1', 8, 10), bucket('Oficina 2', 8, 20)],
   perLocation: [
@@ -17,6 +18,42 @@ const base = (): TrendsInput => ({
     { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, peakTempC: 24, heaterReadings: 200, heaterOn: 180 },
   ],
   events: [ev(9, 40, 'Oficina 1', 'ALERT'), ev(9, 40, 'Oficina 2', 'ALERT'), ev(8, 14, 'Oficina 1', 'WARNING'), ev(8, 29, 'Oficina 1', 'WARNING'), ev(8, 44, 'Oficina 1', 'WARNING'), ev(8, 59, 'Oficina 1', 'WARNING')],
+});
+
+describe('ranges', () => {
+  it('there are five and the slot widens with the range, so the answer keeps its size (at most ~145 points per office)', () => {
+    expect(Object.entries(RANGES).map(([k, r]) => [k, r.hours, r.bucketMinutes])).toEqual([['1d', 24, 10], ['7d', 168, 120], ['30d', 720, 360], ['180d', 4320, 2880], ['365d', 8760, 5760]]);
+    for (const r of Object.values(RANGES)) expect(Math.ceil((r.hours * 60) / r.bucketMinutes)).toBeLessThanOrEqual(145);
+  });
+
+  it('rangeFor counts back from the latest reading, not from the clock', () => {
+    const r = rangeFor('7d', at(11, 20));
+    expect(r.to).toEqual(at(11, 20));
+    expect(r.from).toEqual(new Date(at(11, 20).getTime() - 7 * 24 * 3_600_000));
+    expect(r.bucketMinutes).toBe(120);
+  });
+
+  it('isRangeKey accepts only the five keys (not inherited names, numbers or arrays)', () => {
+    for (const k of ['1d', '7d', '30d', '180d', '365d']) expect(isRangeKey(k)).toBe(true);
+    for (const k of ['', '2d', '1D', '__proto__', 'constructor', 'toString', undefined, null, 7, ['1d']]) expect(isRangeKey(k)).toBe(false);
+  });
+
+  it('the response says which range it is, with the slot width and the counts of that range by severity', () => {
+    const t = buildTrends({ ...base(), range: rangeFor('30d', at(11, 20)) }, NOW);
+    expect(t.range).toEqual({ key: '30d', from: new Date(at(11, 20).getTime() - 30 * 24 * 3_600_000).toISOString(), to: at(11, 20).toISOString() });
+    expect(t.bucketMinutes).toBe(360);
+    expect(t.statusCounts).toEqual([{ status: 'ALERT', severity: 'alert', count: 1 }, { status: 'NORMAL', severity: 'normal', count: 90 }, { status: 'WARNING', severity: 'warning', count: 13 }]);
+    expect(t.eventsTotal).toBe(14);
+  });
+
+  it('only the latest events are sent, in time order, while the total says how many there really are', () => {
+    const many = Array.from({ length: EVENTS_SHOWN + 50 }, (_, i) => ({ ...ev(8, 0, 'Oficina 1', 'WARNING'), recordedAt: new Date(at(8, 0).getTime() + i * 60_000) }));
+    const t = buildTrends({ ...base(), events: many, eventsTotal: 9999 }, NOW);
+    expect(t.events).toHaveLength(EVENTS_SHOWN);
+    expect(t.events[0].at).toBe(many[50].recordedAt.toISOString());
+    expect(t.events[EVENTS_SHOWN - 1].at).toBe(many[many.length - 1].recordedAt.toISOString());
+    expect(t.eventsTotal).toBe(9999);
+  });
 });
 
 describe('buildTrends', () => {
@@ -119,7 +156,7 @@ describe('buildTrends', () => {
   });
 
   it('with nothing loaded everything is empty and the window is null', () => {
-    const t = buildTrends({ window: null, tempWarningC: null, buckets: [], perLocation: [], events: [] }, NOW);
+    const t = buildTrends({ window: null, range: null, eventsTotal: 0, statusCounts: [], tempWarningC: null, buckets: [], perLocation: [], events: [] }, NOW);
     expect(t).toMatchObject({ window: null, thresholds: { tempWarningC: null }, locations: [], series: [], byLocation: [], events: [] });
     expect(t.insights.map((x) => x.code)).toEqual(['all_normal']);
   });

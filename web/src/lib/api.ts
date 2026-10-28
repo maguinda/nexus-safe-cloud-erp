@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { Advice, ApproveResponse, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { Advice, ApproveResponse, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -70,7 +70,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     invoices: () => request<Invoice[]>('GET', '/invoices'),
     dashboard: () => request<Dashboard>('GET', '/dashboard'),
     telemetry: () => request<TelemetrySummary>('GET', '/telemetry/summary'),
-    telemetryTrends: () => request<Trends>('GET', '/telemetry/trends'),
+    telemetryTrends: (range: RangeKey = '1d') => request<Trends>('GET', `/telemetry/trends?range=${range}`),
     telemetryReadings: (q: ReadingsQuery = {}) => request<Page<ReadingItem>>('GET', `/telemetry/readings${queryString(q)}`),
     telemetryFacets: () => request<TelemetryFacets>('GET', '/telemetry/facets'),
     networkSummary: () => request<NetworkSummary>('GET', '/network/summary'),
