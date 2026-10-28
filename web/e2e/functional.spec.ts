@@ -1011,4 +1011,24 @@ test('Projects: approving from the board creates the draft invoice and the step 
   await expect(page.getByRole('region').filter({ has: page.getByRole('heading', { name: /^Approved/ }) }).getByText('Board hito')).toBeVisible(); // y la tarjeta pasó de columna
 });
 
+test('Layout: the left menu runs the full height of the page even when the screen has little content', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
+  const gap = () => page.evaluate(() => { const r = document.querySelector('nav[aria-label]')!.getBoundingClientRect(); return Math.round(Math.max(innerHeight, document.documentElement.scrollHeight) - (r.bottom + scrollY)); });
+  expect(await gap(), 'px de pantalla que quedan bajo el menú').toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 1920, height: 1080 }); // y en una pantalla más grande
+  expect(await gap(), 'px bajo el menú en 1920x1080').toBeLessThanOrEqual(1);
+});
+
+test('Layout: on a phone the menu stays a compact bar at the top and does not grow to fill the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
+  const h = await page.evaluate(() => Math.round(document.querySelector('nav[aria-label]')!.getBoundingClientRect().height));
+  expect(h, 'alto del menú en teléfono').toBeLessThanOrEqual(80);
+});
+
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });
