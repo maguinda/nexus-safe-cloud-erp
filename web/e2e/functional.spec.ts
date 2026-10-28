@@ -1031,4 +1031,50 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
   expect(h, 'alto del menú en teléfono').toBeLessThanOrEqual(80);
 });
 
+test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
+  await openAs(page, 'manager');
+  const nav = page.getByRole('navigation', { name: 'Modules' });
+  await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
+  await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users']);
+  await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(4);
+  await nav.getByRole('button', { name: 'Network', exact: true }).click();
+  await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
+});
+
+test('Menu: on a long page the left menu stays in view while scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await openAs(page, 'manager');
+  const first = page.getByRole('navigation', { name: 'Modules' }).getByRole('button', { name: 'Dashboard', exact: true });
+  await expect(first).toBeVisible();
+  await page.waitForFunction(() => document.documentElement.scrollHeight > 2600); // el Tablero es largo
+  await page.evaluate(() => window.scrollTo(0, 1800));
+  await expect.poll(async () => (await first.boundingBox())?.y ?? -9999, 'posición del primer botón del menú tras bajar 1.800 px').toBeGreaterThanOrEqual(0);
+  expect((await first.boundingBox())!.y).toBeLessThan(120);
+});
+
+test('Menu: on a phone the top bar stays at the top while scrolling and the group labels are hidden', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await openAs(page, 'manager');
+  const nav = page.getByRole('navigation', { name: 'Modules' });
+  await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible();
+  await expect(page.getByText('Nexus data', { exact: true })).toBeHidden();
+  await page.waitForFunction(() => document.documentElement.scrollHeight > 2000);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await expect.poll(async () => Math.round((await nav.boundingBox())?.y ?? -9999), 'posición de la barra tras bajar 1.500 px').toBeLessThanOrEqual(1);
+  expect((await nav.boundingBox())!.y).toBeGreaterThanOrEqual(-1);
+});
+
+test('Menu: on a 320 px phone every option of the manager\'s menu is inside the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await openAs(page, 'manager');
+  const nav = page.getByRole('navigation', { name: 'Modules' });
+  await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
+  const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
+  expect(edges.length).toBe(4);
+  for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
+  expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
+});
+
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });

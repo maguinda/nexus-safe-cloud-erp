@@ -8,6 +8,8 @@ export const common = {
   'nav.network': 'Red',
   'nav.projects': 'Proyectos',
   'nav.invoices': 'Facturas',
+  'nav.group.data': 'Datos de Nexus',
+  'nav.group.admin': 'Administración',
   'header.tokenExpires': 'el token vence en {time}',
   'header.signOut': 'Cerrar sesión',
   'role.project_lead': 'Líder de proyecto',
