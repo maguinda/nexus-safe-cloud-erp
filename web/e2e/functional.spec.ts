@@ -975,4 +975,40 @@ test('Invoices: the list stops asking the server while the tab is hidden and ref
   await expect.poll(() => calls, { timeout: 3_000 }).toBeGreaterThan(0);
 });
 
+test('Projects: every project shows its progress, and the board view splits the milestones into Pending and Approved', async ({ page }) => {
+  await openAs(page, 'lead');
+  await page.getByLabel('Search projects').fill('Retail POS'); // otras pruebas dejan más de 25 proyectos y el orden depende de la base: se busca en vez de suponer la posición
+  const retail = page.getByRole('row', { name: /Retail POS integration/ });
+  const bar = retail.getByRole('progressbar', { name: '1 of 2 milestones approved' });
+  await expect(bar).toHaveAttribute('value', '1');
+  await expect(bar).toHaveAttribute('max', '2');
+  await retail.getByRole('button', { name: 'Retail POS integration' }).click();
+  await expect(page.getByRole('heading', { name: 'Milestones · Retail POS integration' })).toBeVisible();
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Board', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const pendingCol = page.getByRole('region').filter({ has: page.getByRole('heading', { name: /^Pending/ }) });
+  const approvedCol = page.getByRole('region').filter({ has: page.getByRole('heading', { name: /^Approved/ }) });
+  await expect(pendingCol.getByText('Pilot in 3 stores')).toBeVisible();
+  await expect(pendingCol.getByRole('button', { name: 'Approve milestone' })).toBeVisible();
+  await expect(approvedCol.getByText('API contract')).toBeVisible();
+  await expect(approvedCol.getByText('Done')).toBeVisible();
+  await expect(page.getByRole('table').nth(1)).toHaveCount(0); // en el tablero no se pinta la tabla de hitos
+  await page.getByRole('button', { name: 'List', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'Pilot in 3 stores' })).toBeVisible();
+});
+
+test('Projects: approving from the board creates the draft invoice and the step tracker shows it', async ({ page, request }) => {
+  const auth = { authorization: `Bearer ${leadToken()}` };
+  const project = await (await request.post('/projects', { headers: auth, data: { name: 'Board approve', client: 'Scale Co D' } })).json();
+  expect((await request.post(`/projects/${project.id}/milestones`, { headers: auth, data: { name: 'Board hito', amountCop: 2_000_000 } })).status()).toBe(201);
+  await openAs(page, 'lead');
+  await page.getByLabel('Search projects').fill('Board approve'); // el proyecto puede quedar en la segunda tanda de 25
+  await page.getByRole('button', { name: 'Board approve' }).click();
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  await page.getByRole('button', { name: 'Approve milestone' }).click();
+  await expect(page.getByRole('status').filter({ hasText: /Billing created draft INV-\d+/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('listitem').filter({ hasText: /INV-\d+ · \d+ ms after approving/ })).toBeVisible(); // el último paso del seguidor
+  await expect(page.getByRole('region').filter({ has: page.getByRole('heading', { name: /^Approved/ }) }).getByText('Board hito')).toBeVisible(); // y la tarjeta pasó de columna
+});
+
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });

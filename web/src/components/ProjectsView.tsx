@@ -21,6 +21,7 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
   const [selected, setSelected] = useState('');
   const [query, setQuery] = useState('');
   const [shown, setShown] = useState(PROJECT_PAGE);
+  const [view, setView] = useState<'list' | 'board'>('list'); // Lista (tabla, la de siempre) o Tablero (Pendiente | Aprobado)
   const [drafts, setDrafts] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -101,6 +102,9 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
   const msReady = sel !== undefined && msFor === sel.id;
   const canApprove = user?.role === 'project_lead';
   const canCreate = canApprove; // crear proyectos e hitos también es del project_lead (la API lo exige)
+  const action = (m: Milestone, projectName: string) => (m.status === 'approved' ? <span className={ui.muted}>{t('projects.done')}</span>
+    : canApprove ? <button type="button" className={ui.btn} disabled={busyId === m.id} onClick={() => void approve(m, projectName)}>{busyId === m.id ? t('projects.approving') : t('projects.approve')}</button>
+    : <span className={ui.muted}>{t('projects.readOnly', { role: user ? t(roleKey(user.role)) : '' })}</span>);
 
   return (
     <div className={s.stack}>
@@ -122,15 +126,20 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
           <span className={s.count} role="status">{t('projects.count', { shown: rows.length, total: filtered.length })}</span>
         </div>
         <div className={ui.scroll}>
-          <table className={ui.table}>
+          <table className={`${ui.table} ${ui.cardsOnPhone}`}>
             <caption className={s.sr}>{t('projects.caption')}</caption>
             <thead><tr><th>{t('projects.col.project')}</th><th>{t('projects.col.client')}</th><th className={ui.num}>{t('projects.col.approved')}</th></tr></thead>
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id} className={p.id === selected ? s.selected : s.row} onClick={() => setSelected(p.id)}>
                   <td><button type="button" className={s.rowBtn} aria-pressed={p.id === selected} onClick={() => setSelected(p.id)}>{p.name}</button></td>
-                  <td className={ui.muted}>{p.client}</td>
-                  <td className={ui.num}>{p.milestonesApproved} / {p.milestonesTotal}</td>
+                  <td className={ui.muted} data-label={t('projects.col.client')}>{p.client}</td>
+                  <td className={ui.num} data-label={t('projects.col.approved')}>
+                    <span className={s.prog}>
+                      <progress className={s.bar} max={Math.max(p.milestonesTotal, 1)} value={p.milestonesApproved} aria-label={t('projects.progress', { approved: p.milestonesApproved, total: p.milestonesTotal })} />
+                      <span>{p.milestonesApproved} / {p.milestonesTotal}</span>
+                    </span>
+                  </td>
                 </tr>
               ))}
               {filtered.length === 0 && <tr><td colSpan={3} className={ui.muted}>{t('projects.noMatch')}</td></tr>}
@@ -142,28 +151,51 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
 
       {sel && (
         <section aria-labelledby="ms-h">
-          <h2 id="ms-h" className={ui.h2}>{t('projects.milestonesTitle', { name: sel.name })}</h2>
-          <div className={ui.scroll}>
-            <table className={ui.table}>
-              <thead><tr><th>{t('projects.col.milestone')}</th><th className={ui.num}>{t('projects.col.amount')}</th><th>{t('projects.col.status')}</th><th>{t('projects.col.action')}</th></tr></thead>
-              <tbody>
-                {!msReady && <tr><td colSpan={4} className={ui.muted}>{t('projects.loadingMilestones')}</td></tr>}
-                {msReady && milestones.length === 0 && <tr><td colSpan={4} className={ui.muted}>{t('projects.noMilestones')}</td></tr>}
-                {msReady && milestones.map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.name}</td>
-                    <td className={ui.num}>{formatCop(m.amountCop)}</td>
-                    <td><span className={ui[m.status]}>{m.status === 'approved' ? t('projects.status.approved') : t('projects.status.pending')}</span></td>
-                    <td>
-                      {m.status === 'approved' ? <span className={ui.muted}>{t('projects.done')}</span>
-                        : canApprove ? <button type="button" className={ui.btn} disabled={busyId === m.id} onClick={() => void approve(m, sel.name)}>{busyId === m.id ? t('projects.approving') : t('projects.approve')}</button>
-                        : <span className={ui.muted}>{t('projects.readOnly', { role: user ? t(roleKey(user.role)) : '' })}</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className={s.msHead}>
+            <h2 id="ms-h" className={ui.h2}>{t('projects.milestonesTitle', { name: sel.name })}</h2>
+            <div className={ui.seg} role="group" aria-label={t('projects.view.label')}>
+              {(['list', 'board'] as const).map((v) => (
+                <button key={v} type="button" className={view === v ? ui.segBtnOn : ui.segBtn} aria-pressed={view === v} onClick={() => setView(v)}>{t(v === 'list' ? 'projects.view.list' : 'projects.view.board')}</button>
+              ))}
+            </div>
           </div>
+          {view === 'list' ? (
+            <div className={ui.scroll}>
+              <table className={`${ui.table} ${ui.cardsOnPhone}`}>
+                <thead><tr><th>{t('projects.col.milestone')}</th><th className={ui.num}>{t('projects.col.amount')}</th><th>{t('projects.col.status')}</th><th>{t('projects.col.action')}</th></tr></thead>
+                <tbody>
+                  {!msReady && <tr><td colSpan={4} className={ui.muted}>{t('projects.loadingMilestones')}</td></tr>}
+                  {msReady && milestones.length === 0 && <tr><td colSpan={4} className={ui.muted}>{t('projects.noMilestones')}</td></tr>}
+                  {msReady && milestones.map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.name}</td>
+                      <td className={ui.num} data-label={t('projects.col.amount')}>{formatCop(m.amountCop)}</td>
+                      <td data-label={t('projects.col.status')}><span className={ui[m.status]}>{m.status === 'approved' ? t('projects.status.approved') : t('projects.status.pending')}</span></td>
+                      <td data-label={t('projects.col.action')}>{action(m, sel.name)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : !msReady ? <p className={ui.muted}>{t('projects.loadingMilestones')}</p> : (
+            <div className={s.board}>
+              {(['pending', 'approved'] as const).map((st) => {
+                const col = milestones.filter((m) => m.status === st);
+                return (
+                  <section key={st} className={s.col} aria-labelledby={`col-${st}`}>
+                    <h3 id={`col-${st}`} className={s.colHead}><span className={ui[st]}>{t(st === 'pending' ? 'projects.status.pending' : 'projects.status.approved')}</span><span className={ui.muted}>{col.length}</span></h3>
+                    {col.length === 0 ? <p className={ui.muted}>{t('projects.board.empty')}</p> : col.map((m) => (
+                      <article key={m.id} className={s.msCard}>
+                        <strong>{m.name}</strong>
+                        <span className={ui.mono}>{formatCop(m.amountCop)}</span>
+                        {action(m, sel.name)}
+                      </article>
+                    ))}
+                  </section>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 
