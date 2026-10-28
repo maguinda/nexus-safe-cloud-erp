@@ -3,6 +3,8 @@
 #   ca.pem / ca-key.pem          la CA (ca-key.pem NUNCA se monta en un contenedor: solo sirve para emitir)
 #   <servicio>.pem / -key.pem    carné de identity, projects y billing (sirve como servidor y, para su healthcheck, como cliente)
 #   gateway.pem / gateway-key.pem  carné del gateway (solo cliente)
+#   server.pem / server-key.pem    certificado HTTPS que el gateway presenta a los NAVEGADORES en el puerto 8443 (docker-compose.https.yml); es de la CA de desarrollo,
+#                                   que ningún navegador conoce: las pruebas lo aceptan con `ignoreHTTPSErrors`
 # Nada de esto va a Git (*.pem está ignorado). Son certificados de DESARROLLO: curva P-256, 1 año.
 set -e
 # CERT_DIR permite a las pruebas generar sus propios certificados en una carpeta temporal.
@@ -34,6 +36,7 @@ emitir() {
 }
 for s in identity projects billing analytics; do emitir "$s" "serverAuth,clientAuth" "DNS:$s,DNS:localhost,IP:127.0.0.1"; done
 emitir gateway "clientAuth" "DNS:gateway"
+emitir server "serverAuth" "DNS:localhost,IP:127.0.0.1"
 
 chmod 600 "$DIR"/*-key.pem
-echo "Certificados listos en $DIR (CA + identity, projects, billing, analytics, gateway)"
+echo "Certificados listos en $DIR (CA + identity, projects, billing, analytics, gateway, server)"

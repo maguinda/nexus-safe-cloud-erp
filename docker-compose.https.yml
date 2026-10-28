@@ -1,0 +1,15 @@
+# Solo para probar la cookie `Secure` con HTTPS real. Agrega al gateway un segundo puerto con TLS (https://localhost:8443, certificado de la CA de desarrollo)
+# y pone COOKIE_SECURE=true en identity. Con COOKIE_SECURE=true la cookie de renovación SOLO viaja por HTTPS: en http://localhost:8080 Safari (WebKit) la descarta
+# y la sesión no se renueva, así que NO se deja puesto para la demo normal.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.docs.yml -f docker-compose.https.yml up -d identity gateway
+# Prueba: cd web && npx playwright test --project=https-chromium --project=https-webkit
+services:
+  identity:
+    environment:
+      COOKIE_SECURE: "true"
+  gateway:
+    ports:
+      - "127.0.0.1:8443:8443"
+    volumes:
+      - ./infra/certs/server.pem:/etc/nginx/certs/server.pem:ro
+      - ./infra/certs/server-key.pem:/etc/nginx/certs/server-key.pem:ro

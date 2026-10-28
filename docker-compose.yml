@@ -142,8 +142,12 @@ services:
       analytics: { condition: service_healthy }
     ports:
       - "127.0.0.1:8080:8080"
+    environment:
+      # Direcciones (CIDR, separadas por comas) del balanceador o CDN que puede decir la IP del cliente en X-Forwarded-For. Vacío = no se confía en ninguna.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
     volumes:
       - ./infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/gateway/20-gateway-includes.sh:/docker-entrypoint.d/20-gateway-includes.sh:ro
       - ./infra/gateway/web-headers.inc:/etc/nginx/conf.d/web-headers.inc:ro
       # Carné del gateway y CA pública (la llave de la CA nunca se monta).
       - ./infra/certs/gateway.pem:/etc/nginx/certs/gateway.pem:ro
