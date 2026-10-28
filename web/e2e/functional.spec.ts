@@ -940,13 +940,15 @@ test('Projects: search by name or client, and «Show more» reveals the rest in 
 
 test('Invoices: with many invoices only the first 50 are drawn, «Show more» adds the next batch and a new search starts again from the first batch', async ({ page, request }) => {
   const auth = { authorization: `Bearer ${leadToken()}` };
+  const countInvoices = async () => (await (await request.get('/invoices', { headers: auth })).json()).length as number;
+  const before = await countInvoices(); // otras pruebas del archivo ya dejaron facturas: se cuenta lo que hay ANTES de crear las 52
   const project = await (await request.post('/projects', { headers: auth, data: { name: 'Invoice scale', client: 'Scale Co C' } })).json();
   const ids: string[] = [];
   for (let i = 1; i <= 52; i++) ids.push((await (await request.post(`/projects/${project.id}/milestones`, { headers: auth, data: { name: `Scale M${String(i).padStart(2, '0')}`, amountCop: 1_000_000 } })).json()).id);
   for (const id of ids) expect((await request.post(`/milestones/${id}/approve`, { headers: auth })).status()).toBe(200);
-  let total = 0; // las facturas las crea Billing por evento: se espera a que estén todas
-  for (let k = 0; k < 40 && total < 54; k++) { total = (await (await request.get('/invoices', { headers: auth })).json()).length; if (total < 54) await new Promise((r) => setTimeout(r, 500)); }
-  expect(total).toBeGreaterThanOrEqual(54);
+  let total = before; // las facturas las crea Billing por evento: se espera a que lleguen las 52 NUEVAS (CI es más lento que un portátil)
+  for (let k = 0; k < 120 && total < before + 52; k++) { total = await countInvoices(); if (total < before + 52) await new Promise((r) => setTimeout(r, 500)); }
+  expect(total).toBe(before + 52);
   await openAs(page, 'lead');
   await page.getByRole('button', { name: 'Invoices', exact: true }).click();
   await expect(page.getByText(`Showing 50 of ${total}`)).toBeVisible();
