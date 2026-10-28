@@ -1,6 +1,9 @@
 import type { TFn } from '../i18n';
 import type { Invoice } from './types';
 
+/** Filas de Facturas que se pintan de una vez; «Mostrar más» agrega otra tanda (el filtro y el orden ya se aplicaron a TODAS). */
+export const INVOICE_PAGE = 50;
+
 export type StatusFilter = 'all' | 'draft' | 'issued';
 export type SortKey = 'number' | 'project' | 'total' | 'due' | 'created';
 export type SortDir = 'asc' | 'desc';

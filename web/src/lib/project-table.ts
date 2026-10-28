@@ -13,9 +13,3 @@ export function filterProjects(list: Project[], query: string): Project[] {
 export function pendingMilestones(list: Project[]): number {
   return list.reduce((sum, p) => sum + Math.max(0, p.milestonesTotal - p.milestonesApproved), 0);
 }
-
-/** Primeras `shown` filas y cuántas quedan sin mostrar. */
-export function pageOf<T>(list: T[], shown: number): { rows: T[]; hidden: number } {
-  const n = Math.max(0, Math.floor(shown));
-  return { rows: list.slice(0, n), hidden: Math.max(0, list.length - n) };
-}

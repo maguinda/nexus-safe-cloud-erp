@@ -24,6 +24,7 @@ export const invoices = {
   'invoices.col.action': 'Acción',
   'invoices.chip.total': 'Total',
   'invoices.showing': 'Mostrando {shown} de {total}',
+  'invoices.showMore': 'Mostrar {n} más',
   'invoices.noMatch': 'Ninguna factura coincide con estos filtros',
   'invoices.clearFilters': 'Quitar filtros',
   'invoices.caption': 'Facturas, ordenadas por {key} ({dir})',
