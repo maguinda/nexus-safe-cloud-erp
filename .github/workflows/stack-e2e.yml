@@ -34,14 +34,20 @@ jobs:
           # En el runner (efímero) las llaves privadas deben poder leerlas el usuario "node" del contenedor y el gateway.
           chmod 644 infra/keys/jwt-private.pem infra/certs/*-key.pem
           cp .env.example .env
+          # Clave de servicio de la ingesta de telemetría (efímera, solo de este runner): sin ella la ruta responde 503.
+          sed -i "s/^INGEST_KEY=.*/INGEST_KEY=$(openssl rand -hex 24)/" .env
       - name: Build and start the stack
         run: docker compose up -d --build
       - name: Wait for the gateway
         run: |
           for i in $(seq 1 60); do curl -sf http://localhost:8080/health >/dev/null && exit 0; sleep 3; done
           docker compose ps; docker compose logs --tail=80; exit 1
+      - name: Telemetry simulator logic (pure functions)
+        run: node --test scripts/lib/telemetry-slots.test.mjs
       - name: Whole flow through the gateway
-        run: node scripts/e2e-flow.mjs
+        run: |
+          set -a; . ./.env; set +a
+          node scripts/e2e-flow.mjs
       - name: Install web dependencies and browsers
         working-directory: web
         run: |
