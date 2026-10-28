@@ -67,7 +67,7 @@
 .body {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
-  align-content: start;
+  align-content: stretch; /* la fila ocupa todo el alto: si no, el fondo y la línea del menú terminan donde termina el contenido */
   flex: 1;
 }
 .nav {
@@ -106,6 +106,7 @@
 @media (max-width: 760px) {
   .body {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr); /* el menú de arriba mide lo suyo; el sobrante es del contenido */
   }
   .nav {
     border-right: 0;
