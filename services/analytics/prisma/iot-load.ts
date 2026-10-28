@@ -16,5 +16,9 @@ export async function loadIot(prisma: PrismaClient): Promise<{ devices: number; 
       await tx.iotReading.createMany({ data: readings.slice(i, i + BATCH).map((r) => ({ ...r, recordedAt: new Date(r.recordedAt) })), skipDuplicates: true });
     }
   }, { timeout: 60_000 });
+  // Los ids de las lecturas se escriben a mano (vienen de la fuente) y eso NO adelanta la secuencia de identidad (migración 0004). En una base
+  // nueva la migración corre con la tabla vacía (secuencia en 1) y el seed se carga después: sin esto, la primera lectura que llegue por la API
+  // de ingesta recibiría el id 1, chocaría con la del seed y se perdería. Nunca retrocede: parte del id MÁS ALTO que haya, también de las nuevas.
+  await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"iot_readings"', 'id'), (SELECT COALESCE(MAX("id"), 0) + 1 FROM "iot_readings"), false)`);
   return { devices: await prisma.iotDevice.count(), readings: await prisma.iotReading.count() };
 }

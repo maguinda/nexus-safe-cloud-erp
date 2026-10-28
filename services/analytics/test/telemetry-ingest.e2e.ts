@@ -239,6 +239,33 @@ describe('telemetry ingestion: POST /telemetry/readings (e2e, real PostgreSQL)',
     }, 120_000);
   });
 
+  describe('a fresh database: the migration runs on an EMPTY table and the seed is loaded afterwards (what CI and a new deployment do)', () => {
+    const reload = async (restartAt: number) => {
+      await prisma.iotReading.deleteMany();
+      await prisma.$executeRawUnsafe(`ALTER TABLE "iot_readings" ALTER COLUMN "id" RESTART WITH ${restartAt}`);
+      await loadIot(prisma); // carga las lecturas del Excel con sus ids 1 a 4200, escritos a mano
+    };
+    afterAll(async () => { await reload(1); }); // deja la base como la dejan las demás pruebas
+
+    it('the first reading ingested after the seed is stored (it must NOT collide with an id of the seed and vanish)', async () => {
+      await reload(1);
+      const r = await post(batch(0));
+      expect(r.status).toBe(200);
+      expect(r.body).toEqual({ accepted: DEVICES.length, duplicates: 0 });
+      const ids = (await prisma.iotReading.findMany({ where: { id: { gt: SEED_MAX_ID } }, select: { id: true } })).map((x) => x.id);
+      expect(ids).toHaveLength(DEVICES.length);
+      expect(await prisma.iotReading.count()).toBe(SEED_COUNT + DEVICES.length);
+    });
+
+    it('if the id sequence is ever behind the data, it fails LOUDLY (500) instead of silently dropping the readings', async () => {
+      await reload(1);
+      await prisma.$executeRawUnsafe('ALTER TABLE "iot_readings" ALTER COLUMN "id" RESTART WITH 5'); // atrasada a propósito: el id 5 ya existe
+      const r = await post(batch(0));
+      expect(r.status).toBe(500);
+      expect(await extras()).toBe(0);
+    });
+  });
+
   describe('what the manager sees afterwards', () => {
     it('the readings appear in the summary the dashboard reads, and the window grows by the new minutes', async () => {
       const get = (path: string) => request(app.getHttpServer()).get(path).set('Authorization', bearer(token(USERS.manager)));
