@@ -21,7 +21,7 @@ import { Rs256TokenIssuer } from './infrastructure/rs256-token-issuer';
 const prisma = new PrismaClient();
 
 @Module({
-  imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 1000 }])],
+  imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 1000) }])],
   controllers: [AuthController, UsersController, MeController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
