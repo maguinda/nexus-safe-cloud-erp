@@ -150,9 +150,11 @@
   .navStick {
     position: static;
     flex-direction: row;
+    flex-wrap: wrap; /* si una tipografía más ancha no deja caber todas, pasan a otra fila: ninguna queda fuera de la pantalla */
   }
   .navGroup {
     flex-direction: row;
+    flex-wrap: wrap;
   }
   .navLabel {
     display: none;

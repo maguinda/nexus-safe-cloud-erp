@@ -1066,9 +1066,12 @@ test('Menu: on a phone the top bar stays at the top while scrolling and the grou
   expect((await nav.boundingBox())!.y).toBeGreaterThanOrEqual(-1);
 });
 
-test('Menu: on a 320 px phone every option of the manager\'s menu is inside the screen', async ({ page }) => {
+test('Menu: on a 320 px phone every option of the manager\'s menu is inside the screen, even with a wide font', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await openAs(page, 'manager');
+  // El ancho del texto depende de la tipografía de cada equipo (en CI, con Linux, «Users» terminaba en 322 px y en un Mac en 301): se fuerza una fuente ancha.
+  // Una hoja construida por código (no un <style>): la política de contenido de la app (style-src 'self') bloquea los estilos en línea y la suite cuenta ese aviso como error.
+  await page.evaluate(() => { const sh = new CSSStyleSheet(); sh.replaceSync('* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }'); document.adoptedStyleSheets = [...document.adoptedStyleSheets, sh]; });
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
