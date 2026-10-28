@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeFilters, clampTime, buildCards, cardFilter, EMPTY_FILTERS, explorerReducer, firstLast, hasFilters, heaterOnPct, INITIAL_STATE, insightFilter, insightParams, lineSeries, markToIso, meanTempBySlot,
+  activeFilters, clampTime, buildCards, cardFilter, EMPTY_FILTERS, explorerReducer, firstLast, hasFilters, heaterOnPct, INITIAL_STATE, insightFilter, insightParams, rangeSpanLabel, slotLabeler, slotName, lineSeries, markToIso, meanTempBySlot,
   motionHeat, pageInfo, severitySlices, slotBars, slots, timeMarks, toQuery, warningMarkers, type ExplorerState,
 } from './sensors';
 import type { Insight, TelemetryFacets, TrendPoint, Trends, TrendsInsightCode } from './types';
@@ -10,7 +10,8 @@ const at = (h: number, m: number) => new Date(Date.UTC(2026, 8, 13, h, m)).toISO
 const pt = (h: number, m: number, o: Partial<TrendPoint> = {}): TrendPoint => ({ at: at(h, m), avgTempC: 22, maxTempC: 23, avgHumidityPct: 50, maxSmokePpm: 0, heaterOnPct: 90, motionDetections: 0, doorUnlocks: 0, warnings: 0, alerts: 0, ...o });
 const series = (location: string, over: (i: number) => Partial<TrendPoint> = () => ({})) => ({ location, points: [0, 10, 20, 30, 40, 50].map((m, i) => pt(8, m, over(i))) });
 const trends = (): Trends => ({
-  asOf: '2026-10-26T00:00:00Z', bucketMinutes: 10, window: WINDOW, thresholds: { tempWarningC: 24 }, locations: ['Oficina 1', 'Oficina 2', 'Oficina 3'],
+  asOf: '2026-10-26T00:00:00Z', bucketMinutes: 10, window: WINDOW, range: { key: '1d', from: '2026-09-12T11:20:00.000Z', to: WINDOW.to }, eventsTotal: 42,
+  statusCounts: [{ status: 'NORMAL', severity: 'normal', count: 1758 }, { status: 'ACTIVE', severity: 'normal', count: 2400 }, { status: 'WARNING', severity: 'warning', count: 39 }, { status: 'ALERT', severity: 'alert', count: 3 }], thresholds: { tempWarningC: 24 }, locations: ['Oficina 1', 'Oficina 2', 'Oficina 3'],
   series: [
     series('Oficina 1', (i) => ({ avgTempC: 21 + i * 0.5, warnings: i === 2 ? 1 : 0, alerts: i === 4 ? 1 : 0, motionDetections: i === 1 ? 3 : 0, heaterOnPct: 100 })),
     series('Oficina 2', (i) => ({ avgTempC: 22, warnings: i === 2 ? 2 : 0, alerts: i === 4 ? 1 : 0, motionDetections: i === 1 ? 1 : 0, heaterOnPct: 80 })),
@@ -203,35 +204,69 @@ describe('series for the charts', () => {
     expect(motionHeat(t, '').values[1].slice(3)).toEqual([null, null, null]);
   });
   it('the donut has the three severities in order (and drops the empty ones)', () => {
-    const s = severitySlices(facets(), { normal: 'Normal', warning: 'Advertencia', alert: 'Alerta' });
+    const s = severitySlices(trends().statusCounts, { normal: 'Normal', warning: 'Advertencia', alert: 'Alerta' });
     expect(s.map((x) => [x.id, x.value, x.tone])).toEqual([['normal', 4158, 'ok'], ['warning', 39, 'warn'], ['alert', 3, 'bad']]);
-    expect(severitySlices({ ...facets(), statuses: [{ status: 'NORMAL', severity: 'normal', count: 5 }] }, { normal: 'N', warning: 'W', alert: 'A' }).map((x) => x.id)).toEqual(['normal']);
-    expect(severitySlices({ ...facets(), statuses: [] }, { normal: 'N', warning: 'W', alert: 'A' })).toEqual([]);
+    expect(severitySlices([{ severity: 'normal', count: 5 }], { normal: 'N', warning: 'W', alert: 'A' }).map((x) => x.id)).toEqual(['normal']);
+    expect(severitySlices([], { normal: 'N', warning: 'W', alert: 'A' })).toEqual([]);
+  });
+});
+
+describe('range helpers', () => {
+  const t = (k: string, p?: Record<string, string | number>) => `${k}:${p?.n}`;
+  it('slotName: minutes below an hour, hours below a day, days from there', () => {
+    expect([10, 120, 360, 2880, 5760].map((m) => slotName(m, t as never))).toEqual(['sensors.slot.minutes:10', 'sensors.slot.hours:2', 'sensors.slot.hours:6', 'sensors.slot.days:2', 'sensors.slot.days:4']);
+  });
+  it('slotLabeler: only the clock when the range fits in 36 h, the day when it is longer (and the clock when it is not midnight)', () => {
+    const day = slotLabeler({ key: '1d', from: '2026-09-12T11:20:00.000Z', to: '2026-09-13T11:20:00.000Z' }, 'es');
+    expect(day(Date.UTC(2026, 8, 13, 9, 40))).toBe('09:40');
+    const week = slotLabeler({ key: '7d', from: '2026-09-06T11:20:00.000Z', to: '2026-09-13T11:20:00.000Z' }, 'es');
+    expect(week(Date.UTC(2026, 8, 13, 0, 0))).toBe('13 sep');
+    expect(week(Date.UTC(2026, 8, 13, 2, 0))).toBe('13 sep 02:00');
+    expect(slotLabeler(null, 'en')(Date.UTC(2026, 8, 13, 9, 40))).toBe('09:40');
+  });
+  it('rangeSpanLabel: the clock span when it fits one UTC day (starting where the data starts), the dates when it does not, a dash with no range', () => {
+    expect(rangeSpanLabel({ key: '1d', from: '2026-09-12T11:20:00.000Z', to: WINDOW.to }, WINDOW, 'es')).toBe('08:01–11:20');
+    expect(rangeSpanLabel({ key: '7d', from: '2026-09-06T11:20:00.000Z', to: '2026-09-13T11:20:00.000Z' }, { from: '2026-08-01T00:00:00.000Z', to: '2026-09-13T11:20:00.000Z' }, 'en')).toBe('6 Sep 11:20 – 13 Sep 11:20');
+    expect(rangeSpanLabel(null, WINDOW, 'es')).toBe('—');
+  });
+  it('insightParams with a date prefixes the day to the time; without it, the clock only', () => {
+    const i = insight('simultaneous_alerts', { at: at(9, 40) });
+    expect(insightParams(i, 'es').time).toBe('09:40');
+    expect(insightParams(i, 'es', true).time).toBe('13 sep 09:40');
+  });
+  it('insightFilter does not ask for a time that belongs to another day than the one the data window starts on', () => {
+    expect(insightFilter(insight('simultaneous_alerts', { at: at(9, 40) }), facets(), WINDOW)).toEqual({ severity: 'alert', from: '09:40', to: '09:40' });
+    expect(insightFilter(insight('simultaneous_alerts', { at: '2026-09-20T09:40:00.000Z' }), facets(), WINDOW)).toEqual({ severity: 'alert' });
+  });
+  it('the cards and the donut count the chosen range, not the whole table', () => {
+    const t7 = { ...trends(), statusCounts: [{ status: 'NORMAL', severity: 'normal' as const, count: 100 }, { status: 'ALERT', severity: 'alert' as const, count: 2 }] };
+    expect(buildCards(t7, '')).toMatchObject({ readings: 102, normal: 100, warnings: 0, alerts: 2 });
+    expect(severitySlices(t7.statusCounts, { normal: 'N', warning: 'W', alert: 'A' }).map((x) => [x.id, x.value])).toEqual([['normal', 100], ['alert', 2]]);
   });
 });
 
 describe('cards', () => {
   it('numbers come from the whole source for severity and from the visible offices for the rest', () => {
-    const c = buildCards(trends(), facets(), '');
+    const c = buildCards(trends(), '');
     expect(c).toMatchObject({ readings: 4200, normal: 4158, warnings: 39, alerts: 3, warningSharePct: 6.5, tempPeak: 24, threshold: 24 });
     expect(c.heater).toBeCloseTo(90, 5); // (100 % de 200 lecturas + 80 % de 200 lecturas) / 400
   });
   it('the heater share weighs each office by its readings, it is not an average of averages', () => {
     const t = trends(); t.byLocation = t.byLocation.map((b) => (b.location === 'Oficina 1' ? { ...b, heaterReadings: 100, heaterOnPct: 100 } : b.location === 'Oficina 2' ? { ...b, heaterReadings: 300, heaterOnPct: 60 } : b));
-    expect(buildCards(t, facets(), '').heater).toBeCloseTo(70, 5); // (100 + 180) / 400, y no (100 + 60) / 2 = 80
+    expect(buildCards(t, '').heater).toBeCloseTo(70, 5); // (100 + 180) / 400, y no (100 + 60) / 2 = 80
   });
   it('one office: its own share, peak and heater', () => {
-    const c = buildCards(trends(), facets(), 'Oficina 2');
+    const c = buildCards(trends(), 'Oficina 2');
     expect(c.tempPeak).toBe(23.5); expect(c.heater).toBe(80); expect(c.warningSharePct).toBe(6.5);
   });
   it('an office with no peak or no heater reading gives null, not zero', () => {
-    const c = buildCards(trends(), facets(), 'Oficina 3');
+    const c = buildCards(trends(), 'Oficina 3');
     expect(c.tempPeak).toBeNull(); expect(c.heater).toBeNull();
   });
-  it('with no temperature readings there is no share to compute', () => expect(buildCards({ ...trends(), byLocation: [] }, facets(), '').warningSharePct).toBeNull());
+  it('with no temperature readings there is no share to compute', () => expect(buildCards({ ...trends(), byLocation: [] }, '').warningSharePct).toBeNull());
   it('without data at all nothing breaks', () => {
     const empty: Trends = { ...trends(), series: [], byLocation: [], locations: [], events: [], thresholds: { tempWarningC: null } };
-    expect(buildCards(empty, { locations: [], deviceKinds: [], statuses: [], window: null }, '')).toEqual({ readings: 0, normal: 0, warnings: 0, alerts: 0, warningSharePct: null, tempPeak: null, threshold: null, meanTemp: [], trend: null, heater: null });
+    expect(buildCards({ ...empty, statusCounts: [] }, '')).toEqual({ readings: 0, normal: 0, warnings: 0, alerts: 0, warningSharePct: null, tempPeak: null, threshold: null, meanTemp: [], trend: null, heater: null });
   });
   it('mean temperature per slot averages the offices that have a value (a null is left out)', () => {
     const m = meanTempBySlot(trends(), '');

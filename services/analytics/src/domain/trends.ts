@@ -1,4 +1,30 @@
-const BUCKET_MINUTES = 10;
+import { severityOf, StatusCount } from './telemetry';
+
+/**
+ * Rangos que la persona puede ver. El "ahora" es la lectura MÁS RECIENTE guardada (los datos pueden venir en tiempo virtual, no del reloj), y el tramo
+ * se ensancha con el rango para que la respuesta no crezca con el tiempo: como máximo ~145 puntos por oficina.
+ */
+export const RANGES = {
+  '1d': { hours: 24, bucketMinutes: 10 },
+  '7d': { hours: 24 * 7, bucketMinutes: 120 },
+  '30d': { hours: 24 * 30, bucketMinutes: 360 },
+  '180d': { hours: 24 * 180, bucketMinutes: 2880 },
+  '365d': { hours: 24 * 365, bucketMinutes: 5760 },
+} as const;
+export type RangeKey = keyof typeof RANGES;
+export const DEFAULT_RANGE: RangeKey = '1d';
+export const isRangeKey = (v: unknown): v is RangeKey => typeof v === 'string' && Object.prototype.hasOwnProperty.call(RANGES, v);
+/** Los hallazgos se calculan con los eventos más recientes del rango (tope); a la pantalla llegan los últimos EVENTS_SHOWN y el total real. */
+export const EVENTS_FOR_INSIGHTS = 5000;
+export const EVENTS_SHOWN = 300;
+
+export interface RangeSpec { key: RangeKey; from: Date; to: Date; bucketMinutes: number }
+/** El rango que termina en la lectura más reciente. */
+export function rangeFor(key: RangeKey, latest: Date): RangeSpec {
+  const { hours, bucketMinutes } = RANGES[key];
+  return { key, from: new Date(latest.getTime() - hours * 3_600_000), to: latest, bucketMinutes };
+}
+
 const round1 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10) / 10);
 const SEVERITY_ORDER = ['high', 'medium', 'info'];
 
@@ -10,9 +36,15 @@ export interface BucketRow {
 export interface LocationStat { location: string; tempReadings: number; warningReadings: number; peakTempC: number | null; heaterReadings: number; heaterOn: number }
 export interface EventRow { recordedAt: Date; deviceName: string; location: string; status: string; value: number; unit: string; note: string | null }
 
-/** Lo que el repositorio entrega ya agregado: tramos de 10 minutos por oficina, contadores por oficina y solo los eventos ALERT/WARNING. */
+/** Lo que el repositorio entrega ya agregado: tramos por oficina (de lo que mida el rango), contadores por oficina y solo los eventos ALERT/WARNING. */
 export interface TrendsInput {
+  /** Todo lo guardado (primera y última lectura). */
   window: { from: Date; to: Date } | null;
+  /** El rango pedido (null si no hay datos). Todo lo demás de este objeto son números de ESE rango. */
+  range: RangeSpec | null;
+  /** Cuántos eventos ALERT/WARNING hay en el rango (los de `events` son, como mucho, los más recientes). */
+  eventsTotal: number;
+  statusCounts: StatusCount[];
   /** Desde qué temperatura la fuente marca WARNING (la menor de las lecturas de temperatura en WARNING); null si no hay ninguna. */
   tempWarningC: number | null;
   buckets: BucketRow[];
@@ -27,6 +59,10 @@ export interface Insight { code: InsightCode; severity: 'high' | 'medium' | 'inf
 export interface Trends {
   asOf: string; bucketMinutes: number;
   window: { from: string; to: string } | null;
+  range: { key: RangeKey; from: string; to: string } | null;
+  /** Lecturas del rango por estado, con su severidad. */
+  statusCounts: { status: string; severity: 'normal' | 'warning' | 'alert'; count: number }[];
+  eventsTotal: number;
   thresholds: { tempWarningC: number | null };
   locations: string[];
   series: { location: string; points: { at: string; avgTempC: number | null; maxTempC: number | null; avgHumidityPct: number | null; maxSmokePpm: number | null; heaterOnPct: number | null; motionDetections: number; doorUnlocks: number; warnings: number; alerts: number }[] }[];
@@ -88,13 +124,16 @@ export function buildTrends(input: TrendsInput, now: Date): Trends {
     })),
   })).filter((s) => s.points.length > 0);
   const events = [...input.events].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime() || Number(a.status === 'WARNING') - Number(b.status === 'WARNING') || a.location.localeCompare(b.location) || a.deviceName.localeCompare(b.deviceName))
-    .map((e) => ({ at: e.recordedAt.toISOString(), location: e.location, deviceName: e.deviceName, status: e.status, value: e.value, unit: e.unit, note: e.note }));
+    .map((e) => ({ at: e.recordedAt.toISOString(), location: e.location, deviceName: e.deviceName, status: e.status, value: e.value, unit: e.unit, note: e.note })).slice(-EVENTS_SHOWN);
   const insights = [...simultaneousAlerts(input.events), ...periodicWarnings(input.events), ...whereWarnings(input.perLocation, input.tempWarningC)];
   if (insights.length === 0) insights.push({ code: 'all_normal', severity: 'info', params: {} });
   insights.sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
   return {
-    asOf: now.toISOString(), bucketMinutes: BUCKET_MINUTES,
+    asOf: now.toISOString(), bucketMinutes: input.range?.bucketMinutes ?? RANGES[DEFAULT_RANGE].bucketMinutes,
     window: input.window ? { from: input.window.from.toISOString(), to: input.window.to.toISOString() } : null,
+    range: input.range ? { key: input.range.key, from: input.range.from.toISOString(), to: input.range.to.toISOString() } : null,
+    statusCounts: input.statusCounts.map((s) => ({ status: s.status, severity: severityOf(s.status), count: s.count })).sort((a, b) => a.status.localeCompare(b.status)),
+    eventsTotal: input.eventsTotal,
     thresholds: { tempWarningC: input.tempWarningC },
     locations, series,
     byLocation: [...input.perLocation].sort((a, b) => a.location.localeCompare(b.location)).map((p) => ({ location: p.location, tempReadings: p.tempReadings, warningReadings: p.warningReadings, warningSharePct: p.tempReadings === 0 ? 0 : Math.round((p.warningReadings / p.tempReadings) * 1000) / 10, peakTempC: round1(p.peakTempC), heaterReadings: p.heaterReadings, heaterOnPct: p.heaterReadings === 0 ? null : Math.round((p.heaterOn / p.heaterReadings) * 1000) / 10 })),

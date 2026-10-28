@@ -186,6 +186,11 @@
   border: 0;
   min-width: 0;
 }
+.rangeHint {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
 .group > legend {
   padding: 0;
   font-size: var(--fs-sm);

@@ -1,7 +1,8 @@
 import type { LineMarker, LineSeries, BarCategory, BarSeries, DonutSlice, HeatLine } from '../charts';
-import { formatClock, formatNumber } from '../charts/format';
+import { formatClock, formatDayMonth, formatNumber, formatTimeTick } from '../charts/format';
+import type { TFn } from '../i18n';
 import type { Lang } from '../i18n/core';
-import type { Insight, ReadingsQuery, Severity, TelemetryFacets, Trends, TrendsInsightCode } from './types';
+import type { Insight, RangeKey, ReadingsQuery, Severity, TelemetryFacets, Trends, TrendsInsightCode } from './types';
 
 /** Lo que se puede filtrar en la pantalla «Sensores». Vacío = sin filtro. Lo que se elige sale SIEMPRE de `facets`, nunca se escribe a mano. */
 export interface SensorFilters {
@@ -116,8 +117,9 @@ export function pageInfo(total: number, offset: number, limit: number, shown: nu
 // ---------------------------------------------------------------- hallazgos → filtro
 
 /** El filtro que enseña las lecturas que respaldan un hallazgo; null si no hay nada que ver (todo normal). */
-export function insightFilter(i: Insight<TrendsInsightCode>, facets: TelemetryFacets | null): Partial<SensorFilters> | null {
-  const clock = (iso: unknown) => (typeof iso === 'string' && Number.isFinite(Date.parse(iso)) ? formatClock(Date.parse(iso)) : '');
+export function insightFilter(i: Insight<TrendsInsightCode>, facets: TelemetryFacets | null, window: DataWindow | null = null): Partial<SensorFilters> | null {
+  // Los filtros «HH:MM» de la tabla se leen en el día en que EMPIEZAN los datos: una alerta de otro día no se puede pedir por hora (se filtra solo por severidad).
+  const clock = (iso: unknown) => (typeof iso === 'string' && Number.isFinite(Date.parse(iso)) && (!window || iso.slice(0, 10) === window.from.slice(0, 10)) ? formatClock(Date.parse(iso)) : '');
   switch (i.code) {
     case 'simultaneous_alerts': { const c = clock(i.params.at); return c ? { severity: 'alert', from: c, to: c } : { severity: 'alert' }; }
     case 'periodic_warnings': return { severity: 'warning', ...(facets?.deviceKinds.includes('Temperature Monitor') ? { deviceKind: 'Temperature Monitor' } : {}) };
@@ -129,9 +131,10 @@ export function insightFilter(i: Insight<TrendsInsightCode>, facets: TelemetryFa
 }
 
 /** Los números de un hallazgo, ya escritos para el idioma (hora en UTC, decimales con coma o punto) y listos para `t()`. */
-export function insightParams(i: Insight<TrendsInsightCode>, lang: Lang): Record<string, string | number> {
+export function insightParams(i: Insight<TrendsInsightCode>, lang: Lang, withDate = false): Record<string, string | number> {
   const p: Record<string, string | number> = { ...i.params };
-  if (typeof p.at === 'string' && Number.isFinite(Date.parse(p.at))) p.time = formatClock(Date.parse(p.at));
+  // En un rango de varios días la hora sola es ambigua: se le antepone el día.
+  if (typeof p.at === 'string' && Number.isFinite(Date.parse(p.at))) p.time = withDate ? `${formatDayMonth(Date.parse(p.at), lang)} ${formatClock(Date.parse(p.at))}` : formatClock(Date.parse(p.at));
   if (typeof p.value === 'number') p.value = formatNumber(p.value, lang, 1);
   if (typeof p.tempC === 'number') p.tempC = formatNumber(p.tempC, lang, 1);
   return p;
@@ -164,34 +167,34 @@ export function slots(trends: Trends, location: string): string[] {
 }
 
 /** Advertencias y alertas por tramo, sumadas sobre las oficinas visibles (para el gráfico de barras apiladas). */
-export function slotBars(trends: Trends, location: string, labels: { warnings: string; alerts: string }): { categories: BarCategory[]; series: BarSeries[]; total: { warnings: number; alerts: number } } {
+export function slotBars(trends: Trends, location: string, labels: { warnings: string; alerts: string }, label: (ms: number) => string = formatClock): { categories: BarCategory[]; series: BarSeries[]; total: { warnings: number; alerts: number } } {
   const show = visible(trends.locations, location);
   const at = slots(trends, location);
   const sum = (k: 'warnings' | 'alerts') => at.map((t) => trends.series.filter((s) => show.includes(s.location)).reduce((n, s) => n + (s.points.find((p) => p.at === t)?.[k] ?? 0), 0));
   const w = sum('warnings'), a = sum('alerts');
   return {
-    categories: at.map((t) => ({ id: t, label: formatClock(ms(t)), shortLabel: formatClock(ms(t)) })),
+    categories: at.map((t) => ({ id: t, label: label(ms(t)), shortLabel: label(ms(t)) })),
     series: [{ id: 'warnings', label: labels.warnings, tone: 'warn', values: w }, { id: 'alerts', label: labels.alerts, tone: 'bad', values: a }],
     total: { warnings: w.reduce((n, v) => n + v, 0), alerts: a.reduce((n, v) => n + v, 0) },
   };
 }
 
 /** Mapa de calor: una fila por oficina visible, una columna por tramo; el valor son las detecciones de movimiento (null si esa oficina no tiene ese tramo). */
-export function motionHeat(trends: Trends, location: string): { rows: HeatLine[]; cols: HeatLine[]; values: (number | null)[][] } {
+export function motionHeat(trends: Trends, location: string, label: (ms: number) => string = formatClock): { rows: HeatLine[]; cols: HeatLine[]; values: (number | null)[][] } {
   const show = visible(trends.locations, location);
   const at = slots(trends, location);
   const rows = trends.series.filter((s) => show.includes(s.location));
   return {
     rows: rows.map((s) => ({ id: s.location, label: s.location })),
-    cols: at.map((t) => ({ id: t, label: formatClock(ms(t)) })),
+    cols: at.map((t) => ({ id: t, label: label(ms(t)) })),
     values: rows.map((s) => at.map((t) => s.points.find((p) => p.at === t)?.motionDetections ?? null)),
   };
 }
 
 /** Lecturas por severidad (de `facets.statuses`): normal, advertencia y alerta, en ese orden y con su tono de estado. */
-export function severitySlices(facets: TelemetryFacets, label: Record<Severity, string>): DonutSlice[] {
+export function severitySlices(counts: { severity: Severity; count: number }[], label: Record<Severity, string>): DonutSlice[] {
   const n: Record<Severity, number> = { normal: 0, warning: 0, alert: 0 };
-  for (const s of facets.statuses) n[s.severity] += s.count;
+  for (const s of counts) n[s.severity] += s.count;
   return ([['normal', 'ok'], ['warning', 'warn'], ['alert', 'bad']] as const).map(([k, tone]) => ({ id: k, label: label[k], value: n[k], tone })).filter((x) => x.value > 0);
 }
 
@@ -229,15 +232,15 @@ export interface SensorCards {
   readings: number; normal: number; warnings: number; alerts: number;
   warningSharePct: number | null; tempPeak: number | null; threshold: number | null; meanTemp: number[]; trend: { first: number; last: number } | null; heater: number | null;
 }
-/** Las cifras de las tarjetas. Las lecturas de severidad vienen de `facets` (toda la fuente); lo demás, de las oficinas visibles. */
-export function buildCards(trends: Trends, facets: TelemetryFacets, location: string): SensorCards {
-  const bySev = (s: Severity) => facets.statuses.filter((x) => x.severity === s).reduce((n, x) => n + x.count, 0);
+/** Las cifras de las tarjetas. Las lecturas por severidad son las del RANGO elegido (`trends.statusCounts`, de todas las oficinas); lo demás, de las oficinas visibles. */
+export function buildCards(trends: Trends, location: string): SensorCards {
+  const bySev = (s: Severity) => trends.statusCounts.filter((x) => x.severity === s).reduce((n, x) => n + x.count, 0);
   const locs = trends.byLocation.filter((l) => !location || l.location === location);
   const tempReadings = locs.reduce((n, l) => n + l.tempReadings, 0), warnReadings = locs.reduce((n, l) => n + l.warningReadings, 0);
   const peaks = locs.map((l) => l.peakTempC).filter(finite);
   const meanTemp = meanTempBySlot(trends, location);
   return {
-    readings: facets.statuses.reduce((n, x) => n + x.count, 0), normal: bySev('normal'), warnings: bySev('warning'), alerts: bySev('alert'),
+    readings: trends.statusCounts.reduce((n, x) => n + x.count, 0), normal: bySev('normal'), warnings: bySev('warning'), alerts: bySev('alert'),
     warningSharePct: tempReadings > 0 ? Math.round((warnReadings / tempReadings) * 1000) / 10 : null,
     tempPeak: peaks.length ? Math.max(...peaks) : null, threshold: trends.thresholds.tempWarningC,
     meanTemp, trend: firstLast(meanTemp), heater: heaterOnPct(trends, location),
@@ -254,4 +257,31 @@ export function cardFilter(card: 'readings' | 'warnings' | 'alerts' | 'temperatu
     case 'temperature': return kind('Temperature Monitor');
     case 'heater': return kind('Heating Element');
   }
+}
+
+// ---------------------------------------------------------------- rango
+
+export const RANGE_KEYS: RangeKey[] = ['1d', '7d', '30d', '180d', '365d'];
+export const DEFAULT_RANGE: RangeKey = '1d';
+
+/** El ancho de un tramo dicho en palabras («10 minutos», «2 horas», «4 días»); los textos lo reciben como `{slot}`. */
+export function slotName(minutes: number, t: TFn): string {
+  if (minutes < 60) return t('sensors.slot.minutes', { n: minutes });
+  if (minutes < 1440) return t('sensors.slot.hours', { n: Math.round(minutes / 60) });
+  return t('sensors.slot.days', { n: Math.round(minutes / 1440) });
+}
+
+/** Cómo se escribe el nombre de un tramo en un gráfico: solo la hora si el rango cabe en 36 h; si no, el día (y la hora cuando no es medianoche). */
+export function slotLabeler(range: Trends['range'], lang: Lang): (ms: number) => string {
+  const span = range ? Date.parse(range.to) - Date.parse(range.from) : 0;
+  return (ms) => formatTimeTick(ms, span, lang);
+}
+
+/** El tramo de tiempo que cubren las cifras: «08:01–11:20» si cabe en un día UTC; si no, «13 sep 08:01 – 14 sep 11:20». Empieza donde empiezan los datos. */
+export function rangeSpanLabel(range: Trends['range'], window: DataWindow | null, lang: Lang): string {
+  if (!range) return '—';
+  const from = Math.max(Date.parse(range.from), window ? Date.parse(window.from) : Number.NEGATIVE_INFINITY), to = Date.parse(range.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return '—';
+  if (new Date(from).toISOString().slice(0, 10) === new Date(to).toISOString().slice(0, 10)) return `${formatClock(from)}–${formatClock(to)}`;
+  return `${formatDayMonth(from, lang)} ${formatClock(from)} – ${formatDayMonth(to, lang)} ${formatClock(to)}`;
 }

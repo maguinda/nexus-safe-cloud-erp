@@ -1,17 +1,17 @@
 import type { FC } from 'react';
 import { Sparkline } from '../../charts';
-import { formatClock, formatNumber } from '../../charts/format';
+import { formatNumber } from '../../charts/format';
 import type { TFn } from '../../i18n';
 import type { Lang } from '../../i18n/core';
-import { cardFilter, type SensorCards, type SensorFilters } from '../../lib/sensors';
-import type { TelemetryFacets } from '../../lib/types';
+import { cardFilter, rangeSpanLabel, slotName, type SensorCards, type SensorFilters } from '../../lib/sensors';
+import type { TelemetryFacets, Trends } from '../../lib/types';
 import ui from '../../styles/ui.module.css';
 import s from './Sensors.module.css';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 /** Las cifras clave, cada una con su contexto (de dónde sale y frente a qué se compara) y un «Ver detalle» que filtra la tabla cuando hay algo que ver. */
-export const Cards: FC<{ cards: SensorCards; facets: TelemetryFacets | null; location: string; window: { from: string; to: string } | null; bucketMinutes: number; lang: Lang; t: TFn; onDetail: (f: Partial<SensorFilters>) => void }> = ({ cards, facets, location, window, bucketMinutes, lang, t, onDetail }) => {
+export const Cards: FC<{ cards: SensorCards; facets: TelemetryFacets | null; location: string; range: Trends['range']; window: { from: string; to: string } | null; bucketMinutes: number; lang: Lang; t: TFn; onDetail: (f: Partial<SensorFilters>) => void }> = ({ cards, facets, location, range, window, bucketMinutes, lang, t, onDetail }) => {
   const n0 = (n: number) => formatNumber(n, lang, 0);
   const n1 = (n: number | null) => (n === null ? '—' : formatNumber(n, lang, 1));
   const detail = (id: Parameters<typeof cardFilter>[0], label: string) => {
@@ -47,7 +47,7 @@ export const Cards: FC<{ cards: SensorCards; facets: TelemetryFacets | null; loc
           <div className={s.cardRow}>
             <strong className={s.cardValue}>{temp === null ? '—' : `${n1(temp)} °C`}</strong>
           </div>
-          {cards.meanTemp.length >= 2 && <Sparkline values={cards.meanTemp} ariaLabel={t('sensors.cards.temperatureSpark', { min: n1(Math.min(...cards.meanTemp)), max: n1(Math.max(...cards.meanTemp)) })} />}
+          {cards.meanTemp.length >= 2 && <Sparkline values={cards.meanTemp} ariaLabel={t('sensors.cards.temperatureSpark', { slot: slotName(bucketMinutes, t), min: n1(Math.min(...cards.meanTemp)), max: n1(Math.max(...cards.meanTemp)) })} />}
           <span className={s.cardSub}>
             {cards.tempPeak === null ? '—' : cards.threshold === null ? t('sensors.cards.temperatureSubPeak', { peak: n1(cards.tempPeak) }) : t('sensors.cards.temperatureSub', { peak: n1(cards.tempPeak), threshold: n1(cards.threshold) })}
           </span>
@@ -61,8 +61,8 @@ export const Cards: FC<{ cards: SensorCards; facets: TelemetryFacets | null; loc
         </div>
         <div className={`${ui.card} ${s.card}`}>
           <span className={s.cardLabel}>{t('sensors.cards.window')}</span>
-          <strong className={s.cardValue}>{window ? `${formatClock(Date.parse(window.from))}–${formatClock(Date.parse(window.to))}` : '—'}</strong>
-          <span className={s.cardSub}>{t('sensors.cards.windowSub', { minutes: bucketMinutes })}</span>
+          <strong className={s.cardValue}>{rangeSpanLabel(range, window, lang)}</strong>
+          <span className={s.cardSub}>{t('sensors.cards.windowSub', { slot: slotName(bucketMinutes, t) })}</span>
         </div>
       </div>
     </section>

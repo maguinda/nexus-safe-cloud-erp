@@ -2,7 +2,7 @@ import { ActivityItem } from './dashboard';
 import { AnalyticsEvent } from './events';
 import { Fact } from './fact';
 import { InfrastructureRow, NetworkInput } from './network';
-import { BucketRow, EventRow, LocationStat } from './trends';
+import { BucketRow, EventRow, LocationStat, RangeSpec } from './trends';
 import { AttentionReading, DeviceCounters, DeviceRow, LatestReading, LocationAverage, StatusCount } from './telemetry';
 
 /** Lo que el consumidor hace dentro de UNA transacción: marcar el evento, fusionarlo en el hecho y anotar la actividad. */
@@ -45,12 +45,13 @@ export interface NetworkQueries {
   infrastructure(): Promise<InfrastructureRow[]>;
 }
 
-/** Agregados de las tendencias de sensores (tramos de 10 minutos por oficina). */
+/** Agregados de las tendencias de sensores por oficina, siempre de un rango (nunca de toda la tabla). */
 export interface TrendsQueries {
-  buckets(): Promise<BucketRow[]>;
-  perLocation(): Promise<LocationStat[]>;
-  /** Solo ALERT y WARNING. */
-  events(): Promise<EventRow[]>;
+  buckets(r: RangeSpec): Promise<BucketRow[]>;
+  perLocation(r: RangeSpec): Promise<LocationStat[]>;
+  /** Solo ALERT y WARNING: los `limit` más recientes del rango y cuántos hay en total. */
+  events(r: RangeSpec, limit: number): Promise<{ rows: EventRow[]; total: number }>;
+  statusCounts(r: RangeSpec): Promise<StatusCount[]>;
   tempWarningC(): Promise<number | null>;
   window(): Promise<{ from: Date; to: Date } | null>;
 }

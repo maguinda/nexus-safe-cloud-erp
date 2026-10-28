@@ -1,12 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { formatClock } from '../../charts/format';
 import { makeT } from '../../i18n';
 import { buildCards, EMPTY_FILTERS, INITIAL_STATE, type ExplorerState } from '../../lib/sensors';
-import type { Insight, Page, ReadingItem, TelemetryFacets, TrendPoint, Trends, TrendsInsightCode } from '../../lib/types';
+import type { Insight, Page, RangeKey, ReadingItem, TelemetryFacets, TrendPoint, Trends, TrendsInsightCode } from '../../lib/types';
 import { Cards } from './Cards';
 import { Charts } from './Charts';
 import { FilterBar } from './FilterBar';
 import { Insights } from './Insights';
+import { RangeBar } from './RangeBar';
 import { ReadingsTable, readingValue, type ReadingsLoad } from './ReadingsTable';
 
 const WINDOW = { from: '2026-09-13T08:01:00.000Z', to: '2026-09-13T11:20:00.000Z' };
@@ -16,7 +18,8 @@ const count = (out: string, re: RegExp) => (out.match(re) ?? []).length;
 const at = (m: number) => new Date(Date.UTC(2026, 8, 13, 8, m)).toISOString();
 const point = (m: number, o: Partial<TrendPoint> = {}): TrendPoint => ({ at: at(m), avgTempC: 22 + m / 100, maxTempC: 23, avgHumidityPct: 50, maxSmokePpm: 0, heaterOnPct: 90, motionDetections: m === 10 ? 4 : 0, doorUnlocks: 0, warnings: m === 20 ? 1 : 0, alerts: m === 40 ? 1 : 0, ...o });
 const trends = (): Trends => ({
-  asOf: '2026-10-26T00:00:00Z', bucketMinutes: 10, window: WINDOW, thresholds: { tempWarningC: 24 }, locations: ['Oficina 1', 'Oficina 2'],
+  asOf: '2026-10-26T00:00:00Z', bucketMinutes: 10, window: WINDOW, range: { key: '1d', from: '2026-09-12T11:20:00.000Z', to: WINDOW.to }, eventsTotal: 2,
+  statusCounts: [{ status: 'NORMAL', severity: 'normal', count: 4158 }, { status: 'WARNING', severity: 'warning', count: 39 }, { status: 'ALERT', severity: 'alert', count: 3 }], thresholds: { tempWarningC: 24 }, locations: ['Oficina 1', 'Oficina 2'],
   series: ['Oficina 1', 'Oficina 2'].map((location) => ({ location, points: [0, 10, 20, 30, 40, 50].map((m) => point(m)) })),
   byLocation: [{ location: 'Oficina 1', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 100 }, { location: 'Oficina 2', tempReadings: 200, warningReadings: 13, warningSharePct: 6.5, peakTempC: 24, heaterReadings: 200, heaterOnPct: 80 }],
   events: [{ at: at(20), location: 'Oficina 1', deviceName: 'TEMP_MON_OF1', status: 'WARNING', value: 24, unit: '°C', note: 'Umbral Ligero Superado' }, { at: at(40), location: 'Oficina 2', deviceName: 'IoT10(1)', status: 'ALERT', value: 1.2, unit: 'PPM', note: 'Alerta Humo Detectada' }],
@@ -34,7 +37,7 @@ const REAL: Insight<TrendsInsightCode>[] = [
 ];
 
 describe('Insights', () => {
-  const view = (lang: 'es' | 'en', list = REAL) => html(<Insights insights={list} facets={facets()} lang={lang} t={lang === 'es' ? es : en} onView={vi.fn()} />);
+  const view = (lang: 'es' | 'en', list = REAL) => html(<Insights insights={list} facets={facets()} window={WINDOW} withDate={false} lang={lang} t={lang === 'es' ? es : en} onView={vi.fn()} />);
   it('Spanish: each finding says what, with the numbers (comma decimal, UTC time), how it was detected, and offers the readings', () => {
     const out = view('es');
     expect(out).toContain('Alertas a la misma hora en 3 oficinas');
@@ -67,7 +70,7 @@ describe('Insights', () => {
 describe('Cards', () => {
   const view = (lang: 'es' | 'en', o: { location?: string; kinds?: string[]; heater?: boolean } = {}) => {
     const f = { ...facets(), deviceKinds: o.kinds ?? facets().deviceKinds };
-    return html(<Cards cards={buildCards(trends(), f, o.location ?? '')} facets={f} location={o.location ?? ''} window={WINDOW} bucketMinutes={10} lang={lang} t={lang === 'es' ? es : en} onDetail={vi.fn()} />);
+    return html(<Cards cards={buildCards(trends(), o.location ?? '')} facets={f} location={o.location ?? ''} range={trends().range} window={WINDOW} bucketMinutes={10} lang={lang} t={lang === 'es' ? es : en} onDetail={vi.fn()} />);
   };
   it('numbers with the thousands separator of the language and the context of each one', () => {
     const out = view('es');
@@ -85,7 +88,7 @@ describe('Cards', () => {
   it('one office says so in the heater card; an office with no heater reading shows a dash', () => {
     expect(view('es', { location: 'Oficina 2' })).toContain('promedio de Oficina 2');
     const t = trends(); t.byLocation = t.byLocation.map((b) => ({ ...b, heaterReadings: 0, heaterOnPct: null }));
-    const out = html(<Cards cards={buildCards(t, facets(), '')} facets={facets()} location="" window={WINDOW} bucketMinutes={10} lang="es" t={es} onDetail={vi.fn()} />);
+    const out = html(<Cards cards={buildCards(t, '')} facets={facets()} location="" range={t.range} window={WINDOW} bucketMinutes={10} lang="es" t={es} onDetail={vi.fn()} />);
     expect(out).toContain('>—<');
   });
 });
@@ -160,7 +163,7 @@ describe('ReadingsTable', () => {
 });
 
 describe('Charts', () => {
-  const view = (o: { t?: Trends; f?: TelemetryFacets; location?: string; lang?: 'es' | 'en' } = {}) => html(<Charts trends={o.t ?? trends()} facets={o.f ?? facets()} location={o.location ?? ''} lang={o.lang ?? 'es'} t={(o.lang ?? 'es') === 'es' ? es : en} />);
+  const view = (o: { t?: Trends; location?: string; lang?: 'es' | 'en' } = {}) => html(<Charts trends={o.t ?? trends()} location={o.location ?? ''} slotLabel={(ms) => formatClock(ms)} lang={o.lang ?? 'es'} t={(o.lang ?? 'es') === 'es' ? es : en} />);
   it('five charts, each an image with a summary that says the finding, and each with its table', () => {
     const out = view();
     expect(count(out, /role="img"/g)).toBeGreaterThanOrEqual(5); expect(count(out, /Ver como tabla/g)).toBe(5);
@@ -174,13 +177,13 @@ describe('Charts', () => {
   });
   it('English', () => { const out = view({ lang: 'en' }); expect(out).toContain('Temperature by office'); expect(out).toContain('Threshold 24 °C'); expect(out).toContain('View as table'); expect(out).not.toContain('Temperatura por oficina'); });
   it('with no series every chart says «no data» instead of drawing an empty frame', () => {
-    const t = { ...trends(), series: [], locations: [], byLocation: [], events: [] };
-    const out = view({ t, f: { ...facets(), statuses: [] } });
+    const t = { ...trends(), series: [], locations: [], byLocation: [], events: [], statusCounts: [] };
+    const out = view({ t });
     expect(count(out, /Sin datos/g)).toBeGreaterThanOrEqual(5); expect(out).not.toContain('role="img"');
   });
   it('odd data does not break it: one point per office and no threshold', () => {
     const t = trends(); t.thresholds = { tempWarningC: null }; t.series = t.series.map((s) => ({ ...s, points: s.points.slice(0, 1) }));
-    const out = view({ t }); expect(out).toContain('Temperatura media por oficina cada 10 minutos'); expect(out).not.toContain('Umbral');
+    const out = view({ t }); expect(out).toContain('Temperatura media por oficina, tramos de 10 minutos'); expect(out).not.toContain('Umbral');
   });
   it('a temperature that is null everywhere is «no data» for that chart, not an empty frame', () => {
     const t = trends(); t.series = t.series.map((s) => ({ ...s, points: s.points.map((p) => ({ ...p, avgTempC: null })) }));
@@ -189,5 +192,37 @@ describe('Charts', () => {
   it('singular and plural never need a rule: the summaries say «Advertencias: 1», not «1 advertencias»', () => {
     const t = trends(); t.events = [t.events[0]]; const out = view({ t });
     expect(out).not.toMatch(/\b1 (advertencias|alertas|detecciones|dispositivos)/);
+  });
+});
+
+describe('RangeBar', () => {
+  const view = (lang: 'es' | 'en', value: RangeKey = '1d', busy = false) => html(<RangeBar value={value} busy={busy} onPick={vi.fn()} t={lang === 'es' ? es : en} />);
+  it('five ranges, one pressed, in order, in Spanish', () => {
+    const out = view('es', '30d');
+    expect(count(out, /<button/g)).toBe(5);
+    expect([...out.matchAll(/<button[^>]*aria-pressed="(true|false)"[^>]*>([^<]*)</g)].map((m) => [m[2], m[1]])).toEqual([['24 horas', 'false'], ['1 semana', 'false'], ['1 mes', 'true'], ['6 meses', 'false'], ['12 meses', 'false']]);
+    expect(out).toContain('Rango de tiempo');
+    expect(out).toContain('la tabla de abajo explora todas las lecturas');
+  });
+  it('English, and busy says so to assistive technology', () => {
+    const out = view('en', '1d', true);
+    expect(out).toContain('Time range'); expect(out).toContain('12 months'); expect(out).toContain('aria-busy="true"');
+    expect(view('en')).toContain('aria-busy="false"');
+  });
+});
+
+describe('Charts with a long range', () => {
+  it('the subtitles name the slot of the range, in both languages, and no placeholder is left', () => {
+    const t = { ...trends(), bucketMinutes: 5760, range: { key: '365d' as const, from: '2025-09-13T11:20:00.000Z', to: WINDOW.to } };
+    const es365 = html(<Charts trends={t} location="" slotLabel={(ms) => formatClock(ms)} lang="es" t={es} />);
+    expect(es365).toContain('tramos de 4 días');
+    const en365 = html(<Charts trends={t} location="" slotLabel={(ms) => formatClock(ms)} lang="en" t={en} />);
+    expect(en365).toContain('slots of 4 days');
+    expect(html(<Charts trends={{ ...t, bucketMinutes: 120 }} location="" slotLabel={(ms) => formatClock(ms)} lang="es" t={es} />)).toContain('tramos de 2 horas');
+  });
+  it('the severity chart counts the range chosen, not the whole table', () => {
+    const t = { ...trends(), statusCounts: [{ status: 'NORMAL', severity: 'normal' as const, count: 12 }, { status: 'ALERT', severity: 'alert' as const, count: 1 }] };
+    const out = html(<Charts trends={t} location="" slotLabel={(ms) => formatClock(ms)} lang="es" t={es} />);
+    expect(out).toContain('Normal: 12'); expect(out).toContain('Alerta: 1');
   });
 });
