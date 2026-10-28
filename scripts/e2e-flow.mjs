@@ -125,5 +125,26 @@ const docs = await call('GET', '/docs'); const other = await call('GET', '/auth/
 ok(docs.status === 404 && other.status === 404, 'Swagger y rutas internas NO se exponen por el gateway');
 ok(health.headers.get('x-correlation-id') === 'trace-gw-0001' && health.headers.get('x-content-type-options') === 'nosniff' && !health.headers.get('server')?.match(/\d/), 'gateway: correlación, nosniff y sin versión del servidor');
 
+// Ingesta de telemetría por el gateway. Sin clave la ruta rechaza (401, o 503 si el servidor no tiene clave configurada) y el token del gerente tampoco sirve;
+// con la clave (INGEST_KEY en el entorno) se prueba una ingesta real; una ráfaga la limita nginx (429, HTML) y el GET del explorador no cuenta.
+const INGEST_KEY = process.env.INGEST_KEY ?? '';
+const ingest = (key, body = { readings: [] }) => call('POST', '/telemetry/readings', { headers: key ? { 'x-ingest-key': key } : {}, body });
+const refused = (s) => s === 401 || s === 503;
+ok(refused((await ingest(null)).status) && refused((await call('POST', '/telemetry/readings', { token: manager.token, body: { readings: [] } })).status), 'ingesta de telemetría: sin clave se rechaza y el token del gerente tampoco sirve');
+if (INGEST_KEY.length >= 32) {
+  const reading = { deviceId: 'IOT-OF1-01', recordedAt: '2026-09-13T11:21:00Z', status: 'NORMAL', value: 30, unit: 'FPS', note: 'e2e-flow' };
+  const good = await ingest(INGEST_KEY, { readings: [reading] });
+  ok(good.status === 200 && good.json?.accepted + good.json?.duplicates === 1, 'ingesta con la clave de servicio: una lectura entra (o ya estaba) y se responde {accepted, duplicates}');
+  const again = await ingest(INGEST_KEY, { readings: [reading] });
+  ok(again.status === 200 && again.json?.accepted === 0 && again.json?.duplicates === 1, 'ingesta idempotente: el mismo lote otra vez no guarda nada');
+  const bad = await ingest(INGEST_KEY, { readings: [reading, { ...reading, recordedAt: '2026-09-13T11:22:00Z', value: 'x' }] });
+  ok(bad.status === 400, 'ingesta todo o nada: un lote con una lectura inválida se rechaza (400)');
+  const asManager = await call('GET', '/telemetry/summary', { token: manager.token, headers: { 'x-ingest-key': INGEST_KEY } });
+  ok(asManager.status === 200 && (await call('GET', '/telemetry/summary', { headers: { 'x-ingest-key': INGEST_KEY } })).status === 401, 'la clave de servicio no abre el resto de la API: sin token, /telemetry/summary sigue dando 401');
+} else console.log('⚠️  ingesta con clave: omitida (defina INGEST_KEY en el entorno: `set -a; . ./.env; set +a`)');
+const burst = []; for (let i = 0; i < 60; i++) burst.push((await ingest('x'.repeat(48))).status);
+ok(!burst.includes(200) && burst[0] !== 429 && burst.includes(429), `ingesta: la ráfaga de 60 envíos con una clave mala la limita el gateway (${burst.filter((c) => c !== 429).length} pasan a Analytics y se rechazan, ${burst.filter((c) => c === 429).length} reciben 429)`);
+ok((await call('GET', '/telemetry/readings?limit=1', { token: manager.token })).status === 200, 'el GET del explorador de lecturas no cuenta en el límite de la ingesta');
+
 console.log(failed ? `\n${failed} comprobación(es) FALLARON` : '\nTodo el flujo de punta a punta funciona');
 process.exit(failed ? 1 : 0);

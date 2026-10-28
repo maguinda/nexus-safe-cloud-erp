@@ -77,7 +77,8 @@ model IotDevice {
 
 /// Lecturas de los sensores (serie de tiempo). El id es el «ID Registro» de la fuente, así que cargar dos veces no duplica nada.
 model IotReading {
-  id         Int       @id
+  /// Las del seed traen el id de la fuente (1 a 4200); las de la API de ingesta lo genera la base (identidad desde el id más alto + 1).
+  id         Int       @id @default(autoincrement())
   deviceId   String    @map("device_id")
   /// Sin zona horaria en la fuente: se guarda tal cual, como UTC.
   recordedAt DateTime  @map("recorded_at")

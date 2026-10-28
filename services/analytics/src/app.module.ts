@@ -14,7 +14,10 @@ import { AdvisorController, GET_ADVICE } from './http/advisor.controller';
 import { DashboardController, GET_DASHBOARD } from './http/dashboard.controller';
 import { HealthController } from './http/health.controller';
 import { EXPLORE_NETWORK, GET_NETWORK, NetworkController } from './http/network.controller';
-import { EXPLORE_READINGS, GET_TELEMETRY, GET_TRENDS, TelemetryController } from './http/telemetry.controller';
+import { EXPLORE_READINGS, GET_TELEMETRY, GET_TRENDS, INGEST_READINGS, TelemetryController } from './http/telemetry.controller';
+import { IngestReadingsUseCase } from './application/ingest-readings.use-case';
+import { INGEST_KEY, ServiceKeyGuard } from './auth/service-key.guard';
+import { PrismaReadingIngest } from './infrastructure/prisma-reading-ingest';
 import { AnthropicAdviceWriter } from './infrastructure/anthropic-advice-writer';
 import { EventConsumer } from './infrastructure/event-consumer';
 import { PrismaDashboardQueries } from './infrastructure/prisma-dashboard-queries';
@@ -50,6 +53,10 @@ let consumer: EventConsumer | undefined;
         return new GetAdviceUseCase(new GetTrendsUseCase(new PrismaTrendsQueries(prisma)), new GetNetworkUseCase(new PrismaNetworkQueries(prisma)), writer, undefined, undefined, process.env.ADVISOR_AI_PER_MINUTE ? Number(process.env.ADVISOR_AI_PER_MINUTE) : undefined);
       },
     },
+    // La clave de servicio de los emisores de telemetría. Sin ella (o con menos de 32 caracteres) la ingesta responde 503; nunca se escribe en un log.
+    { provide: INGEST_KEY, useFactory: () => process.env.INGEST_KEY ?? '' },
+    ServiceKeyGuard,
+    { provide: INGEST_READINGS, useFactory: () => new IngestReadingsUseCase(new PrismaReadingIngest(prisma)) },
     { provide: EXPLORE_READINGS, useFactory: () => new ExploreReadingsUseCase(new PrismaTelemetryExplorer(prisma)) },
     { provide: EXPLORE_NETWORK, useFactory: () => new ExploreNetworkUseCase(new PrismaNetworkExplorer(prisma)) },
   ],
