@@ -56,6 +56,13 @@ jobs:
       - name: Browser tests (functional and read-only layout audit)
         working-directory: web
         run: sleep 60 && npm run test:e2e
+      - name: Real client IP behind a balancer (gateway)
+        run: sh scripts/gateway-real-ip-check.sh
+      - name: Secure cookie over real HTTPS (identity with COOKIE_SECURE=true and the gateway on 8443)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.https.yml up -d identity gateway
+          sleep 20
+          cd web && sleep 60 && npm run test:e2e:https
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail=120
