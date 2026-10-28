@@ -63,7 +63,7 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 2. Pulsa **Approve milestone** en un hito pendiente: la respuesta es inmediata y, unos segundos después, aparece una factura borrador en **Invoices**.
 3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos. Más abajo está el panel **Network & IoT** con los datos de Nexus que dejó la docente: 21 dispositivos y 4.200 lecturas (21 / 21 en línea, 39 advertencias, 3 alertas), una tabla por oficina, las últimas alertas y todos los dispositivos.
 4. En una tercera pestaña entra como Andrés y pulsa **Issue invoice** en el borrador: el estado pasa a Issued y la columna **Due** muestra la fecha de vencimiento (emisión + 30 días).
-5. Entra como Camila: Invoices responde 403. Con **Simulate expired token** la sesión se cierra con «Your session expired».
+5. Entra como Camila: Invoices responde 403. Después, con otra persona, abre **JWT sample** y pulsa **Simulate expired token**: el token «vence» y la app lo **renueva sola** con su cookie (sigues dentro y el contador «token expires in» vuelve a ~15:00). La sesión solo se cierra si ya no hay cookie, a los 30 minutos sin renovar o a las 8 horas en total (ver «Sesión»).
 6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
 7. Opcional: detén RabbitMQ con `docker compose stop rabbitmq`, aprueba otro hito (responde 200 igual), vuelve a arrancarlo con `docker compose start rabbitmq` y espera unos 15 segundos a que la factura aparezca.
 8. Opcional: como Diana, pestaña **Usuarios**, crea un vendedor y entra con él en otra pestaña.
@@ -71,12 +71,12 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 
 **Comprobar que todo funciona de punta a punta** (opcional)
 ```sh
-node scripts/e2e-flow.mjs      # debe terminar sin ❌ (51 comprobaciones)
+node scripts/e2e-flow.mjs      # debe terminar sin ❌ (72 comprobaciones)
 ./scripts/reset-demo.sh        # deja la demo como al inicio
 ```
 
 **Migraciones de la base de datos** (no tienes que ejecutarlas)
-Cada servicio tiene su propia base y su propio historial de migraciones de Prisma (identity 3, projects 1, billing 4, analytics 1). Se aplican solas: al arrancar, cada contenedor corre `npx prisma migrate deploy`, así que el paso 4 deja las tablas creadas. Para comprobarlo:
+Cada servicio tiene su propia base y su propio historial de migraciones de Prisma (identity 6, projects 1, billing 4, analytics 4). Se aplican solas: al arrancar, cada contenedor corre `npx prisma migrate deploy`, así que el paso 4 deja las tablas creadas. Para comprobarlo:
 ```sh
 docker compose logs billing | grep -i migration     # «4 migrations found» y «applied» o «No pending migrations to apply»
 source .env
@@ -87,6 +87,7 @@ docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres \
 Cambia `billing` por `identity`, `projects` o `analytics` para ver los otros servicios. Si un servicio no arranca por la base, mira `docker compose logs <servicio> | tail`; para empezar de cero (borra los datos) corre `docker compose down -v` y vuelve al paso 4. No corras `prisma migrate dev` ni edites los archivos de `services/*/prisma/migrations`: un cambio de esquema es una migración nueva, en una rama aparte.
 
 **Problemas frecuentes**
+- **La ingesta de telemetría responde 503:** falta `INGEST_KEY` en tu `.env` (vacía, o de menos de 32 caracteres). Genérala con `openssl rand -hex 24` y recrea Analytics (`docker compose up -d analytics`).
 - **Error 429 al iniciar sesión:** el gateway deja 10 inicios de sesión por minuto por IP. Espera un minuto antes de volver a intentar. Los ensayos seguidos y `e2e-flow.mjs` consumen ese cupo.
 - **La demo quedó «sucia»** (hitos ya aprobados, usuarios creados): corre `./scripts/reset-demo.sh`.
 - **«address already in use» / puerto ocupado:** algo más usa el 8080; ciérralo o apaga la otra pila con `docker compose down`.
@@ -104,7 +105,7 @@ La docente dejó en la carpeta compartida del curso (`PROYECTO_NEXUS`) los datos
 | Archivos en el repo | `services/analytics/prisma/data/iot-devices.json` y `iot-readings.json`, más `convert-iot.py`, el script que los genera desde el Excel |
 | Tablas | `iot_devices` e `iot_readings` (migración `0002_iot_telemetry`, con clave foránea, único por dispositivo e instante y tres CHECK) |
 | Carga | `prisma/seed.ts` (con `SEED_DEMO=true`, al arrancar el contenedor) llama a `prisma/iot-load.ts`. Se puede repetir sin duplicar nada |
-| API | `GET /telemetry/summary`, `/telemetry/trends`, `/telemetry/readings` (paginada y ordenable) y `/telemetry/facets`, solo para el gerente (403 para los demás roles) |
+| API | `GET /telemetry/summary`, `/telemetry/trends?range=1d\|7d\|30d\|180d\|365d` (por defecto `1d`), `/telemetry/readings` (paginada y ordenable) y `/telemetry/facets`, solo para el gerente (403 para los demás roles); `POST /telemetry/readings` es para los sensores, con clave de servicio (ver «Telemetría en vivo») |
 | Pantalla | panel **Network & IoT** en el Dashboard y la pantalla **Sensores** (hallazgos con su evidencia, cifras, filtros, gráficos y tabla de lecturas; un hallazgo filtra la tabla) |
 
 Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/analytics/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. `./scripts/reset-demo.sh` no toca estos datos.
@@ -143,6 +144,30 @@ Un panel en el Tablero del gerente que ordena los hallazgos de Sensores y Red po
 ### Idioma, tema y login
 
 La interfaz está en español por defecto y en inglés a elegir desde «Mi perfil»; ahí mismo se elige el tema (Sistema, Claro u Oscuro). Ambas preferencias se guardan por persona en la base (`users.language`, `users.theme`; `PATCH /me/language` y `/me/theme`). Lo que viene de la base de datos no se traduce. El login es móvil primero (una columna) y de pantalla dividida desde 900 px.
+
+## Telemetría en vivo, rangos y sesión
+
+### Telemetría en vivo: clave de ingesta y simulador
+Los sensores (o el simulador) envían lecturas con `POST /telemetry/readings`. **No usa el login de ninguna persona**: lleva una clave de servicio en la cabecera `x-ingest-key`.
+1. Pon una clave en tu `.env`: `INGEST_KEY=` con `openssl rand -hex 24` (mínimo 32 caracteres). Vacía, la ruta responde 503. Nunca se sube a Git.
+2. Recrea Analytics: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d analytics`.
+3. Corre el simulador, que repite las 4.200 lecturas del Excel como si siguieran llegando (continúa el 13 de septiembre a las 11:21 UTC; las fechas nuevas son de ese día, no de hoy): `node scripts/simulate-telemetry.mjs` (un lote de 21 lecturas cada 5 s, un ciclo ≈ 17 min; `--dry-run` no envía nada; `--max-batches 12` es una prueba corta).
+4. Abre **Sensores** como Diana: se actualiza sola cada 10 s, dice «En vivo · actualizado hace X s» y cuenta las lecturas nuevas desde que la abriste. Lo que llegó por la ingesta lo borra `./scripts/reset-demo.sh`; las 4.200 del Excel no se tocan.
+
+Un lote tiene de 1 a 50 lecturas y es **todo o nada**: si una es inválida no se guarda ninguna y el 400 las lista todas. Enviar el mismo lote otra vez no duplica nada.
+
+### Rangos de tiempo en Sensores
+Sensores abre en las **últimas 24 horas** y tiene botones para 24 horas, 1 semana, 1 mes, 6 y 12 meses. El rango se cuenta hacia atrás desde la lectura más reciente guardada (no desde el reloj) y el tramo de cada punto se ensancha con el rango (10 minutos, 2 horas, 6 horas, 2 días y 4 días), así que la respuesta no crece con la cantidad de lecturas. Las cifras, los hallazgos y los gráficos siguen el rango; la tabla de lecturas de abajo explora todas. La pantalla **Red** se vuelve a pedir sola cada minuto mientras la pestaña se ve (el inventario de red es fijo, así que hoy no muestra nada nuevo).
+
+### Sesión: se renueva sola
+El token de acceso (JWT) dura 15 minutos. Al iniciar sesión, identity también pone una cookie `erp_refresh` (`HttpOnly`, `SameSite=Strict`, solo para `/auth`) que la pantalla usa para renovarlo en silencio 2 minutos antes de que venza, así que un monitor «en vivo» no vuelve al login cada 15 minutos.
+- Cada renovación gasta el token de renovación y entrega uno nuevo; si alguien reusa uno ya gastado se cierra toda la sesión. La sesión termina a los 30 minutos sin renovar o a las 8 horas en total (`REFRESH_IDLE_MINUTES`, `SESSION_MAX_HOURS`).
+- **Cerrar sesión** la revoca de verdad en el servidor (`POST /auth/logout`).
+- Límites: un token ya emitido vale hasta 15 minutos aunque se revoque la sesión; no hay «cerrar todas mis sesiones».
+
+### Opcionales para un despliegue (no hacen falta para la demo)
+- **Detrás de un balanceador:** pon sus direcciones en `TRUSTED_PROXIES` (CIDR separados por comas) para que el límite de peticiones use la IP real de cada persona. Vacío (lo normal) no se confía en nadie y el `X-Forwarded-For` del cliente se ignora. Se comprueba con `./scripts/gateway-real-ip-check.sh`.
+- **HTTPS y cookie `Secure`:** `docker compose -f docker-compose.yml -f docker-compose.docs.yml -f docker-compose.https.yml up -d identity gateway` abre `https://localhost:8443` con un certificado de la CA de desarrollo y pone `COOKIE_SECURE=true`; `cd web && npm run test:e2e:https` lo prueba en Chromium y WebKit. No lo dejes puesto para la demo normal.
 
 ## Idioma de la interfaz (español e inglés)
 
