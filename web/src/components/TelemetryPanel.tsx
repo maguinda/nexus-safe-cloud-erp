@@ -5,6 +5,7 @@ import { avgLabel, readingLabel, STATE_KEY, windowLabel } from '../lib/telemetry
 import type { DeviceState, TelemetrySummary } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
+import { KpiCard } from './KpiCard';
 import s from './TelemetryPanel.module.css';
 
 const REFRESH_MS = 30_000;
@@ -56,10 +57,10 @@ export function TelemetryPanel() {
       {error && <p className={s.sub} role="status">{t('iot.stale', { error })}</p>}
 
       <div className={ui.kpis}>
-        <div className={ui.card}><small className={ui.muted}>{t('iot.kpi.online')}</small><strong className={ui.kpi}>{tot.online} / {tot.devices}</strong><span className={ui.kpiSub}>{t('iot.kpi.onlineSub')}</span></div>
-        <div className={ui.card}><small className={ui.muted}>{t('iot.kpi.readings')}</small><strong className={ui.kpi}>{formatCount(tot.readings, lang)}</strong><span className={ui.kpiSub}>{t('iot.kpi.readingsSub', { n: formatCount(tot.normal, lang) })}</span></div>
-        <div className={ui.card}><small className={ui.muted}>{t('iot.kpi.warnings')}</small><strong className={`${ui.kpi} ${tot.warnings > 0 ? s.warnN : ''}`}>{tot.warnings}</strong><span className={ui.kpiSub}>{t('iot.kpi.warningsSub')}</span></div>
-        <div className={ui.card}><small className={ui.muted}>{t('iot.kpi.alerts')}</small><strong className={`${ui.kpi} ${tot.alerts > 0 ? s.alertN : ''}`}>{tot.alerts}</strong><span className={ui.kpiSub}>{t('iot.kpi.alertsSub')}</span></div>
+        <KpiCard icon="signal" tone={tot.online === tot.devices ? 'ok' : 'warn'} label={t('iot.kpi.online')} value={<>{tot.online} / {tot.devices}</>} sub={t('iot.kpi.onlineSub')} />
+        <KpiCard icon="pulse" label={t('iot.kpi.readings')} value={formatCount(tot.readings, lang)} sub={t('iot.kpi.readingsSub', { n: formatCount(tot.normal, lang) })} />
+        <KpiCard icon="warning" tone={tot.warnings > 0 ? 'warn' : undefined} valueClass={tot.warnings > 0 ? s.warnN : undefined} label={t('iot.kpi.warnings')} value={tot.warnings} sub={t('iot.kpi.warningsSub')} />
+        <KpiCard icon="alert" tone={tot.alerts > 0 ? 'bad' : undefined} valueClass={tot.alerts > 0 ? s.alertN : undefined} label={t('iot.kpi.alerts')} value={tot.alerts} sub={t('iot.kpi.alertsSub')} />
       </div>
 
       <section aria-labelledby="iot-off-h">

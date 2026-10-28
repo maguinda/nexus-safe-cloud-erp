@@ -4,6 +4,7 @@ import type { MsgKey } from '../i18n';
 import { formatCop, timeAgo } from '../lib/format';
 import type { Dashboard } from '../lib/types';
 import { useSession } from '../session';
+import { KpiCard } from './KpiCard';
 import { TelemetryPanel } from './TelemetryPanel';
 import ui from '../styles/ui.module.css';
 import s from './DashboardView.module.css';
@@ -63,10 +64,10 @@ export function DashboardView() {
       {stale && <p className={s.warn} role="status">{t('dashboard.stale', { error })}</p>}
 
       <div className={ui.kpis}>
-        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.approved')}</small><strong className={ui.kpi}>{tot.milestonesApproved}</strong><span className={ui.kpiSub}>{t('dashboard.copAmount', { amount: formatCop(tot.approvedCop) })}</span></div>
-        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.waiting')}</small><strong className={ui.kpi}>{tot.waitingForInvoice.count}</strong><span className={ui.kpiSub}>{t('dashboard.copAmount', { amount: formatCop(tot.waitingForInvoice.cop) })}</span></div>
-        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.draft')}</small><strong className={ui.kpi}>{tot.draft.count}</strong><span className={ui.kpiSub}>{t('dashboard.copWithIva', { amount: formatCop(tot.draft.totalCop) })}</span></div>
-        <div className={ui.card}><small className={ui.muted}>{t('dashboard.kpi.issued')}</small><strong className={ui.kpi}>{tot.issued.count}</strong><span className={ui.kpiSub}>{t('dashboard.copWithIva', { amount: formatCop(tot.issued.totalCop) })}</span></div>
+        <KpiCard icon="check" tone="ok" label={t('dashboard.kpi.approved')} value={tot.milestonesApproved} sub={t('dashboard.copAmount', { amount: formatCop(tot.approvedCop) })} />
+        <KpiCard icon="hourglass" tone={tot.waitingForInvoice.count > 0 ? 'warn' : undefined} label={t('dashboard.kpi.waiting')} value={tot.waitingForInvoice.count} sub={t('dashboard.copAmount', { amount: formatCop(tot.waitingForInvoice.cop) })} />
+        <KpiCard icon="document" label={t('dashboard.kpi.draft')} value={tot.draft.count} sub={t('dashboard.copWithIva', { amount: formatCop(tot.draft.totalCop) })} />
+        <KpiCard icon="receipt" tone="ok" label={t('dashboard.kpi.issued')} value={tot.issued.count} sub={t('dashboard.copWithIva', { amount: formatCop(tot.issued.totalCop) })} />
       </div>
 
       <section aria-labelledby="dash-proj-h">

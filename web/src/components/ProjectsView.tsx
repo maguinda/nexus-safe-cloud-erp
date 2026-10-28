@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { AddMilestoneForm, NewProjectForm } from './CreateForms';
+import { KpiCard } from './KpiCard';
 import { errorText } from '../i18n/server';
 import { formatCop } from '../lib/format';
 import { pageOf } from '../lib/paging';
@@ -109,9 +110,9 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
   return (
     <div className={s.stack}>
       <div className={ui.kpis}>
-        <div className={ui.card}><small className={ui.muted}>{t('projects.kpi.active')}</small><strong className={ui.kpi}>{projects.length}</strong></div>
-        <div className={ui.card}><small className={ui.muted}>{t('projects.kpi.pending')}</small><strong className={ui.kpi}>{pending}</strong></div>
-        <div className={ui.card}><small className={ui.muted}>{t('projects.kpi.drafts')}</small><strong className={ui.kpi}>{drafts ?? '—'}</strong></div>
+        <KpiCard icon="layers" label={t('projects.kpi.active')} value={projects.length} />
+        <KpiCard icon="clock" tone={pending > 0 ? 'warn' : 'ok'} label={t('projects.kpi.pending')} value={pending} />
+        <KpiCard icon="document" label={t('projects.kpi.drafts')} value={drafts ?? '—'} />
       </div>
 
       {canCreate && <NewProjectForm api={api} onCreated={(p) => { setSelected(p.id); toast(t('projects.created', { name: p.name })); void load(); }} />}
