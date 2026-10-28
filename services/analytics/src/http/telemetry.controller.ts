@@ -1,13 +1,18 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetTelemetryUseCase } from '../application/get-telemetry.use-case';
 import { ExploreReadingsUseCase, GetTrendsUseCase } from '../application/explore.use-cases';
-import { Roles } from '../auth/auth.guard';
+import { IngestReadingsUseCase, IngestRejectedError } from '../application/ingest-readings.use-case';
+import { Public, Roles } from '../auth/auth.guard';
+import { INGEST_KEY_HEADER, ServiceKeyGuard } from '../auth/service-key.guard';
 import { ReadingsQueryDto } from './explorer.dto';
 
 export const GET_TELEMETRY = 'GET_TELEMETRY';
 export const GET_TRENDS = 'GET_TRENDS';
 export const EXPLORE_READINGS = 'EXPLORE_READINGS';
+export const INGEST_READINGS = 'INGEST_READINGS';
+/** En el mensaje de error caben a lo sumo estos problemas; el resto se cuenta. */
+const MAX_PROBLEMS_SHOWN = 20;
 
 @ApiTags('Telemetry')
 @ApiBearerAuth()
@@ -17,6 +22,7 @@ export class TelemetryController {
     @Inject(GET_TELEMETRY) private readonly getTelemetry: GetTelemetryUseCase,
     @Inject(GET_TRENDS) private readonly getTrends: GetTrendsUseCase,
     @Inject(EXPLORE_READINGS) private readonly explore: ExploreReadingsUseCase,
+    @Inject(INGEST_READINGS) private readonly ingest: IngestReadingsUseCase,
   ) {}
 
   /** Solo el gerente: estado de la red y de los sensores IoT de Nexus, leído del modelo de lectura de Analytics. */
@@ -58,5 +64,30 @@ export class TelemetryController {
   @ApiResponse({ status: 403, description: 'Role not allowed' })
   facets() {
     return this.explore.facets();
+  }
+
+  /**
+   * Ingesta de lecturas nuevas de los sensores. NO usa JWT de persona: usa la clave de servicio (cabecera x-ingest-key). Lote de 1 a 50
+   * lecturas, «todo o nada»; es idempotente por (dispositivo, instante), así que reenviar un lote no duplica nada.
+   */
+  @Post('readings')
+  @Public()
+  @UseGuards(ServiceKeyGuard)
+  @HttpCode(200)
+  @ApiHeader({ name: INGEST_KEY_HEADER, description: 'Ingestion service key (not a user token)', required: true })
+  @ApiOperation({ summary: 'Ingest a batch of new sensor readings (service key, no user token)' })
+  @ApiResponse({ status: 200, description: '{ accepted, duplicates }: how many were stored and how many already existed' })
+  @ApiResponse({ status: 400, description: 'The batch is not valid: nothing was stored (all or nothing)' })
+  @ApiResponse({ status: 401, description: 'Missing or wrong ingestion key' })
+  @ApiResponse({ status: 503, description: 'Ingestion is not configured on this server' })
+  async ingestReadings(@Body() body: unknown) {
+    try {
+      return await this.ingest.execute(body);
+    } catch (e) {
+      if (!(e instanceof IngestRejectedError)) throw e;
+      const shown = e.problems.slice(0, MAX_PROBLEMS_SHOWN).map((p) => `${p.path}: ${p.message}`);
+      if (e.problems.length > MAX_PROBLEMS_SHOWN) shown.push(`(+${e.problems.length - MAX_PROBLEMS_SHOWN} more)`);
+      throw new BadRequestException(shown);
+    }
   }
 }

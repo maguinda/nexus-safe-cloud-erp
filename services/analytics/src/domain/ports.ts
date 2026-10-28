@@ -86,3 +86,11 @@ export interface NetworkExplorer {
 export interface AdviceWriter {
   write(prompt: { system: string; user: string }, signal: AbortSignal): Promise<string>;
 }
+
+/** Escritura de lecturas nuevas de los sensores (API de ingesta). */
+export interface ReadingIngest {
+  /** Catálogo de dispositivos: id → unidad. */
+  deviceUnits(): Promise<Map<string, string>>;
+  /** Guarda las lecturas nuevas y devuelve cuántas entraron: las que ya existían (mismo dispositivo e instante) se ignoran. */
+  insertReadings(rows: import('./ingest').NewReading[]): Promise<number>;
+}
