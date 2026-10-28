@@ -886,7 +886,7 @@ test('on a 320 px phone every figure of the dashboard table is inside the screen
 
 // ---- Proyectos a escala: selección, una sola petición de hitos, búsqueda y «Mostrar más» ----
 // Estas pruebas crean proyectos desechables por la API (con el token de la líder) y se limpian al final con el reset de la demo.
-const leadToken = (): string => JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8')).lead.token;
+const leadToken = (): string => JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8')).lead.token; // openAs ya renovó la guardada si hacía falta
 async function seedProjects(request: { post: (url: string, o: { headers: Record<string, string>; data: object }) => Promise<{ status(): number }> }, n: number, client: string) {
   for (let i = 1; i <= n; i++) {
     const r = await request.post('/projects', { headers: { authorization: `Bearer ${leadToken()}` }, data: { name: `Scale test ${String(i).padStart(2, '0')}`, client } });
