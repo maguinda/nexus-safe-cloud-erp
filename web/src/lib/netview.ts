@@ -237,3 +237,6 @@ export function actionLabelKey(code: string): 'netview.action.devices' | 'netvie
 }
 /** Clave del nombre de una criticidad (Crítica, Alta, Media); null si no es una de las tres (entonces se muestra el valor tal cual). */
 export const critKey = (c: string): 'netview.crit.Crítica' | 'netview.crit.Alta' | 'netview.crit.Media' | null => (c === 'Crítica' || c === 'Alta' || c === 'Media' ? (`netview.crit.${c}` as const) : null);
+
+/** Cada cuánto se vuelve a pedir lo de Red mientras la pestaña se ve. Es un inventario que casi no cambia: un minuto basta y gasta 3 de las 300 peticiones por minuto del servicio. */
+export const NETWORK_REFRESH_MS = 60_000;

@@ -976,6 +976,50 @@ test('Invoices: the list stops asking the server while the tab is hidden and ref
   await expect.poll(() => calls, { timeout: 3_000 }).toBeGreaterThan(0);
 });
 
+const openNetwork = async (page: import('@playwright/test').Page) => {
+  await openAs(page, 'manager');
+  await page.getByRole('navigation', { name: 'Modules' }).getByRole('button', { name: 'Network', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Network', exact: true })).toBeVisible();
+};
+const HIDDEN_TAB = () => { (window as unknown as { __vis: string }).__vis = 'visible'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); };
+
+test('Network: it asks the server again every minute while the tab is visible, and not at all while it is hidden', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.addInitScript(HIDDEN_TAB);
+  await page.clock.install();
+  await openNetwork(page);
+  let calls = 0;
+  page.on('request', (r) => { if (r.method() === 'GET' && new URL(r.url()).pathname === '/network/summary') calls++; });
+  await page.clock.runFor(30_000);
+  expect(calls, 'a los 30 s todavía no toca').toBe(0);
+  await page.clock.runFor(31_000);
+  await expect.poll(() => calls, { timeout: 5_000, message: 'a los 61 s volvió a pedir el resumen' }).toBe(1);
+  await page.clock.runFor(60_000);
+  await expect.poll(() => calls, { timeout: 5_000 }).toBe(2);
+  await page.evaluate(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; });
+  await page.clock.runFor(180_000); // con la pestaña oculta pasan 3 minutos y no pide nada
+  await page.waitForTimeout(500);
+  expect(calls, 'peticiones con la pestaña oculta').toBe(2);
+  await page.evaluate(() => { (window as unknown as { __vis: string }).__vis = 'visible'; document.dispatchEvent(new Event('visibilitychange')); });
+  await expect.poll(() => calls, { timeout: 5_000, message: 'al volver a la pestaña se actualiza de inmediato' }).toBe(3);
+  await expect(page.getByText('Loading')).toHaveCount(0); // y sin pasar por «cargando…»
+});
+
+test('Network: if a refresh fails the data stays with a notice, and it recovers by itself', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.addInitScript(HIDDEN_TAB);
+  await page.clock.install();
+  await openNetwork(page);
+  await page.route('**/network/summary', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"statusCode":500,"error":"Internal Server Error","message":"x"}' }));
+  await page.clock.runFor(61_000);
+  await expect(page.getByText(/We could not refresh just now/)).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('heading', { name: 'Network', exact: true })).toBeVisible(); // los datos de antes siguen a la vista
+  await page.unroute('**/network/summary');
+  await page.clock.runFor(61_000);
+  await expect(page.getByText(/We could not refresh just now/)).toHaveCount(0, { timeout: 5_000 });
+  problems = problems.filter((m) => !/status of 500/.test(m)); // el 500 lo provocamos a propósito
+});
+
 test('Projects: every project shows its progress, and the board view splits the milestones into Pending and Approved', async ({ page }) => {
   await openAs(page, 'lead');
   await page.getByLabel('Search projects').fill('Retail POS'); // otras pruebas dejan más de 25 proyectos y el orden depende de la base: se busca en vez de suponer la posición
