@@ -938,4 +938,41 @@ test('Projects: search by name or client, and «Show more» reveals the rest in 
   await expect(page.getByText('Showing 0 of 0')).toBeVisible();
 });
 
+test('Invoices: with many invoices only the first 50 are drawn, «Show more» adds the next batch and a new search starts again from the first batch', async ({ page, request }) => {
+  const auth = { authorization: `Bearer ${leadToken()}` };
+  const countInvoices = async () => (await (await request.get('/invoices', { headers: auth })).json()).length as number;
+  const before = await countInvoices(); // otras pruebas del archivo ya dejaron facturas: se cuenta lo que hay ANTES de crear las 52
+  const project = await (await request.post('/projects', { headers: auth, data: { name: 'Invoice scale', client: 'Scale Co C' } })).json();
+  const ids: string[] = [];
+  for (let i = 1; i <= 52; i++) ids.push((await (await request.post(`/projects/${project.id}/milestones`, { headers: auth, data: { name: `Scale M${String(i).padStart(2, '0')}`, amountCop: 1_000_000 } })).json()).id);
+  for (const id of ids) expect((await request.post(`/milestones/${id}/approve`, { headers: auth })).status()).toBe(200);
+  let total = before; // las facturas las crea Billing por evento: se espera a que lleguen las 52 NUEVAS (CI es más lento que un portátil)
+  for (let k = 0; k < 120 && total < before + 52; k++) { total = await countInvoices(); if (total < before + 52) await new Promise((r) => setTimeout(r, 500)); }
+  expect(total).toBe(before + 52);
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click();
+  await expect(page.getByText(`Showing 50 of ${total}`)).toBeVisible();
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(51); // 50 filas + el encabezado
+  await page.getByRole('button', { name: `Show ${total - 50} more` }).click();
+  await expect(page.getByText(`Showing ${total} of ${total}`)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Show \d+ more/ })).toHaveCount(0);
+  await page.getByLabel('Search invoices').fill('scale m'); // buscar vuelve a la primera tanda
+  await expect(page.getByText(`Showing 50 of ${total}`)).toBeVisible();
+  await page.getByLabel('Search invoices').fill('scale m05');
+  await expect(page.getByText(`Showing 1 of ${total}`)).toBeVisible();
+});
+
+test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
+  await openAs(page, 'lead');
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click();
+  await expect(page.getByText(/Showing \d+ of \d+/)).toBeVisible();
+  let calls = 0;
+  page.on('request', (r) => { if (r.method() === 'GET' && new URL(r.url()).pathname === '/invoices') calls++; });
+  await page.waitForTimeout(9_000); // con el refresco de 4 s habrían salido 2 peticiones
+  expect(calls, 'peticiones a /invoices con la pestaña oculta').toBe(0);
+  await page.evaluate(() => { (window as unknown as { __vis: string }).__vis = 'visible'; document.dispatchEvent(new Event('visibilitychange')); });
+  await expect.poll(() => calls, { timeout: 3_000 }).toBeGreaterThan(0);
+});
+
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });

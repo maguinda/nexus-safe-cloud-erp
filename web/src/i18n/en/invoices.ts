@@ -25,6 +25,7 @@ export const invoices: Record<keyof typeof es, string> = {
   'invoices.col.action': 'Action',
   'invoices.chip.total': 'Total',
   'invoices.showing': 'Showing {shown} of {total}',
+  'invoices.showMore': 'Show {n} more',
   'invoices.noMatch': 'No invoices match these filters',
   'invoices.clearFilters': 'Clear filters',
   'invoices.caption': 'Invoices, sorted by {key} ({dir})',

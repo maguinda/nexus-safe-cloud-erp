@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { formatCop, formatDay, timeAgo } from '../lib/format';
-import { countByStatus, dueChip, dueState, filterInvoices, sortInvoices } from '../lib/invoice-table';
+import { pageOf } from '../lib/paging';
+import { countByStatus, dueChip, dueState, filterInvoices, INVOICE_PAGE, sortInvoices } from '../lib/invoice-table';
 import type { SortDir, SortKey, StatusFilter } from '../lib/invoice-table';
 import { errorText } from '../i18n/server';
 import type { MsgKey } from '../i18n';
@@ -25,6 +26,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
   const [status, setStatus] = useState<StatusFilter>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' }); // como antes: la más nueva primero
+  const [shown, setShown] = useState(INVOICE_PAGE);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -41,11 +43,15 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
 
   useEffect(() => {
     void load();
-    // Se actualiza sola: una factura nueva aparece unos segundos después de aprobar un hito.
-    const poll = setInterval(() => void load(), 4000);
+    // Se actualiza sola: una factura nueva aparece unos segundos después de aprobar un hito. Con la pestaña oculta no se pide nada
+    // (nadie la mira y cada petición gasta el límite del servicio); al volver, se actualiza de inmediato.
+    const poll = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 4000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => { clearInterval(poll); clearInterval(clock); };
+    return () => { clearInterval(poll); clearInterval(clock); document.removeEventListener('visibilitychange', onVisible); };
   }, [load]);
+  useEffect(() => { setShown(INVOICE_PAGE); }, [status, query, sort]); // al cambiar el filtro o el orden se vuelve a la primera tanda
 
   async function issue(n: string) {
     setBusy(n);
@@ -82,6 +88,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
   const counts = countByStatus(all);
   const visible = sortInvoices(filterInvoices(all, { status, query }), sort.key, sort.dir);
   const filtered = status !== 'all' || query.trim() !== '';
+  const { rows, hidden } = pageOf(visible, shown);
   const clear = () => { setStatus('all'); setQuery(''); };
   const tabs: [StatusFilter, MsgKey][] = [['all', 'invoices.tab.all'], ['draft', 'invoices.tab.draft'], ['issued', 'invoices.tab.issued']];
 
@@ -109,7 +116,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
                 </button>
               ))}
             </div>
-            <span className={s.count} role="status">{t('invoices.showing', { shown: visible.length, total: all.length })}</span>
+            <span className={s.count} role="status">{t('invoices.showing', { shown: rows.length, total: all.length })}</span>
           </div>
           {visible.length === 0 ? (
             <div className={s.empty} role="status"><strong>{t('invoices.noMatch')}</strong><button type="button" className={ui.btnGhost} onClick={clear}>{t('invoices.clearFilters')}</button></div>
@@ -119,7 +126,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
                 <caption className={s.sr}>{t(filtered ? 'invoices.captionFiltered' : 'invoices.caption', { key: t(`invoices.key.${sort.key}`), dir: t(sort.dir === 'asc' ? 'invoices.dir.asc' : 'invoices.dir.desc') })}</caption>
                 <thead><tr>{header('number', 'invoices.col.invoice')}{header('project', 'invoices.col.project')}<th>{t('invoices.col.milestone')}</th><th className={ui.num}>{t('invoices.col.subtotal')}</th><th className={ui.num}>{t('invoices.col.iva')}</th>{header('total', 'invoices.col.total', true)}<th>{t('invoices.col.status')}</th>{header('due', 'invoices.col.due')}{header('created', 'invoices.col.created')}<th>{t('invoices.col.action')}</th></tr></thead>
                 <tbody>
-                  {visible.map((i) => {
+                  {rows.map((i) => {
                     const due = dueState(i.dueDate, now);
                     const chip = dueChip(due, t);
                     return (
@@ -148,6 +155,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
               </table>
             </div>
           )}
+          {hidden > 0 && <button type="button" className={`${ui.btnGhost} ${s.more}`} onClick={() => setShown((n) => n + INVOICE_PAGE)}>{t('invoices.showMore', { n: Math.min(INVOICE_PAGE, hidden) })}</button>}
         </>
       )}
       <p className={ui.muted}>{t('invoices.note', { created: t('invoices.col.created') })}</p>
