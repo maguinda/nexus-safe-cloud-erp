@@ -8,14 +8,18 @@ import { NetworkView } from './components/NetworkView';
 import { ProjectsView } from './components/ProjectsView';
 import { SensorsView } from './components/SensorsView';
 import { ProfileMenu } from './components/ProfileMenu';
+import { icon, type IconName } from './components/Icons';
 import { Toast } from './components/Toast';
 import { UsersView } from './components/UsersView';
+import type { MsgKey } from './i18n';
 import { mmss } from './lib/format';
 import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
 type View = 'projects' | 'invoices';
 type ManagerView = 'dashboard' | 'sensors' | 'network' | 'users';
+interface NavItem { label: MsgKey; icon: IconName; on: boolean; go: () => void }
+interface NavGroup { label?: MsgKey; items: NavItem[] }
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
 
 function Shell() {
@@ -25,6 +29,14 @@ function Shell() {
   const [toast, setToast] = useState('');
   const isManager = user?.role === 'manager';
   const clear = useCallback(() => setToast(''), []);
+  // El gerente ve el tablero, los datos de Nexus y la administración (con una etiqueta por grupo); los demás roles, sus dos pantallas de trabajo.
+  const groups: NavGroup[] = isManager
+    ? [
+      { items: [{ label: 'nav.dashboard', icon: 'grid', on: managerView === 'dashboard', go: () => setManagerView('dashboard') }] },
+      { label: 'nav.group.data', items: [{ label: 'nav.sensors', icon: 'pulse', on: managerView === 'sensors', go: () => setManagerView('sensors') }, { label: 'nav.network', icon: 'network', on: managerView === 'network', go: () => setManagerView('network') }] },
+      { label: 'nav.group.admin', items: [{ label: 'nav.users', icon: 'users', on: managerView === 'users', go: () => setManagerView('users') }] },
+    ]
+    : [{ items: [{ label: 'nav.projects', icon: 'layers', on: view === 'projects', go: () => setView('projects') }, { label: 'nav.invoices', icon: 'receipt', on: view === 'invoices', go: () => setView('invoices') }] }];
 
   return (
     <div className={s.app}>
@@ -43,21 +55,18 @@ function Shell() {
       {!user ? <LoginView /> : (
         <div className={s.body}>
           <nav className={s.nav} aria-label={t('nav.modules')}>
-            {isManager
-              ? (
-                <>
-                  <button type="button" aria-current={managerView === 'dashboard' ? 'page' : undefined} onClick={() => setManagerView('dashboard')}>{t('nav.dashboard')}</button>
-                  <button type="button" aria-current={managerView === 'sensors' ? 'page' : undefined} onClick={() => setManagerView('sensors')}>{t('nav.sensors')}</button>
-                  <button type="button" aria-current={managerView === 'network' ? 'page' : undefined} onClick={() => setManagerView('network')}>{t('nav.network')}</button>
-                  <button type="button" aria-current={managerView === 'users' ? 'page' : undefined} onClick={() => setManagerView('users')}>{t('nav.users')}</button>
-                </>
-              )
-              : (
-                <>
-                  <button type="button" aria-current={view === 'projects' ? 'page' : undefined} onClick={() => setView('projects')}>{t('nav.projects')}</button>
-                  <button type="button" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => setView('invoices')}>{t('nav.invoices')}</button>
-                </>
-              )}
+            <div className={s.navStick}>
+              {groups.map((g, gi) => (
+                <div key={gi} className={s.navGroup} role={g.label ? 'group' : undefined} aria-label={g.label ? t(g.label) : undefined}>
+                  {g.label && <span className={s.navLabel} aria-hidden="true">{t(g.label)}</span>}
+                  {g.items.map((it) => (
+                    <button key={it.label} type="button" aria-current={it.on ? 'page' : undefined} onClick={it.go}>
+                      <span className={s.navIcon} aria-hidden="true">{icon(it.icon)}</span>{t(it.label)}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
           </nav>
           <main className={s.content}>
             {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>) : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}

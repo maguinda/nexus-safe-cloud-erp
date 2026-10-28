@@ -9,6 +9,8 @@ export const common: Record<keyof typeof es, string> = {
   'nav.network': 'Network',
   'nav.projects': 'Projects',
   'nav.invoices': 'Invoices',
+  'nav.group.data': 'Nexus data',
+  'nav.group.admin': 'Administration',
   'header.tokenExpires': 'token expires in {time}',
   'header.signOut': 'Sign out',
   'role.project_lead': 'Project lead',
