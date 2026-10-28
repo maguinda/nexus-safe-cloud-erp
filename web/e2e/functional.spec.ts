@@ -1315,9 +1315,12 @@ test('Session: signing out also ends the session on the server: the old cookie r
   test.setTimeout(60_000);
   await signInThroughTheScreen(page, 'laura.rios@nexus.example');
   const cookie = (await refreshCookie(page))!.value;
+  // La pantalla vuelve al inicio de sesión al instante y el servidor responde después (en CI, más lento): se retrasa a propósito su respuesta para que la
+  // prueba no dependa de la velocidad de la máquina. La cookie se borra cuando esa respuesta llega, no antes.
+  await page.route('**/auth/logout', async (route) => { await new Promise((r) => setTimeout(r, 1_500)); await route.continue(); });
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  expect(await refreshCookie(page), 'el servidor borró la cookie').toBeUndefined();
+  await expect.poll(() => refreshCookie(page), { timeout: 10_000, message: 'el servidor borró la cookie' }).toBeUndefined();
   const replay = await request.post('/auth/refresh', { headers: { 'X-Requested-With': 'erp-web', Cookie: `erp_refresh=${cookie}` } });
   expect(replay.status(), 'la cookie copiada antes de cerrar sesión ya no sirve').toBe(401);
 });
