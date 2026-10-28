@@ -15,7 +15,7 @@ MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, anal
 | `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas (2026-10-27): unitarias 1.097 (identity 142, projects 52, billing 106, analytics 233, web 564), e2e con PostgreSQL y RabbitMQ reales 667 (identity 222, projects 86, billing 49, analytics 310; más 10 de evaluación contra la IA real, opt-in), flujo completo `scripts/e2e-flow.mjs`, y navegador `web/` 366 (150 funcionales en Chromium y WebKit + 216 auditorías de pantalla en claro y oscuro, español e inglés, escritorio, WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px). Incluye las pantallas Sensores y Red. No probado: celular real, teclado virtual, Android real.
+Pruebas (2026-10-28): unitarias 1.097 (identity 142, projects 52, billing 106, analytics 233, web 564), e2e con PostgreSQL y RabbitMQ reales 667 (identity 222, projects 86, billing 49, analytics 310; más 10 de evaluación contra la IA real, opt-in), flujo completo `scripts/e2e-flow.mjs`, y navegador `web/` 370 (154 funcionales en Chromium y WebKit + 216 auditorías de pantalla en claro y oscuro, español e inglés, escritorio, WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px). Incluye las pantallas Sensores y Red. Aparte (no cuentan en el total): 3 pruebas de la cookie `Secure` por navegador con HTTPS real (`npm run test:e2e:https`, necesita `docker-compose.https.yml`) y `scripts/gateway-real-ip-check.sh` (8 comprobaciones de la IP real detrás de un balanceador); las dos corren en el job `stack` del CI. No probado: celular real, teclado virtual, Android real, Safari real.
 
 ## Cómo correr
 ```sh
