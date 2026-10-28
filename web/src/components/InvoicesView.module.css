@@ -12,17 +12,6 @@
   clip: rect(0 0 0 0);
 }
 
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  align-items: center;
-}
-.search {
-  flex: 1 1 240px;
-  max-width: 420px;
-  min-width: 0;
-}
 .count {
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -66,9 +55,6 @@
     font-size: 12px;
     white-space: nowrap;
   } /* button: gana a .segBtn sin depender del orden de las hojas */
-  .search {
-    max-width: none;
-  }
   .count {
     margin-left: 0;
   }

@@ -50,4 +50,11 @@ export const projects: Record<keyof typeof es, string> = {
   'projects.form.amount': 'Amount (COP, before VAT)',
   'projects.form.adding': 'Adding…',
   'projects.form.add': 'Add milestone',
+  'projects.search.label': 'Search projects',
+  'projects.search.placeholder': 'Search project or client',
+  'projects.noMatch': 'No project matches your search',
+  'projects.count': 'Showing {shown} of {total}',
+  'projects.showMore': 'Show {n} more',
+  'projects.loadingMilestones': 'Loading milestones…',
+  'projects.noMilestones': 'This project has no milestones yet',
 };

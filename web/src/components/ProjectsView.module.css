@@ -11,11 +11,23 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+.row,
+.selected {
+  cursor: pointer;
+}
 .row:hover td {
   background: var(--surface-2);
 }
 .selected td {
   background: var(--accent-soft);
+}
+.count {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.more {
+  margin-top: var(--sp-3);
 }
 .rowBtn {
   background: none;
