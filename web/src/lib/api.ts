@@ -25,6 +25,9 @@ export function queryString(q: object): string {
   return s ? `?${s}` : '';
 }
 
+/** Cabecera propia que el servidor exige al renovar o cerrar sesión (defensa extra contra peticiones de otros sitios). */
+const SESSION_HEADERS = { 'X-Requested-With': 'erp-web' };
+
 export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = (...a) => fetch(...a) }: ApiClientOptions) {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const token = getToken();
@@ -45,6 +48,20 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
 
   return {
     login: (email: string, password: string) => request<LoginResponse>('POST', '/auth/login', { email, password }),
+    /**
+     * Renueva la sesión con la cookie HttpOnly (el navegador la manda sola; esta página nunca la lee). No usa el token de acceso ni llama a `onUnauthorized`:
+     * quien la llama decide qué hacer con un 401 (la sesión ya no existe). Sin red lanza ApiError con status 0.
+     */
+    refresh: async (): Promise<LoginResponse> => {
+      let res: Response;
+      try { res = await fetchImpl(baseUrl + '/auth/refresh', { method: 'POST', headers: SESSION_HEADERS }); } catch { throw new ApiError(0, 'Network error'); }
+      let json: any = null;
+      try { json = await res.json(); } catch { /* sin cuerpo JSON */ }
+      if (!res.ok) throw new ApiError(res.status, typeof json?.message === 'string' ? json.message : `Request failed (${res.status})`, json?.correlationId);
+      return json as LoginResponse;
+    },
+    /** Cierra la sesión en el servidor (revoca la renovación y borra la cookie). Si no hay red no pasa nada: la cookie vence sola. */
+    logout: async (): Promise<void> => { try { await fetchImpl(baseUrl + '/auth/logout', { method: 'POST', headers: SESSION_HEADERS }); } catch { /* sin red */ } },
     projects: () => request<Project[]>('GET', '/projects'),
     milestones: (projectId: string) => request<Milestone[]>('GET', `/projects/${encodeURIComponent(projectId)}/milestones`),
     createProject: (name: string, client: string) => request<Project>('POST', '/projects', { name, client }),

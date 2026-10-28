@@ -23,7 +23,7 @@ interface NavGroup { label?: MsgKey; items: NavItem[] }
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
 
 function Shell() {
-  const { user, secondsLeft, signOut, t } = useSession();
+  const { user, secondsLeft, signOut, t, booting } = useSession();
   const [view, setView] = useState<View>('projects');
   const [managerView, setManagerView] = useState<ManagerView>('dashboard');
   const [toast, setToast] = useState('');
@@ -52,7 +52,7 @@ function Shell() {
         )}
       </header>
 
-      {!user ? <LoginView /> : (
+      {booting ? null : !user ? <LoginView /> : (
         <div className={s.body}>
           <nav className={s.nav} aria-label={t('nav.modules')}>
             <div className={s.navStick}>

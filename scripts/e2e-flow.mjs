@@ -8,7 +8,7 @@ const call = async (method, path, { token, body, headers = {} } = {}) => {
   let json = null; try { json = await res.json(); } catch { /* sin cuerpo */ }
   return { status: res.status, json, headers: res.headers };
 };
-const login = async (email) => { const r = await call('POST', '/auth/login', { body: { email, password: PASSWORD } }); return { token: r.json?.accessToken, user: r.json?.user, status: r.status }; };
+const login = async (email) => { const r = await call('POST', '/auth/login', { body: { email, password: PASSWORD } }); return { token: r.json?.accessToken, user: r.json?.user, status: r.status, body: r.json, setCookie: r.headers.get('set-cookie') ?? '' }; };
 
 const lead = await login('laura.rios@nexus.example');
 const bill = await login('andres.mora@nexus.example');
@@ -124,6 +124,21 @@ ok((await call('GET', '/invoices')).status === 401, 'sin token -> 401');
 const docs = await call('GET', '/docs'); const other = await call('GET', '/auth/jwks'); const health = await call('GET', '/health', { headers: { 'x-correlation-id': 'trace-gw-0001' } });
 ok(docs.status === 404 && other.status === 404, 'Swagger y rutas internas NO se exponen por el gateway');
 ok(health.headers.get('x-correlation-id') === 'trace-gw-0001' && health.headers.get('x-content-type-options') === 'nosniff' && !health.headers.get('server')?.match(/\d/), 'gateway: correlación, nosniff y sin versión del servidor');
+
+// Renovación de sesión por el gateway (sin gastar otro inicio de sesión: se usa la cookie del de la gerente): cookie HttpOnly, rotación, defensa CSRF, carrera y cierre.
+const cookieOf = (sc) => /erp_refresh=([A-Za-z0-9_-]{43})/.exec(sc)?.[1];
+const renew = (cookie, headers = { 'x-requested-with': 'erp-web' }) => call('POST', '/auth/refresh', { headers: { ...headers, ...(cookie ? { cookie: `erp_refresh=${cookie}` } : {}) } });
+const m0 = cookieOf(manager.setCookie);
+ok(/^erp_refresh=[A-Za-z0-9_-]{43}; Path=\/auth; HttpOnly; SameSite=Strict/.test(manager.setCookie) && !JSON.stringify(manager.body).includes(m0 ?? 'x'), 'sesión: el login pone una cookie HttpOnly, SameSite=Strict solo para /auth, y el token de renovación NO va en el cuerpo');
+ok((await renew(m0, {})).status === 403, 'sesión: renovar sin la cabecera X-Requested-With da 403 (defensa CSRF)');
+const renewed = await renew(m0);
+const m1 = cookieOf(renewed.headers.get('set-cookie') ?? '');
+ok(renewed.status === 200 && m1 && m1 !== m0 && renewed.json?.expiresIn === 900 && renewed.json?.user?.role === 'manager' && !JSON.stringify(renewed.json).includes(m1), 'sesión: renovar con la cookie da un JWT nuevo y una cookie NUEVA (rotación), sin el token en el cuerpo');
+const raced = await renew(m0);
+ok(raced.status === 409 && !(raced.headers.get('set-cookie') ?? '').includes('Max-Age=0'), 'sesión: el token ya gastado, de inmediato, es una carrera: 409 «reintenta» y no se borra la cookie');
+ok((await renew('A'.repeat(43))).status === 401 && (await renew(null)).status === 401, 'sesión: una cookie falsa o ausente da 401');
+const out = await call('POST', '/auth/logout', { headers: { 'x-requested-with': 'erp-web', cookie: `erp_refresh=${m1}` } });
+ok(out.status === 204 && (out.headers.get('set-cookie') ?? '').includes('Max-Age=0') && (await renew(m1)).status === 401, 'sesión: el logout da 204, borra la cookie y la sesión ya no se puede renovar');
 
 // Ingesta de telemetría por el gateway. Sin clave la ruta rechaza (401, o 503 si el servidor no tiene clave configurada) y el token del gerente tampoco sirve;
 // con la clave (INGEST_KEY en el entorno) se prueba una ingesta real; una ráfaga la limita nginx (429, HTML) y el GET del explorador no cuenta.

@@ -3,16 +3,18 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { LoginUseCase } from './application/login.use-case';
+import { SessionService } from './application/session.service';
 import { SetLanguageUseCase } from './application/set-language.use-case';
 import { SetThemeUseCase } from './application/set-theme.use-case';
 import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './application/user-admin.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
-import { AuthController, LOGIN_USE_CASE } from './http/auth.controller';
+import { AuthController, COOKIE_SECURE, LOGIN_USE_CASE, SESSION_SERVICE } from './http/auth.controller';
 import { HealthController } from './http/health.controller';
 import { MeController, SET_LANGUAGE_USE_CASE, SET_THEME_USE_CASE } from './http/me.controller';
 import { CHANGE_ROLE_USE_CASE, CREATE_USER_USE_CASE, LIST_USERS_USE_CASE, UsersController } from './http/users.controller';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
+import { PrismaRefreshTokenStore } from './infrastructure/prisma-refresh-token.store';
 import { PrismaUserAdminStore } from './infrastructure/prisma-user-admin.store';
 import { PrismaUserPreferencesStore } from './infrastructure/prisma-user-preferences.store';
 import { PrismaUserRepository } from './infrastructure/prisma-user.repository';
@@ -34,10 +36,19 @@ const prisma = new PrismaClient();
     { provide: SET_THEME_USE_CASE, useFactory: () => new SetThemeUseCase(new PrismaUserPreferencesStore(prisma)) },
     { provide: CHANGE_ROLE_USE_CASE, useFactory: () => new ChangeRoleUseCase(new PrismaUserAdminStore(prisma)) },
     {
-      provide: LOGIN_USE_CASE,
+      provide: SESSION_SERVICE,
       useFactory: () => {
         const cfg = loadConfig();
-        return new LoginUseCase(new PrismaUserRepository(prisma), new BcryptPasswordHasher(), new Rs256TokenIssuer(cfg));
+        return new SessionService(new PrismaRefreshTokenStore(prisma), new PrismaUserRepository(prisma), new Rs256TokenIssuer(cfg), { idleMs: cfg.refreshIdleMinutes * 60_000, maxMs: cfg.sessionMaxHours * 3_600_000 });
+      },
+    },
+    { provide: COOKIE_SECURE, useFactory: () => loadConfig().cookieSecure },
+    {
+      provide: LOGIN_USE_CASE,
+      inject: [SESSION_SERVICE],
+      useFactory: (sessions: SessionService) => {
+        const cfg = loadConfig();
+        return new LoginUseCase(new PrismaUserRepository(prisma), new BcryptPasswordHasher(), new Rs256TokenIssuer(cfg), sessions);
       },
     },
   ],

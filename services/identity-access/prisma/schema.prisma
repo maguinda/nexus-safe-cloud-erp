@@ -25,6 +25,29 @@ model User {
   theme        String   @default("system")
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
+  refreshTokens RefreshToken[]
 
   @@map("users")
+}
+
+/// Un token de renovación de sesión. Del valor SOLO se guarda su hash (SHA-256 en hexadecimal): quien lea la base no puede renovar sesiones.
+/// Cada uso lo «gasta» (used_at) y entrega uno nuevo de la MISMA familia (una sesión de inicio a fin); usar uno ya gastado fuera del margen
+/// de carreras revoca toda la familia (señal de que se lo copiaron). La familia tiene un tope absoluto (family_expires_at).
+model RefreshToken {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  familyId        String    @map("family_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  /// Vence por inactividad (cada renovación lo corre hacia adelante), pero nunca después del tope de la familia.
+  expiresAt       DateTime  @map("expires_at")
+  familyExpiresAt DateTime  @map("family_expires_at")
+  usedAt          DateTime? @map("used_at")
+  revokedAt       DateTime? @map("revoked_at")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@index([familyExpiresAt])
+  @@map("refresh_tokens")
 }

@@ -1,7 +1,7 @@
 import { Page } from '@playwright/test';
 import type { Lang } from '../src/i18n/core';
 import type { Theme } from '../src/lib/types';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,8 +9,30 @@ const here = dirname(fileURLToPath(import.meta.url));
 export type RoleKey = 'lead' | 'billing' | 'sales' | 'manager';
 
 /** Abre la app con la sesión de ese rol ya iniciada (se inyecta en sessionStorage, como la guarda la app). */
+const ACCOUNTS: Record<RoleKey, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example' };
+const secondsLeft = (t: string): number => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString()).exp - Date.now() / 1000;
+
+/** Sesiones guardadas por el setup. Los tokens duran 15 min y una corrida completa dura más: si a uno le quedan menos de 5 min se inicia sesión de nuevo
+ *  (solo ese rol) y se guarda. Sin esto la app intentaba renovar con una sesión sin cookie y la auditoría (que bloquea toda escritura) fallaba. */
+export async function currentSessions(): Promise<Record<string, { token: string; user: Record<string, unknown> }>> {
+  const file = join(here, '.auth', 'sessions.json');
+  const sessions = JSON.parse(readFileSync(file, 'utf8'));
+  let changed = false;
+  for (const role of Object.keys(ACCOUNTS) as RoleKey[]) {
+    if (sessions[role] && secondsLeft(sessions[role].token) > 300) continue;
+    const base = process.env.BASE_URL ?? 'http://localhost:8080';
+    const res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: ACCOUNTS[role], password: process.env.DEMO_PASSWORD ?? 'demo-password-1' }) });
+    if (!res.ok) throw new Error(`Login of ${role} failed (${res.status}) while renewing the saved test session`);
+    const j = await res.json();
+    sessions[role] = { token: j.accessToken, user: j.user };
+    changed = true;
+  }
+  if (changed) writeFileSync(file, JSON.stringify(sessions));
+  return sessions;
+}
+
 export async function openAs(page: Page, role: RoleKey, lang: Lang = 'en', theme: Theme = 'system') {
-  const sessions = JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8'));
+  const sessions = await currentSessions();
   // El idioma de la sesión es el de la persona (viene del servidor al iniciar sesión); aquí se fija a propósito: las pruebas existentes comprueban el inglés.
   const session = { ...sessions[role], user: { ...sessions[role].user, language: lang, theme } };
   await preferLanguage(page, lang, theme);

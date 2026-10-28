@@ -6,6 +6,7 @@ import { User } from './user';
 /** Puertos que el dominio necesita; los adaptadores viven en infrastructure/. */
 export interface UserRepository {
   findByEmail(email: string): Promise<User | null>;
+  findById(id: string): Promise<User | null>;
 }
 
 export interface PasswordHasher {
@@ -47,4 +48,22 @@ export interface UserAdminStore {
   /** Lanza EmailTakenError si el email ya existe. */
   create(user: NewUser): Promise<UserSummary>;
   runRoleChange<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T>;
+}
+
+/** Tokens de renovación de sesión (ver prisma/schema.prisma, modelo RefreshToken). De cada token solo se guarda su hash. */
+export interface RefreshTokenStore {
+  /** Guarda el primer token de una sesión nueva (familia nueva). */
+  create(t: { userId: string; familyId: string; tokenHash: string; expiresAt: Date; familyExpiresAt: Date }): Promise<void>;
+  /**
+   * En UNA transacción: marca el token como usado SOLO si sigue vigente, sin usar y sin revocar, y guarda el siguiente de la misma familia (que vence
+   * por inactividad a los `idleMs`, pero nunca después de la familia). Con dos llamadas a la vez con el mismo token gana exactamente una; la otra
+   * recibe null. Si guardar el siguiente falla, el token anterior NO queda gastado.
+   */
+  rotate(oldHash: string, next: { tokenHash: string; idleMs: number }, now: Date): Promise<{ userId: string; familyId: string } | null>;
+  /** Lo que hay guardado de un token (para saber por qué no se pudo rotar). */
+  find(tokenHash: string): Promise<import('./refresh-token').RefreshRecord & { familyId: string } | null>;
+  /** Revoca todos los tokens de la familia (cierre de sesión, o sospecha de robo). */
+  revokeFamily(familyId: string, now: Date): Promise<void>;
+  /** Borra las sesiones cuyo tope venció antes de `before` (limpieza; no cambia ninguna regla). */
+  purge(before: Date): Promise<number>;
 }
