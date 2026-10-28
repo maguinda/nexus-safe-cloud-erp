@@ -882,3 +882,60 @@ test('on a 320 px phone every figure of the dashboard table is inside the screen
   }
 });
 
+
+// ---- Proyectos a escala: selección, una sola petición de hitos, búsqueda y «Mostrar más» ----
+// Estas pruebas crean proyectos desechables por la API (con el token de la líder) y se limpian al final con el reset de la demo.
+const leadToken = (): string => JSON.parse(readFileSync(join(here, '.auth', 'sessions.json'), 'utf8')).lead.token;
+async function seedProjects(request: { post: (url: string, o: { headers: Record<string, string>; data: object }) => Promise<{ status(): number }> }, n: number, client: string) {
+  for (let i = 1; i <= n; i++) {
+    const r = await request.post('/projects', { headers: { authorization: `Bearer ${leadToken()}` }, data: { name: `Scale test ${String(i).padStart(2, '0')}`, client } });
+    expect(r.status()).toBe(201);
+  }
+}
+
+test('Projects: a click anywhere on the row selects it, and the milestones on screen always belong to the title above them', async ({ page }) => {
+  await openAs(page, 'lead');
+  const heading = (name: string) => page.getByRole('heading', { name: `Milestones · ${name}` });
+  await page.getByRole('row', { name: /Retail POS integration/ }).getByRole('cell').nth(1).click(); // la celda del cliente, no el nombre
+  await expect(heading('Retail POS integration')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'API contract' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Site survey', exact: true })).toHaveCount(0); // un hito del proyecto anterior nunca queda bajo el título nuevo
+  await page.getByRole('row', { name: /SME cloud migration/ }).getByRole('cell').nth(2).click(); // la celda del contador
+  await expect(heading('SME cloud migration')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Add a milestone to SME cloud migration' })).toBeVisible(); // el formulario apunta al proyecto elegido
+  await expect(page.getByRole('cell', { name: 'API contract' })).toHaveCount(0);
+});
+
+test('Projects: opening the screen asks for the milestones of ONE project, however many projects there are', async ({ page, request }) => {
+  await seedProjects(request, 12, 'Scale Co A');
+  const urls: string[] = [];
+  page.on('request', (r) => { if (r.method() === 'GET' && /\/projects(\/|$)/.test(new URL(r.url()).pathname)) urls.push(new URL(r.url()).pathname); });
+  await openAs(page, 'lead');
+  await expect(page.getByRole('heading', { name: /^Milestones · / })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Loading milestones…' })).toHaveCount(0);
+  expect(urls.filter((u) => u === '/projects')).toHaveLength(1);
+  expect(urls.filter((u) => u.endsWith('/milestones')), 'una petición de hitos, no una por proyecto').toHaveLength(1);
+});
+
+test('Projects: search by name or client, and «Show more» reveals the rest in batches of 25', async ({ page, request }) => {
+  await seedProjects(request, 30, 'Scale Co B'); // 30 de este cliente; la prueba no depende de las demás
+  // El total real se lee de la API: otras pruebas de este archivo también crean proyectos.
+  const total = (await (await request.get('/projects', { headers: { authorization: `Bearer ${leadToken()}` } })).json()).length as number;
+  expect(total).toBeGreaterThan(30);
+  await openAs(page, 'lead');
+  const rows = page.getByRole('table').first().getByRole('row');
+  await expect(page.getByText(`Showing 25 of ${total}`)).toBeVisible();
+  await expect(rows).toHaveCount(26); // 25 filas + el encabezado
+  await page.getByRole('button', { name: `Show ${total - 25} more` }).click();
+  await expect(page.getByText(`Showing ${total} of ${total}`)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Show \d+ more/ })).toHaveCount(0);
+  await page.getByLabel('Search projects').fill('scale co b'); // por cliente, sin distinguir mayúsculas
+  await expect(page.getByText('Showing 25 of 30')).toBeVisible(); // al buscar vuelve a la primera tanda
+  await page.getByLabel('Search projects').fill('retail norte');
+  await expect(page.getByText('Showing 1 of 1')).toBeVisible();
+  await page.getByLabel('Search projects').fill('zzzz');
+  await expect(page.getByText('No project matches your search')).toBeVisible();
+  await expect(page.getByText('Showing 0 of 0')).toBeVisible();
+});
+
+test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { AddMilestoneForm, NewProjectForm } from './CreateForms';
 import { errorText } from '../i18n/server';
 import { formatCop } from '../lib/format';
+import { filterProjects, pageOf, pendingMilestones, PROJECT_PAGE } from '../lib/project-table';
 import type { Invoice, Milestone, Project } from '../lib/types';
 import { roleKey } from '../lib/types';
 import { useSession } from '../session';
@@ -14,24 +15,28 @@ interface Flow { milestone: string; project: string; approvedMs: number; invoice
 export function ProjectsView({ toast }: { toast: (m: string) => void }) {
   const { api, user, t } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [milestones, setMilestones] = useState<Record<string, Milestone[]>>({});
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [msFor, setMsFor] = useState(''); // de qué proyecto son los hitos que hay en pantalla: nunca se muestran bajo otro título
   const [selected, setSelected] = useState('');
+  const [query, setQuery] = useState('');
+  const [shown, setShown] = useState(PROJECT_PAGE);
   const [drafts, setDrafts] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
   const [flow, setFlow] = useState<Flow | null>(null);
   const alive = useRef(true);
+  const selectedRef = useRef('');
+  const msReq = useRef(0); // la última petición de hitos gana: una respuesta lenta de otro proyecto se descarta
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
 
-  const load = useCallback(async () => {
+  const loadProjects = useCallback(async () => {
     try {
       const ps = await api.projects();
-      const ms = await Promise.all(ps.map((p) => api.milestones(p.id)));
       let draftCount: number | null = null;
       try { draftCount = (await api.invoices()).filter((i) => i.status === 'draft').length; } catch (e) { if (!(e instanceof ApiError && e.status === 403)) throw e; }
       if (!alive.current) return;
       setProjects(ps);
-      setMilestones(Object.fromEntries(ps.map((p, i) => [p.id, ms[i]])));
       setDrafts(draftCount);
       setSelected((cur) => cur || ps[0]?.id || '');
       setError('');
@@ -39,7 +44,25 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
       if (alive.current) setError(errorText(e, t, 'projects.loadError'));
     }
   }, [api, t]);
-  useEffect(() => { void load(); }, [load]);
+
+  // Solo se piden los hitos del proyecto elegido (antes eran una petición por cada proyecto en cada carga).
+  const loadMilestones = useCallback(async (id: string) => {
+    if (!id) return;
+    const req = ++msReq.current;
+    try {
+      const ms = await api.milestones(id);
+      if (!alive.current || req !== msReq.current) return;
+      setMilestones(ms);
+      setMsFor(id);
+      setError('');
+    } catch (e) {
+      if (alive.current && req === msReq.current) setError(errorText(e, t, 'projects.loadError'));
+    }
+  }, [api, t]);
+
+  const load = useCallback(() => Promise.all([loadProjects(), loadMilestones(selectedRef.current)]), [loadProjects, loadMilestones]);
+  useEffect(() => { void loadProjects(); }, [loadProjects]);
+  useEffect(() => { void loadMilestones(selected); }, [selected, loadMilestones]);
 
   async function approve(m: Milestone, projectName: string) {
     setBusyId(m.id);
@@ -67,9 +90,14 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
     }
   }
 
+  // Todos los hooks van ANTES del return de error: si no, al aparecer un error cambiaría su número (React #300).
+  const filtered = useMemo(() => filterProjects(projects, query), [projects, query]);
+
   if (error) return <div className={ui.panelError} role="alert"><strong>{t('projects.somethingWrong')}</strong><span>{error}</span><button type="button" className={ui.btnGhost} onClick={() => void load()}>{t('projects.tryAgain')}</button></div>;
   const sel = projects.find((p) => p.id === selected);
-  const pending = Object.values(milestones).flat().filter((m) => m.status === 'pending').length;
+  const pending = pendingMilestones(projects);
+  const { rows, hidden } = pageOf(filtered, shown);
+  const msReady = sel !== undefined && msFor === sel.id;
   const canApprove = user?.role === 'project_lead';
   const canCreate = canApprove; // crear proyectos e hitos también es del project_lead (la API lo exige)
 
@@ -85,21 +113,30 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
 
       <section aria-labelledby="proj-h">
         <h2 id="proj-h" className={ui.h2}>{t('projects.title')}</h2>
+        <div className={ui.toolbar}>
+          <label className={`${ui.field} ${ui.search}`}>
+            <span className={s.sr}>{t('projects.search.label')}</span>
+            <input id="proj-search" type="search" maxLength={120} placeholder={t('projects.search.placeholder')} value={query} onChange={(e) => { setQuery(e.target.value); setShown(PROJECT_PAGE); }} />
+          </label>
+          <span className={s.count} role="status">{t('projects.count', { shown: rows.length, total: filtered.length })}</span>
+        </div>
         <div className={ui.scroll}>
           <table className={ui.table}>
             <caption className={s.sr}>{t('projects.caption')}</caption>
             <thead><tr><th>{t('projects.col.project')}</th><th>{t('projects.col.client')}</th><th className={ui.num}>{t('projects.col.approved')}</th></tr></thead>
             <tbody>
-              {projects.map((p) => (
-                <tr key={p.id} className={p.id === selected ? s.selected : s.row}>
+              {rows.map((p) => (
+                <tr key={p.id} className={p.id === selected ? s.selected : s.row} onClick={() => setSelected(p.id)}>
                   <td><button type="button" className={s.rowBtn} aria-pressed={p.id === selected} onClick={() => setSelected(p.id)}>{p.name}</button></td>
                   <td className={ui.muted}>{p.client}</td>
                   <td className={ui.num}>{p.milestonesApproved} / {p.milestonesTotal}</td>
                 </tr>
               ))}
+              {filtered.length === 0 && <tr><td colSpan={3} className={ui.muted}>{t('projects.noMatch')}</td></tr>}
             </tbody>
           </table>
         </div>
+        {hidden > 0 && <button type="button" className={`${ui.btnGhost} ${s.more}`} onClick={() => setShown((n) => n + PROJECT_PAGE)}>{t('projects.showMore', { n: Math.min(PROJECT_PAGE, hidden) })}</button>}
       </section>
 
       {sel && (
@@ -109,7 +146,9 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
             <table className={ui.table}>
               <thead><tr><th>{t('projects.col.milestone')}</th><th className={ui.num}>{t('projects.col.amount')}</th><th>{t('projects.col.status')}</th><th>{t('projects.col.action')}</th></tr></thead>
               <tbody>
-                {(milestones[sel.id] ?? []).map((m) => (
+                {!msReady && <tr><td colSpan={4} className={ui.muted}>{t('projects.loadingMilestones')}</td></tr>}
+                {msReady && milestones.length === 0 && <tr><td colSpan={4} className={ui.muted}>{t('projects.noMilestones')}</td></tr>}
+                {msReady && milestones.map((m) => (
                   <tr key={m.id}>
                     <td>{m.name}</td>
                     <td className={ui.num}>{formatCop(m.amountCop)}</td>

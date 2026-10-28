@@ -92,8 +92,8 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
         <div className={s.empty}><strong>{t('invoices.empty.title')}</strong><span className={ui.muted}>{t('invoices.empty.hint')}</span></div>
       ) : (
         <>
-          <div className={s.toolbar}>
-            <label className={`${ui.field} ${s.search}`}>
+          <div className={ui.toolbar}>
+            <label className={`${ui.field} ${ui.search}`}>
               <span className={s.sr}>{t('invoices.search.label')}</span>
               <input id="inv-search" type="search" maxLength={120} placeholder={t('invoices.search.placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>

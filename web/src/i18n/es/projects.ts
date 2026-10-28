@@ -49,4 +49,11 @@ export const projects = {
   'projects.form.amount': 'Monto (COP, antes de IVA)',
   'projects.form.adding': 'Agregando…',
   'projects.form.add': 'Agregar hito',
+  'projects.search.label': 'Buscar proyectos',
+  'projects.search.placeholder': 'Buscar proyecto o cliente',
+  'projects.noMatch': 'Ningún proyecto coincide con la búsqueda',
+  'projects.count': 'Mostrando {shown} de {total}',
+  'projects.showMore': 'Mostrar {n} más',
+  'projects.loadingMilestones': 'Cargando hitos…',
+  'projects.noMilestones': 'Este proyecto aún no tiene hitos',
 } as const;

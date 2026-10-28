@@ -321,6 +321,24 @@
 .field input[aria-invalid="true"] {
   border-color: var(--bad);
 }
+
+/* Barra de herramientas de las tablas (buscador, filtros): la usan Facturas y Proyectos. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+.search {
+  flex: 1 1 240px;
+  max-width: 420px;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .search {
+    max-width: none;
+  }
+}
 .err {
   color: var(--bad);
   font-size: var(--fs-base);
