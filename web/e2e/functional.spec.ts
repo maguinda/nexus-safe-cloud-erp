@@ -1080,4 +1080,82 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });
 
+// ---- Sensores en vivo: se actualiza sola, dice «en vivo», avisa si no hay conexión y no mueve la tabla bajo los ojos ----
+// La clave de ingesta sale del entorno o del .env de la raíz (el CI lo genera). Las lecturas que estas pruebas mandan las borra el reset del final.
+const ingestKey = (): string => {
+  if (process.env.INGEST_KEY) return process.env.INGEST_KEY;
+  try { return /^INGEST_KEY=(.*)$/m.exec(readFileSync(join(here, '..', '..', '.env'), 'utf8'))?.[1].trim() ?? ''; } catch { return ''; }
+};
+const IOT_DEVICES = JSON.parse(readFileSync(join(here, '..', '..', 'services', 'analytics', 'prisma', 'data', 'iot-devices.json'), 'utf8')) as { id: string; unit: string }[];
+/** Un lote de 21 lecturas (una por dispositivo) en el minuto `minute` después de las 11:20 UTC del 13-sep, justo donde sigue el Excel. */
+async function sendReadings(request: { post: (url: string, o: { headers: Record<string, string>; data: object }) => Promise<{ status(): number; json(): Promise<{ accepted: number; duplicates: number }> }> }, minute: number) {
+  const at = new Date(Date.UTC(2026, 8, 13, 11, 21 + minute)).toISOString();
+  const r = await request.post('/telemetry/readings', { headers: { 'x-ingest-key': ingestKey() }, data: { readings: IOT_DEVICES.map((d, i) => ({ deviceId: d.id, recordedAt: at, status: 'NORMAL', value: 20 + i, unit: d.unit, note: 'e2e en vivo' })) } });
+  expect(r.status()).toBe(200);
+  return r.json();
+}
+const openSensors = async (page: import('@playwright/test').Page) => {
+  await openAs(page, 'manager');
+  await page.getByRole('navigation', { name: 'Modules' }).getByRole('button', { name: 'Sensors', exact: true }).click();
+  await expect(page.getByText(/Nexus sensor data/)).toBeVisible();
+};
+const readingsInSubtitle = async (page: import('@playwright/test').Page): Promise<number> => Number(/· ([\d,]+) readings/.exec(await page.getByText(/Nexus sensor data/).innerText())![1].replace(/,/g, ''));
+
+test('Sensors: readings sent by the sensors appear by themselves, the table shows the newest and the badge counts them', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  expect(ingestKey().length, 'hace falta INGEST_KEY (en el entorno o en el .env de la raíz)').toBeGreaterThanOrEqual(32);
+  await openSensors(page);
+  const before = await readingsInSubtitle(page);
+  await expect(page.getByText('Live', { exact: true })).toBeVisible();
+  expect((await sendReadings(request, 0)).accepted).toBe(IOT_DEVICES.length);
+  await expect.poll(() => readingsInSubtitle(page), { timeout: 25_000, message: 'el total de lecturas del subtítulo, sin recargar' }).toBe(before + IOT_DEVICES.length);
+  await expect(page.getByText(`New readings since you opened this screen: ${IOT_DEVICES.length}`).first()).toBeVisible(); // el mismo texto está también en la región solo para lectores de pantalla
+  await expect(page.getByRole('row').filter({ hasText: '11:21' }).first()).toBeVisible(); // la tabla (primera página, la más reciente arriba) se actualizó sola
+  await expect(page.getByText('Loading readings')).toHaveCount(0); // y sin pasar por «cargando…»
+});
+
+test('Sensors: while the tab is hidden it asks the server nothing, and when you come back it refreshes at once', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
+  await openSensors(page);
+  await expect(page.getByText('Live', { exact: true })).toBeVisible();
+  let calls = 0;
+  page.on('request', (r) => { if (r.method() === 'GET' && new URL(r.url()).pathname === '/telemetry/trends') calls++; });
+  await page.waitForTimeout(12_000); // con el refresco de 10 s habría salido al menos una
+  expect(calls, 'peticiones a /telemetry/trends con la pestaña oculta').toBe(0);
+  await page.evaluate(() => { (window as unknown as { __vis: string }).__vis = 'visible'; document.dispatchEvent(new Event('visibilitychange')); });
+  await expect.poll(() => calls, { timeout: 4_000 }).toBeGreaterThan(0);
+});
+
+test('Sensors: if a refresh fails the data stays and the badge says offline, and it recovers by itself', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openSensors(page);
+  await expect(page.getByText('Live', { exact: true })).toBeVisible();
+  await page.route('**/telemetry/trends', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"statusCode":500,"error":"Internal Server Error","message":"x"}' }));
+  await expect(page.getByText(/Offline · last data/)).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText(/Nexus sensor data/)).toBeVisible(); // los datos de antes siguen en pantalla
+  await expect(page.getByText('Live', { exact: true })).toHaveCount(0);
+  await page.unroute('**/telemetry/trends');
+  await expect(page.getByText('Live', { exact: true })).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText(/Offline · last data/)).toHaveCount(0);
+  problems = problems.filter((m) => !/status of 500/.test(m)); // el 500 lo provocamos a propósito
+});
+
+test('Sensors: on another page the table does not move; it says new readings arrived and «Show the latest» goes back to the first page', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  await openSensors(page);
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByText(/Page 2 of/)).toBeVisible();
+  const firstRow = () => page.getByRole('row').nth(1).innerText();
+  const rowBefore = await firstRow();
+  expect((await sendReadings(request, 1)).accepted).toBe(IOT_DEVICES.length);
+  await expect(page.getByText(/New readings arrived; this page did not move\./)).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText(/Page 2 of/)).toBeVisible(); // sigue en la página 2
+  expect(await firstRow()).toBe(rowBefore); // y sus filas no se corrieron
+  await page.getByRole('button', { name: 'Show the latest', exact: true }).click();
+  await expect(page.getByText(/Page 1 of/)).toBeVisible();
+  await expect(page.getByText(/New readings arrived; this page did not move\./)).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ hasText: '11:22' }).first()).toBeVisible(); // la más reciente arriba
+});
+
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });

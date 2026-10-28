@@ -2,6 +2,17 @@ import type { sensors as es } from '../es/sensors';
 
 export const sensors: Record<keyof typeof es, string> = {
   'sensors.title': 'Sensors',
+  'sensors.live.on': 'Live',
+  'sensors.live.onShort': 'The data updates by itself',
+  'sensors.live.updated': 'updated {age}',
+  'sensors.live.offline': 'Offline · last data {age}',
+  'sensors.live.offlineShort': 'Offline: showing the last data received',
+  'sensors.live.age.s': '{n} s ago',
+  'sensors.live.age.min': '{n} min ago',
+  'sensors.live.age.h': '{n} h ago',
+  'sensors.live.added': 'New readings since you opened this screen: {n}',
+  'sensors.live.newer': 'New readings arrived; this page did not move. ',
+  'sensors.live.showLatest': 'Show the latest',
   'sensors.subtitle': 'Nexus sensor data · {offices} offices · {readings} readings · {window}',
   'sensors.loading': 'Loading the sensors…',
   'sensors.loadError': 'We could not load the sensor data. Check your connection.',
