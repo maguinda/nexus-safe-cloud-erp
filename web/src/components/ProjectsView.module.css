@@ -39,25 +39,125 @@
   min-height: 32px;
   color: var(--fg);
 }
+.prog {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+.bar {
+  appearance: none;
+  width: 64px;
+  height: 8px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--ok);
+}
+.bar::-webkit-progress-bar {
+  background: var(--surface-2);
+}
+.bar::-webkit-progress-value {
+  background: var(--ok);
+  border-radius: 4px;
+}
+.bar::-moz-progress-bar {
+  background: var(--ok);
+  border-radius: 4px;
+}
+.msHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.msHead h2 {
+  margin: 0;
+}
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+.col {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.colHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  font-size: var(--fs-base);
+}
+.msCard {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.msCard button {
+  justify-self: start;
+}
+@media (min-width: 641px) {
+  .board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Seguidor de pasos: vertical en teléfono, horizontal desde 641 px. La línea une cada punto con el siguiente. */
 .flow {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--sp-2);
+  gap: 0;
 }
 .flow li {
+  position: relative;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   gap: var(--sp-3);
   align-items: start;
+  padding-bottom: var(--sp-4);
+}
+.flow li:last-child {
+  padding-bottom: 0;
+}
+.flow li::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 20px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--line);
+}
+.flow li:last-child::before {
+  display: none;
 }
 .dot {
   width: 14px;
   height: 14px;
   border-radius: 50%;
   border: 2px solid var(--line);
+  background: var(--surface);
   margin-top: 4px;
+}
+.done::before {
+  background: var(--ok);
 }
 .done .dot {
   background: var(--ok);
@@ -65,4 +165,23 @@
 }
 .wait {
   color: var(--muted);
+}
+@media (min-width: 641px) {
+  .flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-4);
+  }
+  .flow li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+    padding-bottom: 0;
+  }
+  .flow li::before {
+    left: 20px;
+    right: calc(-1 * var(--sp-4));
+    top: 7px;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
 }
