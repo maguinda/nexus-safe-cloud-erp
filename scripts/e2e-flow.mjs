@@ -125,5 +125,12 @@ const docs = await call('GET', '/docs'); const other = await call('GET', '/auth/
 ok(docs.status === 404 && other.status === 404, 'Swagger y rutas internas NO se exponen por el gateway');
 ok(health.headers.get('x-correlation-id') === 'trace-gw-0001' && health.headers.get('x-content-type-options') === 'nosniff' && !health.headers.get('server')?.match(/\d/), 'gateway: correlación, nosniff y sin versión del servidor');
 
+// Ingesta de telemetría por el gateway: sin clave 401 (el token del gerente tampoco sirve); una ráfaga la limita nginx (429, HTML) y el GET del explorador no cuenta.
+const ingest = (key) => call('POST', '/telemetry/readings', { headers: key ? { 'x-ingest-key': key } : {}, body: { readings: [] } });
+ok((await ingest(null)).status === 401 && (await call('POST', '/telemetry/readings', { token: manager.token, body: { readings: [] } })).status === 401, 'ingesta de telemetría: sin clave 401 y el token del gerente tampoco sirve');
+const burst = []; for (let i = 0; i < 60; i++) burst.push((await ingest('x'.repeat(48))).status);
+ok(burst[0] === 401 && burst.includes(429) && burst.every((c) => c === 401 || c === 429), `ingesta: la ráfaga de 60 envíos la limita el gateway (${burst.filter((c) => c === 401).length} pasan a Analytics, ${burst.filter((c) => c === 429).length} reciben 429)`);
+ok((await call('GET', '/telemetry/readings?limit=1', { token: manager.token })).status === 200, 'el GET del explorador de lecturas no cuenta en el límite de la ingesta');
+
 console.log(failed ? `\n${failed} comprobación(es) FALLARON` : '\nTodo el flujo de punta a punta funciona');
 process.exit(failed ? 1 : 0);
