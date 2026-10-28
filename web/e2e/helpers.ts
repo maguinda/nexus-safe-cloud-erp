@@ -23,14 +23,22 @@ export async function preferLanguage(page: Page, lang: Lang, theme: Theme = 'sys
   await page.addInitScript(([l, t]) => { try { localStorage.setItem('erp.lang', l as string); localStorage.setItem('erp.theme', t as string); } catch { /* sin almacenamiento */ } }, [lang, theme]);
 }
 
+/** nginx deja pasar 1 inicio de sesión cada 6 s (10 por minuto, ráfaga de 5): ese es el tiempo en que se repone un cupo. */
+const LOGIN_REFILL_MS = 6_500;
+
 /**
  * Espera a que el gateway vuelva a aceptar inicios de sesión (límite de 10 por minuto por IP). Un login por la interfaz a mitad de la suite recibía 429 y la
- * prueba parecía fallar «sola». Prueba con una cuenta que no existe (401, sin efectos): un 429 no gasta cupo, así que el sondeo no empeora nada.
+ * prueba parecía fallar «sola». Prueba con una cuenta que no existe (401, sin efectos): un 429 no gasta cupo, pero el sondeo que SÍ pasa gasta el último que
+ * encontró: el cubo de nginx queda en el borde y el login real que viene enseguida se rechazaba (medido: 6 de 6, y la prueba de tema fallaba 3 de 3 con nginx
+ * saturado). Por eso, tras un sondeo que pasa, se espera lo que tarda en reponerse un cupo.
  */
 export async function waitForLoginCapacity(request: { post: (url: string, o: { data: object }) => Promise<{ status(): number }> }, maxMs = 75_000): Promise<void> {
   const until = Date.now() + maxMs;
   while (Date.now() < until) {
-    if ((await request.post('/auth/login', { data: { email: 'sin.cupo@nexus.example', password: 'x' } })).status() !== 429) return;
+    if ((await request.post('/auth/login', { data: { email: 'sin.cupo@nexus.example', password: 'x' } })).status() !== 429) {
+      await new Promise((ok) => setTimeout(ok, LOGIN_REFILL_MS));
+      return;
+    }
     await new Promise((ok) => setTimeout(ok, 4_000));
   }
 }
