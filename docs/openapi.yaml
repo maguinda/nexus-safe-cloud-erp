@@ -937,12 +937,16 @@ components:
             eventsProcessed: { type: integer }
         totals:
           type: object
-          required: [milestonesPending, milestonesApproved, approvedCop, waitingForInvoice, draft, issued]
+          required: [milestonesPending, overdue, milestonesApproved, approvedCop, waitingForInvoice, draft, issued]
           properties:
             milestonesPending:
               type: object
               description: Milestones created (event MilestoneCreated) and not approved yet
               properties: { count: { type: integer }, cop: { type: integer } }
+            overdue:
+              type: object
+              description: Issued invoices that are past their due day (event InvoiceOverdue from billing), and what they add up to with IVA
+              properties: { count: { type: integer }, totalCop: { type: integer } }
             milestonesApproved: { type: integer }
             approvedCop: { type: integer, description: Sum of the approved subtotals }
             waitingForInvoice:
@@ -959,9 +963,10 @@ components:
           description: One row per project, largest approved amount first
           items:
             type: object
-            required: [projectName, milestonesPending, milestonesApproved, approvedCop, waitingForInvoice, draftTotalCop, issuedTotalCop]
+            required: [projectName, overdueInvoices, milestonesPending, milestonesApproved, approvedCop, waitingForInvoice, draftTotalCop, issuedTotalCop]
             properties:
               projectName: { type: string }
+              overdueInvoices: { type: integer, description: Issued invoices of this project that are past their due day }
               milestonesPending: { type: integer, description: Created milestones not approved yet }
               milestonesApproved: { type: integer }
               approvedCop: { type: integer }

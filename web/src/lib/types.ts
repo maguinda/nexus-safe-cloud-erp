@@ -26,18 +26,19 @@ export interface EInvoice {
 export interface Customer { name: string; nit: string; dv: number; email: string; address: string; city: string }
 export type CustomerInput = Omit<Customer, 'dv'>;
 
-export interface DashboardProject { projectName: string; milestonesPending: number; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
+export interface DashboardProject { projectName: string; overdueInvoices: number; milestonesPending: number; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
 export interface Dashboard {
   asOf: string;
   freshness: { lastEventAt: string | null; lastEventLagMs: number | null; eventsProcessed: number };
   totals: {
     milestonesPending: { count: number; cop: number };
+    overdue: { count: number; totalCop: number };
     milestonesApproved: number; approvedCop: number;
     waitingForInvoice: { count: number; cop: number }; draft: { count: number; totalCop: number };
     issued: { count: number; subtotalCop: number; taxCop: number; totalCop: number };
   };
   projects: DashboardProject[];
-  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued'; message: string }[];
+  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued' | 'InvoiceOverdue'; message: string }[];
 }
 
 export type DeviceState = 'normal' | 'warning' | 'alert' | 'no_data';

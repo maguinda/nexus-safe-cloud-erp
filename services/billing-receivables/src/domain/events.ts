@@ -23,12 +23,15 @@ interface Envelope<T extends string, D> {
 
 export type InvoiceDraftedEvent = Envelope<'InvoiceDrafted', InvoiceEventData & { approvedBy: string | null }>;
 export type InvoiceIssuedEvent = Envelope<'InvoiceIssued', InvoiceEventData & { issuedBy: string; dueDate: string }>;
-export type BillingEvent = InvoiceDraftedEvent | InvoiceIssuedEvent;
+/** Una factura emitida que ya pasó su día de vencimiento. Se publica UNA vez por factura (la base lo garantiza). Sin datos personales: solo montos y nombres de negocio. */
+export type InvoiceOverdueEvent = Envelope<'InvoiceOverdue', InvoiceEventData & { clientName: string | null; dueDate: string; daysOverdue: number }>;
+export type BillingEvent = InvoiceDraftedEvent | InvoiceIssuedEvent | InvoiceOverdueEvent;
 
 export const INVOICE_DRAFTED_ROUTING_KEY = 'billing.invoice.drafted';
 export const INVOICE_ISSUED_ROUTING_KEY = 'billing.invoice.issued';
+export const INVOICE_OVERDUE_ROUTING_KEY = 'billing.invoice.overdue';
 
-export const routingKeyOf = (e: BillingEvent): string => (e.type === 'InvoiceDrafted' ? INVOICE_DRAFTED_ROUTING_KEY : INVOICE_ISSUED_ROUTING_KEY);
+export const routingKeyOf = (e: BillingEvent): string => (e.type === 'InvoiceDrafted' ? INVOICE_DRAFTED_ROUTING_KEY : e.type === 'InvoiceOverdue' ? INVOICE_OVERDUE_ROUTING_KEY : INVOICE_ISSUED_ROUTING_KEY);
 
 const base = (i: Invoice): InvoiceEventData => ({
   invoiceNumber: i.number, milestoneId: i.milestoneId, projectName: i.projectName, milestoneName: i.milestoneName,
@@ -41,4 +44,11 @@ export function invoiceDrafted(i: Invoice, correlationId: string, now: Date): In
 
 export function invoiceIssued(i: Invoice, correlationId: string, now: Date): InvoiceIssuedEvent {
   return { eventId: randomUUID(), type: 'InvoiceIssued', occurredAt: now.toISOString(), correlationId, data: { ...base(i), issuedBy: i.issuedBy as string, dueDate: (i.dueDate as Date).toISOString() } };
+}
+
+export function invoiceOverdue(i: Invoice, days: number, correlationId: string, now: Date): InvoiceOverdueEvent {
+  return {
+    eventId: randomUUID(), type: 'InvoiceOverdue', occurredAt: now.toISOString(), correlationId,
+    data: { ...base(i), clientName: i.clientName, dueDate: (i.dueDate as Date).toISOString(), daysOverdue: days },
+  };
 }

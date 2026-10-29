@@ -12,6 +12,9 @@ export interface Config {
   consumerEnabled: boolean;
   outboxPollMs: number;
   relayEnabled: boolean;
+  /** Revisión periódica de facturas vencidas (apagada solo en las pruebas que la controlan a mano). */
+  overdueEnabled: boolean;
+  overdueCheckMs: number;
   einvoice: EInvoiceSettings;
 }
 
@@ -32,6 +35,8 @@ export function loadConfig(): Config {
     consumerEnabled: process.env.CONSUMER_ENABLED !== 'false',
     outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
     relayEnabled: process.env.RELAY_ENABLED !== 'false',
+    overdueEnabled: process.env.OVERDUE_ENABLED !== 'false',
+    overdueCheckMs: Math.max(1000, Number(process.env.OVERDUE_CHECK_MS ?? 60_000) || 60_000),
     einvoice: loadEInvoiceSettings(),
   };
 }

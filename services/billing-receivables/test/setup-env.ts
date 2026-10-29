@@ -8,3 +8,5 @@ if (existsSync('.env')) {
   }
 }
 process.env.NODE_ENV = 'test';
+// El programador de facturas vencidas se apaga en las pruebas (las que lo necesitan lo llaman a mano o lo encienden a propósito antes de arrancar la app).
+process.env.OVERDUE_ENABLED = process.env.OVERDUE_ENABLED ?? 'false';
