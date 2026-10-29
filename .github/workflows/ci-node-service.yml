@@ -87,7 +87,8 @@ jobs:
         run: |
           set -a; . ./.env; set +a
           npx prisma migrate deploy
-          npx ts-node prisma/seed.ts
+          # No todos los servicios llevan datos de demostración (notifications nace de eventos).
+          if [ -f prisma/seed.ts ]; then npx ts-node prisma/seed.ts; fi
       - name: Run e2e tests
         run: |
           set -a; . ./.env; set +a
