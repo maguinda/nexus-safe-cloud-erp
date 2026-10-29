@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { MINUTE, batchFor, buildSlots, cycleLength, nextCursor, parseArgs } from './telemetry-slots.mjs';
 
-const real = JSON.parse(readFileSync(new URL('../../services/analytics/prisma/data/iot-readings.json', import.meta.url), 'utf8'));
+const real = JSON.parse(readFileSync(new URL('../../services/operations/prisma/data/iot-readings.json', import.meta.url), 'utf8'));
 const r = (id, at, deviceId = 'D1') => ({ id, deviceId, recordedAt: at, status: 'NORMAL', value: id, unit: '°C', note: null });
 
 test('buildSlots groups by instant, in order, whatever the input order', () => {

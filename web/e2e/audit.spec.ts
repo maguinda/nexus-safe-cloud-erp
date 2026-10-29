@@ -15,8 +15,9 @@ function dbFingerprint(): string {
   const projects = q('projects', `select (select count(*) from milestones where status = 'approved') || '/' || (select count(*) from outbox_events)`);
   const billing = q('billing', `select (select count(*) from invoices) || '/' || (select count(*) from processed_events)`);
   const analytics = q('analytics', `select (select count(*) from milestone_facts) || '/' || (select count(*) from processed_events)`);
+  const operations = q('operations', `select (select count(*) from iot_readings) || '/' || (select count(*) from network_devices)`);
   const capacity = q('capacity', `select (select count(*) from engineers) || '/' || (select count(*) from allocations) || '/' || (select count(*) from outbox_events)`);
-  return `${projects} | ${billing} | ${analytics} | ${capacity}`;
+  return `${projects} | ${billing} | ${analytics} | ${capacity} | ${operations}`;
 }
 
 let before = '';

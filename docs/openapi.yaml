@@ -542,10 +542,10 @@ paths:
     get:
       tags: [Telemetry]
       operationId: getTelemetrySummary
-      summary: Network and IoT telemetry from the Nexus data loaded into Analytics (role manager)
+      summary: Network and IoT telemetry from the Nexus data loaded into Operations & Telemetry (role manager)
       description: |
         Built from the data of the PROYECTO_NEXUS folder (21 IoT devices and 4200 readings of 2026-09-13), loaded by
-        `services/analytics/prisma/seed.ts` when `SEED_DEMO=true`. The device state comes from its latest reading;
+        `services/operations/prisma/seed.ts` when `SEED_DEMO=true`. The device state comes from its latest reading;
         the warning and alert counters cover the whole data window. Timestamps carry no zone in the source and are read as UTC.
       responses:
         '200':
@@ -709,10 +709,10 @@ paths:
     get:
       tags: [Network]
       operationId: getNetworkSummary
-      summary: Network inventory of Nexus loaded into Analytics (role manager)
+      summary: Network inventory of Nexus loaded into Operations & Telemetry (role manager)
       description: |
         Built from `Data para Proveedor ERP.xlsx` of the PROYECTO_NEXUS folder (76 devices, 74 links and the monitoring status of the 10 pieces of
-        network infrastructure), loaded by `services/analytics/prisma/seed.ts` when `SEED_DEMO=true`. Not loaded: interfaces, VLAN/DHCP and the IP/MAC list.
+        network infrastructure), loaded by `services/operations/prisma/seed.ts` when `SEED_DEMO=true`. Not loaded: interfaces, VLAN/DHCP and the IP/MAC list.
         The repository answers aggregates, never the 150 rows.
       responses:
         '200':

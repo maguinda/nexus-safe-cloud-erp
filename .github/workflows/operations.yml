@@ -1,0 +1,27 @@
+# Se activa SOLO si cambia este servicio (o su plantilla): publicar operations no reconstruye los demás.
+name: operations
+
+on:
+  pull_request:
+    paths:
+      - 'services/operations/**'
+      - '.github/workflows/operations.yml'
+      - '.github/workflows/ci-node-service.yml'
+      - 'infra/postgres/**'
+      - 'infra/keys/gen-keys.sh'
+      - 'infra/certs/gen-certs.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'services/operations/**'
+      - '.github/workflows/operations.yml'
+      - '.github/workflows/ci-node-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-node-service.yml
+    with:
+      path: services/operations

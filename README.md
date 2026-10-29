@@ -8,7 +8,8 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `services/identity-access` | Login, JWT issuing and user administration for the manager (`GET/POST /users`, `PATCH /users/:id/role`) |
 | `services/projects` | Projects, milestones, approval (writes the event to an outbox) |
 | `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
-| `services/analytics` | Read models built from the events and the manager dashboard (`GET /dashboard`), plus the Nexus network and IoT data loaded from the course folder (`GET /telemetry/summary`) |
+| `services/analytics` | Read models built from the business events and the manager dashboard (`GET /dashboard`) |
+| `services/operations` | Operations & Telemetry: the Nexus network and IoT data from the course folder (`GET /telemetry/*`, `GET /network/*`), the telemetry ingestion API (service key) and the decision advisor (`POST /advisor/brief`). Own database, mTLS, port 4107 |
 | `services/notifications` | Messenger: turns alert events (overdue invoices, sensor thresholds, over-allocation) into in-app notifications per role, with a read mark per person (the bell in the web). Own database, mTLS, port 4105 |
 | `services/technical-capacity` | Engineers, skills and allocations by period. Nobody goes over 100% load on any day (row lock + re-read inside the lock); the manager can allow it on purpose, which publishes `OverAllocationDetected`. Own database, mTLS, port 4106 |
 | `web` | React + TypeScript frontend |
@@ -66,7 +67,7 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos. Más abajo está el panel **Network & IoT** con los datos de Nexus que dejó la docente: 21 dispositivos y 4.200 lecturas (21 / 21 en línea, 39 advertencias, 3 alertas), una tabla por oficina, las últimas alertas y todos los dispositivos.
 4. En una tercera pestaña entra como Andrés y pulsa **Issue invoice** en el borrador: el estado pasa a Issued y la columna **Due** muestra la fecha de vencimiento (emisión + 30 días).
 5. Entra como Camila: Invoices responde 403. Después, con otra persona, abre **JWT sample** y pulsa **Simulate expired token**: el token «vence» y la app lo **renueva sola** con su cookie (sigues dentro y el contador «token expires in» vuelve a ~15:00). La sesión solo se cierra si ya no hay cookie, a los 30 minutos sin renovar o a las 8 horas en total (ver «Sesión»).
-6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics), :4105 (notifications), :4106 (capacity). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
+6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics), :4105 (notifications), :4106 (capacity), :4107 (operations). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
 7. Opcional: detén RabbitMQ con `docker compose stop rabbitmq`, aprueba otro hito (responde 200 igual), vuelve a arrancarlo con `docker compose start rabbitmq` y espera unos 15 segundos a que la factura aparezca.
 8. Opcional: como Diana, pestaña **Usuarios**, crea un vendedor y entra con él en otra pestaña.
 9. Idioma: pulsa el botón con tu rol (arriba, a la derecha) para abrir **Mi perfil** y cambia entre **Español** y **English**. La pantalla cambia al instante y el idioma queda guardado para esa persona, así que la sigue a cualquier computadora.
@@ -78,7 +79,7 @@ node scripts/e2e-flow.mjs      # debe terminar sin ❌ (72 comprobaciones)
 ```
 
 **Migraciones de la base de datos** (no tienes que ejecutarlas)
-Cada servicio tiene su propia base y su propio historial de migraciones de Prisma (identity 6, projects 1, billing 4, analytics 4). Se aplican solas: al arrancar, cada contenedor corre `npx prisma migrate deploy`, así que el paso 4 deja las tablas creadas. Para comprobarlo:
+Cada servicio tiene su propia base y su propio historial de migraciones de Prisma (identity 6, projects 1, billing 4, analytics 6, notifications 1, capacity 1, operations 1). Se aplican solas: al arrancar, cada contenedor corre `npx prisma migrate deploy`, así que el paso 4 deja las tablas creadas. Para comprobarlo:
 ```sh
 docker compose logs billing | grep -i migration     # «4 migrations found» y «applied» o «No pending migrations to apply»
 source .env
@@ -87,6 +88,16 @@ docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres \
   -Atc "select migration_name from _prisma_migrations order by started_at"
 ```
 Cambia `billing` por `identity`, `projects` o `analytics` para ver los otros servicios. Si un servicio no arranca por la base, mira `docker compose logs <servicio> | tail`; para empezar de cero (borra los datos) corre `docker compose down -v` y vuelve al paso 4. No corras `prisma migrate dev` ni edites los archivos de `services/*/prisma/migrations`: un cambio de esquema es una migración nueva, en una rama aparte.
+
+**Si ya tenías la pila creada de antes (el volumen de Postgres existe)**
+El script de `infra/postgres/init` solo corre cuando el volumen es nuevo. Cada servicio que se agregó después (notifications, capacity, operations) necesita, **una sola vez**: (1) los certificados nuevos (`sh infra/certs/gen-certs.sh`, no toca los que ya tienes), (2) su contraseña en tu `.env` (`DB_NOTIFICATIONS_PASSWORD`, `DB_CAPACITY_PASSWORD`, `DB_OPERATIONS_PASSWORD`; mira `.env.example`) y (3) su rol y su base. Ejemplo para `operations` (cambia el nombre para los otros):
+```sh
+source .env
+docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d postgres \
+  -c "CREATE ROLE operations LOGIN PASSWORD '$DB_OPERATIONS_PASSWORD'" -c "CREATE DATABASE operations OWNER operations" -c "REVOKE CONNECT ON DATABASE operations FROM PUBLIC"
+docker compose up -d --build
+```
+Para pasar a `operations` los datos de sensores y de red que estaban en Analytics: `./scripts/migrate-telemetry-to-operations.sh` (se puede repetir; compara conteos y avisa si algo no cuadra).
 
 **Problemas frecuentes**
 - **La ingesta de telemetría responde 503:** falta `INGEST_KEY` en tu `.env` (vacía, o de menos de 32 caracteres). Genérala con `openssl rand -hex 24` y recrea Analytics (`docker compose up -d analytics`).
@@ -104,13 +115,13 @@ La docente dejó en la carpeta compartida del curso (`PROYECTO_NEXUS`) los datos
 | Qué | Dónde |
 |---|---|
 | Datos usados | `Datos PacketTracer.xlsx`: 21 dispositivos IoT (cámaras, temperatura, humedad, movimiento, humo, calefacción y cerraduras en 3 oficinas) y 4.200 lecturas del 13 de septiembre de 2026, 08:01 a 11:20. Las marcas de tiempo no traen zona horaria y se leen como UTC |
-| Archivos en el repo | `services/analytics/prisma/data/iot-devices.json` y `iot-readings.json`, más `convert-iot.py`, el script que los genera desde el Excel |
+| Archivos en el repo | `services/operations/prisma/data/iot-devices.json` y `iot-readings.json`, más `convert-iot.py`, el script que los genera desde el Excel |
 | Tablas | `iot_devices` e `iot_readings` (migración `0002_iot_telemetry`, con clave foránea, único por dispositivo e instante y tres CHECK) |
 | Carga | `prisma/seed.ts` (con `SEED_DEMO=true`, al arrancar el contenedor) llama a `prisma/iot-load.ts`. Se puede repetir sin duplicar nada |
 | API | `GET /telemetry/summary`, `/telemetry/trends?range=1d\|7d\|30d\|180d\|365d` (por defecto `1d`), `/telemetry/readings` (paginada y ordenable) y `/telemetry/facets`, solo para el gerente (403 para los demás roles); `POST /telemetry/readings` es para los sensores, con clave de servicio (ver «Telemetría en vivo») |
 | Pantalla | panel **Network & IoT** en el Dashboard y la pantalla **Sensores** (hallazgos con su evidencia, cifras, filtros, gráficos y tabla de lecturas; un hallazgo filtra la tabla) |
 
-Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/analytics/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. `./scripts/reset-demo.sh` no toca estos datos.
+Para volver a generar los JSON desde el Excel (necesita `openpyxl`): `python3 services/operations/prisma/data/convert-iot.py "<ruta>/Datos PacketTracer.xlsx"`. `./scripts/reset-demo.sh` no toca estos datos.
 
 ### Inventario de red (`Data para Proveedor ERP.xlsx`)
 
@@ -136,7 +147,7 @@ Un panel en el Tablero del gerente que ordena los hallazgos de Sensores y Red po
 | Llave | `ANTHROPIC_API_KEY` en tu `.env` (Git lo ignora; no la pegues en chats ni commits) y opcional `ADVISOR_MODEL` (por defecto `claude-sonnet-5-5`). Sin llave el botón queda apagado y avisa por qué |
 | Costo | Tope de 6 llamadas a la IA por minuto para todo el servicio; las de reglas no lo gastan. Si se pasa, responde con reglas y el motivo `limit` |
 | API | `POST /advisor/brief` con `{ "language": "es" \| "en", "ai": true \| false }`, solo gerente (403 a los demás) |
-| Base del negocio (playbook) | `services/analytics/src/domain/playbook.ts`: qué significa cada cosa (umbral ≠ lectura, equipo crítico, monitoreo básico), cómo priorizar y reglas de redacción. **No lleva cifras, nombres ni fechas de hoy**: eso solo sale de los hallazgos. Está versionado (`PLAYBOOK_VERSION`, visible en el panel y en la respuesta); al cambiar un criterio se sube la versión |
+| Base del negocio (playbook) | `services/operations/src/domain/playbook.ts`: qué significa cada cosa (umbral ≠ lectura, equipo crítico, monitoreo básico), cómo priorizar y reglas de redacción. **No lleva cifras, nombres ni fechas de hoy**: eso solo sale de los hallazgos. Está versionado (`PLAYBOOK_VERSION`, visible en el panel y en la respuesta); al cambiar un criterio se sube la versión |
 | Cómo se evalúa | `src/domain/advice-eval.ts`, determinista (misma respuesta → mismo veredicto). Una respuesta de la IA se **descarta entera** (y se muestran las reglas, con los códigos de lo que falló en `violations`) si: cita un hallazgo que no existe, escribe un número o un nombre de equipo que no está en los hallazgos, afirma un incidente que ninguno menciona (incendio, ataque…), da una causa como hecho, presenta el umbral como si fuera una lectura, recomienda borrar datos, rompe el orden de prioridad u omite un hallazgo de prioridad alta |
 | Casos de oro | `src/domain/advisor-golden.ts` (5 situaciones fijas, incluida una con un nombre de dispositivo que da órdenes). Las respuestas por reglas también tienen que pasar el mismo evaluador |
 | Medir a la IA real | `ADVISOR_LIVE_EVAL=1 EVAL_RUNS=3 npx jest --config jest.e2e.config.js test/advisor-live-eval.e2e.ts` (con la llave en el entorno; cuesta unas monedas y no corre en el CI). Imprime una tarjeta de calificaciones por caso e idioma |

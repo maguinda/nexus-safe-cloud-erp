@@ -1,6 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { loadIot } from './iot-load';
-import { loadNetwork } from './network-load';
 
 // Datos de DEMOSTRACIÓN: los dos hitos que ya vienen aprobados y facturados en los seeds de projects y billing (m1 y m4).
 // Como esos seeds se cargan directo en cada base (sin eventos), Analytics necesita su propio punto de partida.
@@ -30,10 +28,6 @@ async function main() {
     await prisma.milestoneFact.upsert({ where: { milestoneId: f.milestoneId }, update: {}, create: { ...f, createdAt: new Date('2026-10-01T12:00:00Z') } });
   }
   console.log('Seeded demo read model');
-  const iot = await loadIot(prisma);
-  console.log(`Loaded IoT telemetry: ${iot.devices} devices, ${iot.readings} readings`);
-  const net = await loadNetwork(prisma);
-  console.log(`Loaded network inventory: ${net.devices} devices, ${net.links} links, ${net.monitoring} monitored`);
   await prisma.$disconnect();
 }
 main().catch((e) => { console.error(e); process.exit(1); });

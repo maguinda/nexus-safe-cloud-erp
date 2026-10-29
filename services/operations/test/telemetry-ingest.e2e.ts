@@ -66,7 +66,7 @@ describe('telemetry ingestion: POST /telemetry/readings (e2e, real PostgreSQL)',
     });
 
     it('the key opens ONLY this route: with it (and no token) the rest of the API still answers 401', async () => {
-      for (const path of ['/telemetry/summary', '/telemetry/trends', '/telemetry/facets', '/network/summary', '/dashboard']) {
+      for (const path of ['/telemetry/summary', '/telemetry/trends', '/telemetry/facets', '/network/summary', '/network/devices']) {
         expect((await request(app.getHttpServer()).get(path).set('x-ingest-key', KEY)).status).toBe(401);
       }
       expect((await request(app.getHttpServer()).get('/telemetry/readings').set('x-ingest-key', KEY)).status).toBe(401); // el GET del mismo nombre sigue pidiendo JWT

@@ -515,7 +515,7 @@ test('Theme: if the server cannot save it, the page does not change and says why
 });
 
 // ---- Dashboards «Sensores» y «Red»: hallazgos con referencia, filtros reales y tablas explorables ----
-const netLinks: { originName: string; destinationName: string; functional: boolean | null }[] = JSON.parse(readFileSync(join(here, '..', '..', 'services', 'analytics', 'prisma', 'data', 'network-links.json'), 'utf8'));
+const netLinks: { originName: string; destinationName: string; functional: boolean | null }[] = JSON.parse(readFileSync(join(here, '..', '..', 'services', 'operations', 'prisma', 'data', 'network-links.json'), 'utf8'));
 const goTo = async (page: any, nav: string) => { await page.getByRole('navigation').getByRole('button', { name: nav, exact: true }).click(); };
 const shown = (page: any, text: RegExp | string) => page.getByText(text).first();
 /** La tabla del explorador (la de lecturas o la de dispositivos y enlaces); no las tablas alternativas de los gráficos, que están plegadas dentro de «Ver como tabla». */
@@ -1364,7 +1364,7 @@ const ingestKey = (): string => {
   if (process.env.INGEST_KEY) return process.env.INGEST_KEY;
   try { return /^INGEST_KEY=(.*)$/m.exec(readFileSync(join(here, '..', '..', '.env'), 'utf8'))?.[1].trim() ?? ''; } catch { return ''; }
 };
-const IOT_DEVICES = JSON.parse(readFileSync(join(here, '..', '..', 'services', 'analytics', 'prisma', 'data', 'iot-devices.json'), 'utf8')) as { id: string; unit: string }[];
+const IOT_DEVICES = JSON.parse(readFileSync(join(here, '..', '..', 'services', 'operations', 'prisma', 'data', 'iot-devices.json'), 'utf8')) as { id: string; unit: string }[];
 /** Un lote de 21 lecturas (una por dispositivo) en el minuto `minute` después de las 11:20 UTC del 13-sep, justo donde sigue el Excel. */
 async function sendReadings(request: { post: (url: string, o: { headers: Record<string, string>; data: object }) => Promise<{ status(): number; json(): Promise<{ accepted: number; duplicates: number }> }> }, minute: number) {
   const at = new Date(Date.UTC(2026, 8, 13, 11, 21 + minute)).toISOString();
@@ -1426,7 +1426,7 @@ async function sendOldReadings(request: Parameters<typeof sendReadings>[0], days
   expect(r.status()).toBe(200);
   expect((await r.json()).accepted).toBe(IOT_DEVICES.length);
 }
-const deleteOldReadings = () => { execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d analytics -Atc "DELETE FROM iot_readings WHERE note = 'e2e rango'"`, { cwd: join(here, '..', '..'), stdio: 'ignore' }); };
+const deleteOldReadings = () => { execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d operations -Atc "DELETE FROM iot_readings WHERE note = 'e2e rango'"`, { cwd: join(here, '..', '..'), stdio: 'ignore' }); };
 const cardsValue = (page: import('@playwright/test').Page, label: string) => page.locator('section[aria-labelledby="sensors-cards-h"]').getByText(label, { exact: true }).locator('xpath=following-sibling::strong[1]');
 const numberOf = async (loc: import('@playwright/test').Locator): Promise<number> => Number((await loc.innerText()).replace(/,/g, ''));
 const pressed = (page: import('@playwright/test').Page, name: string) => page.getByRole('button', { name, exact: true });
