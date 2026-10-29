@@ -29,7 +29,7 @@ let relay: OutboxRelay | undefined;
     { provide: LIST_PROJECTS, useFactory: () => new ListProjectsUseCase(new PrismaProjectQueries(prisma)) },
     { provide: LIST_MILESTONES, useFactory: () => new ListMilestonesUseCase(new PrismaProjectQueries(prisma)) },
     { provide: CREATE_PROJECT, useFactory: () => new CreateProjectUseCase(new PrismaProjectCommands(prisma)) },
-    { provide: CREATE_MILESTONE, useFactory: () => new CreateMilestoneUseCase(new PrismaProjectCommands(prisma)) },
+    { provide: CREATE_MILESTONE, useFactory: () => new CreateMilestoneUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: APPROVE_MILESTONE, useFactory: () => new ApproveMilestoneUseCase(new PrismaUnitOfWork(prisma)) },
   ],
 })

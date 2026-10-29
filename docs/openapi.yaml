@@ -786,8 +786,12 @@ components:
             eventsProcessed: { type: integer }
         totals:
           type: object
-          required: [milestonesApproved, approvedCop, waitingForInvoice, draft, issued]
+          required: [milestonesPending, milestonesApproved, approvedCop, waitingForInvoice, draft, issued]
           properties:
+            milestonesPending:
+              type: object
+              description: Milestones created (event MilestoneCreated) and not approved yet
+              properties: { count: { type: integer }, cop: { type: integer } }
             milestonesApproved: { type: integer }
             approvedCop: { type: integer, description: Sum of the approved subtotals }
             waitingForInvoice:
@@ -804,9 +808,10 @@ components:
           description: One row per project, largest approved amount first
           items:
             type: object
-            required: [projectName, milestonesApproved, approvedCop, waitingForInvoice, draftTotalCop, issuedTotalCop]
+            required: [projectName, milestonesPending, milestonesApproved, approvedCop, waitingForInvoice, draftTotalCop, issuedTotalCop]
             properties:
               projectName: { type: string }
+              milestonesPending: { type: integer, description: Created milestones not approved yet }
               milestonesApproved: { type: integer }
               approvedCop: { type: integer }
               waitingForInvoice: { type: integer, description: Approved milestones without an invoice yet }

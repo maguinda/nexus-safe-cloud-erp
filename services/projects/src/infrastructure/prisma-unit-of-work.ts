@@ -1,5 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { MILESTONE_APPROVED_ROUTING_KEY, MilestoneApprovedEvent } from '../domain/events';
+import { ProjectEvent, routingKeyOf } from '../domain/events';
 import { Milestone } from '../domain/milestone';
 import { TransactionScope, UnitOfWork } from '../domain/ports';
 
@@ -34,13 +34,22 @@ class PrismaTransactionScope implements TransactionScope {
     await this.tx.milestone.update({ where: { id: m.id }, data: { status: m.status, approvedAt: m.approvedAt, approvedBy: m.approvedBy } });
   }
 
-  async addToOutbox(event: MilestoneApprovedEvent) {
+  async findProjectName(projectId: string) {
+    const p = await this.tx.project.findUnique({ where: { id: projectId }, select: { name: true } });
+    return p ? p.name : null;
+  }
+
+  async insertMilestone(m: Milestone) {
+    await this.tx.milestone.create({ data: { id: m.id, projectId: m.projectId, name: m.name, amountCop: m.amountCop, status: 'pending' } });
+  }
+
+  async addToOutbox(event: ProjectEvent) {
     await this.tx.outboxEvent.create({
       data: {
         id: event.eventId,
         aggregateId: event.data.milestoneId,
         type: event.type,
-        routingKey: MILESTONE_APPROVED_ROUTING_KEY,
+        routingKey: routingKeyOf(event),
         payload: event as unknown as Prisma.InputJsonValue,
       },
     });

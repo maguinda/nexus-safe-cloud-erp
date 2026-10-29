@@ -52,7 +52,7 @@ describe('dashboard: authentication, roles and content (e2e, real PostgreSQL)', 
   describe('content', () => {
     it('starts from the demo read model (milestones m1 and m4, both issued)', async () => {
       const d = (await get('/dashboard', manager())).body;
-      expect(d.totals).toEqual({ milestonesApproved: 2, approvedCop: 21_800_000, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 2, subtotalCop: 21_800_000, taxCop: 4_142_000, totalCop: 25_942_000 } });
+      expect(d.totals).toEqual({ milestonesPending: { count: 0, cop: 0 }, milestonesApproved: 2, approvedCop: 21_800_000, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 2, subtotalCop: 21_800_000, taxCop: 4_142_000, totalCop: 25_942_000 } });
       expect(d.projects.map((p: any) => p.projectName)).toEqual(['Branch network upgrade', 'Retail POS integration']);
       expect(d.freshness).toEqual({ lastEventAt: null, lastEventLagMs: null, eventsProcessed: 0 });
       expect(d.recentActivity).toEqual([]);
@@ -61,7 +61,7 @@ describe('dashboard: authentication, roles and content (e2e, real PostgreSQL)', 
     it('exposes only the documented fields', async () => {
       const d = (await get('/dashboard', manager())).body;
       expect(Object.keys(d).sort()).toEqual(['asOf', 'freshness', 'projects', 'recentActivity', 'totals']);
-      expect(Object.keys(d.projects[0]).sort()).toEqual(['approvedCop', 'draftTotalCop', 'issuedTotalCop', 'milestonesApproved', 'projectName', 'waitingForInvoice']);
+      expect(Object.keys(d.projects[0]).sort()).toEqual(['approvedCop', 'draftTotalCop', 'issuedTotalCop', 'milestonesApproved', 'milestonesPending', 'projectName', 'waitingForInvoice']);
     });
     it('reflects a fact written to the read model', async () => {
       await prisma.milestoneFact.create({ data: { milestoneId: 'm9', projectId: 'p1', projectName: 'Branch network upgrade', milestoneName: 'X', amountCop: 1000, approvedBy: 'laura.rios@nexus.example', approvedAt: new Date() } });

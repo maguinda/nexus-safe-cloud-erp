@@ -1,6 +1,7 @@
 import { ProjectNotFoundError } from '../domain/errors';
+import { milestoneCreated } from '../domain/events';
 import { newMilestone } from '../domain/milestone';
-import { ProjectCommands } from '../domain/ports';
+import { ProjectCommands, UnitOfWork } from '../domain/ports';
 import { newProject } from '../domain/project';
 
 export class CreateProjectUseCase {
@@ -12,11 +13,17 @@ export class CreateProjectUseCase {
   }
 }
 
+/** El hito y su evento `MilestoneCreated` (outbox) van en UNA transacción: si falla una cosa, no queda la otra. */
 export class CreateMilestoneUseCase {
-  constructor(private readonly commands: ProjectCommands) {}
-  async execute(projectId: string, name: unknown, amountCop: unknown) {
+  constructor(private readonly uow: UnitOfWork, private readonly clock: () => Date = () => new Date()) {}
+  async execute(projectId: string, name: unknown, amountCop: unknown, correlationId: string) {
     const milestone = newMilestone(projectId, name, amountCop);
-    if (!(await this.commands.insertMilestone(milestone))) throw new ProjectNotFoundError(projectId);
-    return milestone;
+    return this.uow.run(async (tx) => {
+      const projectName = await tx.findProjectName(projectId);
+      if (projectName === null) throw new ProjectNotFoundError(projectId);
+      await tx.insertMilestone(milestone);
+      await tx.addToOutbox(milestoneCreated(milestone, projectName, correlationId, this.clock()));
+      return milestone;
+    });
   }
 }

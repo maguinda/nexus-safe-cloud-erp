@@ -1,4 +1,4 @@
-import { MilestoneApprovedEvent } from './events';
+import { ProjectEvent } from './events';
 import { Milestone } from './milestone';
 import { Project } from './project';
 
@@ -22,16 +22,17 @@ export interface TransactionScope {
   /** Bloquea la fila del hito hasta el final de la transacción (SELECT ... FOR UPDATE). */
   findMilestoneForUpdate(id: string): Promise<{ milestone: Milestone; projectName: string } | null>;
   saveMilestone(m: Milestone): Promise<void>;
-  addToOutbox(event: MilestoneApprovedEvent): Promise<void>;
+  /** El nombre del proyecto, o null si no existe. */
+  findProjectName(projectId: string): Promise<string | null>;
+  insertMilestone(m: Milestone): Promise<void>;
+  addToOutbox(event: ProjectEvent): Promise<void>;
 }
 
 export interface UnitOfWork {
   run<T>(work: (tx: TransactionScope) => Promise<T>): Promise<T>;
 }
 
-/** Altas: crear proyectos e hitos. */
+/** Altas de proyectos (no publican evento). Los hitos se crean con UnitOfWork: el hito y su evento van en la misma transacción. */
 export interface ProjectCommands {
   insertProject(p: Project): Promise<void>;
-  /** false si el proyecto no existe. */
-  insertMilestone(m: Milestone): Promise<boolean>;
 }

@@ -12,6 +12,7 @@ const EXCHANGE = 'erp.events', QUEUE = 'q.analytics', DLQ = 'q.analytics.dlq';
 const inv = (n: string | number, over: any = {}) => ({ invoiceNumber: 'INV-0103', milestoneId: `t${n}`, projectName: 'Branch network upgrade', milestoneName: `Milestone ${n}`, amountCop: 1_000_000, taxCop: 190_000, totalCop: 1_190_000, ...over });
 const env = (type: string, data: any, over: any = {}) => ({ eventId: randomUUID(), type, occurredAt: new Date().toISOString(), correlationId: 'trace-an-0001', data, ...over });
 const approved = (n: string | number, over: any = {}) => env('MilestoneApproved', { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, approvedBy: 'laura.rios@nexus.example', ...over });
+const created = (n: string | number, over: any = {}) => env('MilestoneCreated', { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, ...over });
 const drafted = (n: string | number, over: any = {}) => env('InvoiceDrafted', { ...inv(n), approvedBy: 'laura.rios@nexus.example', ...over });
 const issued = (n: string | number, over: any = {}) => env('InvoiceIssued', { ...inv(n), issuedBy: 'andres.mora@nexus.example', ...over });
 
@@ -124,5 +125,39 @@ describe('analytics consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
     ch.publish(EXCHANGE, 'billing.invoice.drafted', Buffer.from(JSON.stringify(drafted(6, { invoiceNumber: 'INV-0601' }))), { persistent: true });
     ch.publish(EXCHANGE, 'billing.invoice.issued', Buffer.from(JSON.stringify(issued(6, { invoiceNumber: 'INV-0601' }))), { persistent: true });
     expect(await waitUntil(async () => (await fact('t6'))?.invoiceStatus === 'issued')).toBe(true);
+  });
+
+  it('MilestoneCreated (real routing key) makes a PENDING milestone: the dashboard counts it, approving it stops counting it, and a repeated event changes nothing', async () => {
+    const before = (await dashboard()).body.totals.milestonesPending;
+    expect(before).toEqual({ count: 0, cop: 0 });
+    const e = created(31);
+    ch.publish(EXCHANGE, 'project.milestone.created', Buffer.from(JSON.stringify(e)), { persistent: true });
+    ch.publish(EXCHANGE, 'project.milestone.created', Buffer.from(JSON.stringify(e)), { persistent: true }); // la misma entrega otra vez
+    expect(await waitUntil(async () => (await fact('t31')) !== null)).toBe(true);
+    expect(await fact('t31')).toMatchObject({ projectId: 'p1', createdAt: new Date(e.occurredAt), approvedAt: null, approvedBy: null });
+    let d = (await dashboard()).body;
+    expect(d.totals.milestonesPending).toEqual({ count: 1, cop: 1_000_000 });
+    expect(d.projects.find((r: any) => r.projectName === 'Branch network upgrade').milestonesPending).toBe(1);
+    expect(await processedCount()).toBe(1); // la repetición no se procesó dos veces
+    expect((await prisma.activityEntry.findMany()).map((a) => a.message)).toEqual(['New milestone “Milestone 31” (Branch network upgrade) · 1.000.000 COP pending approval']);
+    toQueue(approved(31));
+    expect(await waitUntil(async () => (await fact('t31'))?.approvedAt != null)).toBe(true);
+    d = (await dashboard()).body;
+    expect(d.totals.milestonesPending).toEqual({ count: 0, cop: 0 });
+    expect((await fact('t31'))?.createdAt).toEqual(new Date(e.occurredAt)); // sigue sabiendo cuándo nació
+  });
+
+  it('if the approval arrives BEFORE the creation event the milestone is not pending (arrival order does not matter)', async () => {
+    toQueue(approved(32));
+    expect(await waitUntil(async () => (await fact('t32')) !== null)).toBe(true);
+    toQueue(created(32));
+    expect(await waitUntil(async () => (await fact('t32'))?.createdAt != null)).toBe(true);
+    expect((await dashboard()).body.totals.milestonesPending).toEqual({ count: 0, cop: 0 });
+  });
+
+  it('a MilestoneCreated with a bad amount goes to the dead-letter queue and creates nothing', async () => {
+    toQueue(created(33, { amountCop: -1 }));
+    expect(await waitUntil(async () => (await dlq()) === 1)).toBe(true);
+    expect(await fact('t33')).toBeNull();
   });
 });

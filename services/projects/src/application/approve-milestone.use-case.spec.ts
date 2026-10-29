@@ -1,6 +1,6 @@
 import { ApproveMilestoneUseCase } from './approve-milestone.use-case';
 import { MilestoneAlreadyApprovedError, MilestoneNotFoundError } from '../domain/errors';
-import { MilestoneApprovedEvent } from '../domain/events';
+import { ProjectEvent } from '../domain/events';
 import { Milestone } from '../domain/milestone';
 import { TransactionScope, UnitOfWork } from '../domain/ports';
 
@@ -10,7 +10,7 @@ const NOW = new Date('2026-10-18T05:30:00.000Z');
 /** Base en memoria con transacción real simulada: si el trabajo falla, no queda nada guardado. */
 function fakeUow(initial: Milestone[]) {
   let store = new Map(initial.map((m) => [m.id, m]));
-  let outbox: MilestoneApprovedEvent[] = [];
+  let outbox: ProjectEvent[] = [];
   const uow: UnitOfWork = {
     async run(work) {
       const snapStore = new Map(store);
@@ -18,6 +18,8 @@ function fakeUow(initial: Milestone[]) {
       const tx: TransactionScope = {
         findMilestoneForUpdate: async (id) => (store.has(id) ? { milestone: store.get(id) as Milestone, projectName: 'Branch network upgrade' } : null),
         saveMilestone: async (m) => { store.set(m.id, m); },
+        findProjectName: async () => 'Branch network upgrade',
+        insertMilestone: async (m) => { store.set(m.id, m); },
         addToOutbox: async (e) => { outbox.push(e); },
       };
       try { return await work(tx); } catch (e) { store = snapStore; outbox = snapOutbox; throw e; }

@@ -5,6 +5,25 @@ binding keys. The producer writes the event to an `outbox` table in the same tra
 change; a relay publishes it afterwards, so a crash never loses an event. Consumers are idempotent
 (they remember the processed `eventId`) and failed messages go to a dead-letter queue.
 
+## MilestoneCreated
+
+- Published by: `projects`, in the same transaction that creates the milestone (transactional outbox)
+- Routing key: `project.milestone.created`
+- Consumed by: `analytics` (queue `q.analytics`), which counts it as a **pending** milestone until a `MilestoneApproved` for the same `milestoneId` arrives
+
+```json
+{
+  "eventId": "0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a01",
+  "type": "MilestoneCreated",
+  "occurredAt": "2026-10-28T12:00:00.000Z",
+  "correlationId": "trace-created-0001",
+  "data": { "milestoneId": "m-1a2b3c4d", "milestoneName": "Site survey", "projectId": "p1", "projectName": "Branch network upgrade", "amountCop": 12000000 }
+}
+```
+
+- The read model does not depend on arrival order: if the approval arrives first, the milestone is not pending (a late creation only records when it was born).
+- Milestones that existed before this event (the demo seed) are loaded into the read model by the analytics seed; the ones created through the API are known from this event on.
+
 ## MilestoneApproved
 
 - Published by: `projects`
