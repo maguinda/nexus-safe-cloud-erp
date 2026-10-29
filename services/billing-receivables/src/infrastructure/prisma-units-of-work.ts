@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { BillingEvent, routingKeyOf } from '../domain/events';
 import { Invoice } from '../domain/invoice';
-import { InboxScope, InboxUnitOfWork, IssueScope, IssueUnitOfWork } from '../domain/ports';
+import { InboxScope, InboxUnitOfWork, IssueScope, IssueUnitOfWork, OverdueScope, OverdueUnitOfWork } from '../domain/ports';
 import { toDomain } from './prisma-invoice-queries';
 
 const TX = { timeout: 10_000, maxWait: 10_000 };
@@ -74,5 +74,37 @@ class PrismaIssueScope implements IssueScope {
 
   async save(i: Invoice): Promise<void> {
     await this.tx.invoice.update({ where: { number: i.number }, data: { status: i.status, issuedAt: i.issuedAt, issuedBy: i.issuedBy, dueDate: i.dueDate } });
+  }
+}
+
+export class PrismaOverdueUnitOfWork implements OverdueUnitOfWork {
+  constructor(private readonly prisma: PrismaClient) {}
+  run<T>(work: (tx: OverdueScope) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async (c) => work(new PrismaOverdueScope(c)), TX);
+  }
+}
+
+class PrismaOverdueScope implements OverdueScope {
+  constructor(private readonly tx: Prisma.TransactionClient) {}
+
+  async findNewlyOverdue(today: string, limit: number): Promise<Invoice[]> {
+    // Vencida = emitida y con día de vencimiento (UTC) ANTERIOR a hoy, sin su evento todavía. SKIP LOCKED: otro detector que corra a la vez toma otras filas.
+    const rows = await this.tx.$queryRaw<any[]>`
+      SELECT i.number, i.milestone_id AS "milestoneId", i.project_name AS "projectName", i.milestone_name AS "milestoneName", i.amount_cop AS "amountCop", i.tax_cop AS "taxCop",
+             i.total_cop AS "totalCop", i.status::text AS status, i.created_at AS "createdAt", i.issued_at AS "issuedAt", i.issued_by AS "issuedBy", i.source_event_id AS "sourceEventId",
+             i.approved_by AS "approvedBy", i.approved_at AS "approvedAt", i.due_date AS "dueDate", i.client_name AS "clientName"
+      FROM invoices i
+      WHERE i.status = 'issued' AND i.due_date IS NOT NULL AND i.due_date::date < ${today}::date
+        AND NOT EXISTS (SELECT 1 FROM outbox_events o WHERE o.aggregate_id = i.number AND o.type = 'OverdueDetected')
+      ORDER BY i.due_date, i.number LIMIT ${limit} FOR UPDATE OF i SKIP LOCKED`;
+    return rows.map(toDomain);
+  }
+
+  async addToOutbox(event: BillingEvent): Promise<boolean> {
+    const n = await this.tx.$executeRaw`
+      INSERT INTO outbox_events (id, aggregate_id, type, routing_key, payload)
+      VALUES (${event.eventId}::uuid, ${event.data.invoiceNumber}, ${event.type}, ${routingKeyOf(event)}, ${JSON.stringify(event)}::jsonb)
+      ON CONFLICT (aggregate_id, type) DO NOTHING`;
+    return n === 1;
   }
 }

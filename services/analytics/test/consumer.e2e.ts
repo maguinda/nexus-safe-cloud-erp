@@ -13,6 +13,7 @@ const inv = (n: string | number, over: any = {}) => ({ invoiceNumber: 'INV-0103'
 const env = (type: string, data: any, over: any = {}) => ({ eventId: randomUUID(), type, occurredAt: new Date().toISOString(), correlationId: 'trace-an-0001', data, ...over });
 const approved = (n: string | number, over: any = {}) => env('MilestoneApproved', { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, approvedBy: 'laura.rios@nexus.example', ...over });
 const created = (n: string | number, over: any = {}) => env('MilestoneCreated', { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, ...over });
+const overdue = (n: string | number, over: any = {}) => env('OverdueDetected', { ...inv(n), dueDate: '2026-10-20T15:00:00.000Z', daysOverdue: 9, ...over });
 const drafted = (n: string | number, over: any = {}) => env('InvoiceDrafted', { ...inv(n), approvedBy: 'laura.rios@nexus.example', ...over });
 const issued = (n: string | number, over: any = {}) => env('InvoiceIssued', { ...inv(n), issuedBy: 'andres.mora@nexus.example', ...over });
 
@@ -159,5 +160,38 @@ describe('analytics consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
     toQueue(created(33, { amountCop: -1 }));
     expect(await waitUntil(async () => (await dlq()) === 1)).toBe(true);
     expect(await fact('t33')).toBeNull();
+  });
+
+  it('OverdueDetected (real routing key) marks the invoice overdue: the dashboard counts it with its total, the activity says the days, and a repeated delivery changes nothing', async () => {
+    toQueue(approved(41)); toQueue(drafted(41, { invoiceNumber: 'INV-4101' })); toQueue(issued(41, { invoiceNumber: 'INV-4101' }));
+    expect(await waitUntil(async () => (await fact('t41'))?.invoiceStatus === 'issued')).toBe(true);
+    expect((await dashboard()).body.totals.overdue).toEqual({ count: 0, totalCop: 0 });
+    const e = overdue(41, { invoiceNumber: 'INV-4101' });
+    ch.publish(EXCHANGE, 'billing.invoice.overdue', Buffer.from(JSON.stringify(e)), { persistent: true });
+    ch.publish(EXCHANGE, 'billing.invoice.overdue', Buffer.from(JSON.stringify(e)), { persistent: true });
+    expect(await waitUntil(async () => (await fact('t41'))?.overdueAt != null)).toBe(true);
+    expect(await fact('t41')).toMatchObject({ invoiceStatus: 'issued', overdueDays: 9, overdueAt: new Date(e.occurredAt) });
+    const d = (await dashboard()).body;
+    expect(d.totals.overdue).toEqual({ count: 1, totalCop: 1_190_000 });
+    expect(d.projects.find((r: any) => r.projectName === 'Branch network upgrade').overdueInvoices).toBe(1);
+    expect((await prisma.activityEntry.findMany({ where: { kind: 'OverdueDetected' } })).map((a) => a.message)).toEqual(['Invoice INV-4101 is overdue by 9 days · total 1.190.000 COP']);
+    expect(await prisma.processedEvent.count({ where: { eventId: e.eventId } })).toBe(1);
+  });
+
+  it('an overdue notice that arrives BEFORE the invoice events is kept and merged when they arrive (order does not matter)', async () => {
+    toQueue(overdue(42, { invoiceNumber: 'INV-4201' }));
+    expect(await waitUntil(async () => (await fact('t42'))?.overdueAt != null)).toBe(true);
+    toQueue(approved(42)); toQueue(drafted(42, { invoiceNumber: 'INV-4201' })); toQueue(issued(42, { invoiceNumber: 'INV-4201' }));
+    expect(await waitUntil(async () => (await fact('t42'))?.invoiceStatus === 'issued')).toBe(true);
+    expect(await fact('t42')).toMatchObject({ overdueDays: 9, approvedBy: 'laura.rios@nexus.example', invoiceNumber: 'INV-4201' });
+    expect((await dashboard()).body.totals.overdue.count).toBe(1);
+  });
+
+  it('an OverdueDetected with zero days or a bad total goes to the dead-letter queue and changes nothing', async () => {
+    toQueue(overdue(43, { daysOverdue: 0 }));
+    expect(await waitUntil(async () => (await dlq()) === 1)).toBe(true);
+    toQueue(overdue(44, { totalCop: 5 }));
+    expect(await waitUntil(async () => (await dlq()) === 2)).toBe(true);
+    expect(await fact('t43')).toBeNull(); expect(await fact('t44')).toBeNull();
   });
 });

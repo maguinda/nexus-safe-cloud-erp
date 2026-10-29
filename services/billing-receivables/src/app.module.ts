@@ -12,15 +12,18 @@ import { CustomersController, DELIVER_EINVOICE, ElectronicInvoiceController, GEN
 import { HealthController } from './http/health.controller';
 import { InvoicesController, ISSUE_INVOICE, LIST_INVOICES, RECONCILE_INVOICES } from './http/invoices.controller';
 import { MilestoneApprovedConsumer } from './infrastructure/milestone-approved-consumer';
+import { DetectOverdueInvoicesUseCase } from './application/detect-overdue.use-case';
 import { OutboxRelay } from './infrastructure/outbox-relay';
+import { OverdueScheduler } from './infrastructure/overdue-scheduler';
 import { PrismaCustomerRepository, PrismaEInvoiceRepository, PrismaEInvoiceUnitOfWork, QrCodeRenderer } from './infrastructure/prisma-einvoice';
 import { PrismaInvoiceQueries } from './infrastructure/prisma-invoice-queries';
-import { PrismaInboxUnitOfWork, PrismaIssueUnitOfWork } from './infrastructure/prisma-units-of-work';
+import { PrismaInboxUnitOfWork, PrismaIssueUnitOfWork, PrismaOverdueUnitOfWork } from './infrastructure/prisma-units-of-work';
 
 const prisma = new PrismaClient();
 const cfg = () => loadConfig();
 let consumer: MilestoneApprovedConsumer | undefined;
 let relay: OutboxRelay | undefined;
+let overdue: OverdueScheduler | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
@@ -52,6 +55,10 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
       relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs });
       relay.start();
     }
+    if (c.overdueEnabled) {
+      overdue = new OverdueScheduler(new DetectOverdueInvoicesUseCase(new PrismaOverdueUnitOfWork(prisma)), c.overdueCheckMs);
+      overdue.start();
+    }
   }
 
   async onModuleDestroy() {
@@ -59,6 +66,8 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
     consumer = undefined;
     await relay?.stop();
     relay = undefined;
+    await overdue?.stop();
+    overdue = undefined;
     await prisma.$disconnect();
   }
 }

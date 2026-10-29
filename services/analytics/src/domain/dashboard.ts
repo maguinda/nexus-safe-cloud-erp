@@ -11,6 +11,8 @@ export interface ProjectRow {
   waitingForInvoice: number;
   draftTotalCop: number;
   issuedTotalCop: number;
+  /** Facturas de este proyecto que ya pasaron su vencimiento (evento OverdueDetected de billing). */
+  overdueInvoices: number;
 }
 
 export interface Dashboard {
@@ -19,6 +21,8 @@ export interface Dashboard {
   freshness: { lastEventAt: string | null; lastEventLagMs: number | null; eventsProcessed: number };
   totals: {
     milestonesPending: { count: number; cop: number };
+    /** Facturas vencidas: cuántas y cuánto suman (con IVA). Una vez vencida, sigue vencida: este MVP no tiene pagos. */
+    overdue: { count: number; totalCop: number };
     milestonesApproved: number;
     approvedCop: number;
     waitingForInvoice: { count: number; cop: number };
@@ -38,11 +42,11 @@ export function buildDashboard(facts: Fact[], activity: ActivityItem[], eventsPr
   const rows = new Map<string, ProjectRow>();
   const row = (name: string): ProjectRow => {
     let r = rows.get(name);
-    if (!r) { r = { projectName: name, milestonesPending: 0, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: 0, draftTotalCop: 0, issuedTotalCop: 0 }; rows.set(name, r); }
+    if (!r) { r = { projectName: name, milestonesPending: 0, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: 0, draftTotalCop: 0, issuedTotalCop: 0, overdueInvoices: 0 }; rows.set(name, r); }
     return r;
   };
   const totals: Dashboard['totals'] = {
-    milestonesPending: { count: 0, cop: 0 }, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 0, subtotalCop: 0, taxCop: 0, totalCop: 0 },
+    milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 0, subtotalCop: 0, taxCop: 0, totalCop: 0 },
   };
   for (const f of facts) {
     const r = row(f.projectName);
@@ -51,6 +55,7 @@ export function buildDashboard(facts: Fact[], activity: ActivityItem[], eventsPr
       totals.milestonesApproved++; totals.approvedCop += f.amountCop; r.milestonesApproved++; r.approvedCop += f.amountCop;
       if (!f.invoiceNumber) { totals.waitingForInvoice.count++; totals.waitingForInvoice.cop += f.amountCop; r.waitingForInvoice++; }
     }
+    if (f.overdueAt) { totals.overdue.count++; totals.overdue.totalCop += f.totalCop ?? 0; r.overdueInvoices++; }
     if (f.invoiceStatus === 'draft') { totals.draft.count++; totals.draft.totalCop += f.totalCop ?? 0; r.draftTotalCop += f.totalCop ?? 0; }
     if (f.invoiceStatus === 'issued') {
       totals.issued.count++; totals.issued.subtotalCop += f.amountCop; totals.issued.taxCop += f.taxCop ?? 0; totals.issued.totalCop += f.totalCop ?? 0; r.issuedTotalCop += f.totalCop ?? 0;

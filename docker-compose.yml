@@ -101,6 +101,9 @@ services:
       TLS_KEY_PATH: /run/secrets/tls_billing_key
       TLS_CA_PATH: /run/secrets/tls_ca
       TLS_ALLOWED_CLIENTS: gateway,billing
+      # Revisión de facturas vencidas (cada cuántos ms; OVERDUE_ENABLED=false la apaga).
+      OVERDUE_ENABLED: ${OVERDUE_ENABLED:-true}
+      OVERDUE_CHECK_MS: ${OVERDUE_CHECK_MS:-15000}
       # Factura electrónica de PRUEBA (sandbox, sin validez legal). Solo se admite `sandbox`; los datos del emisor son ficticios (ver .env.example).
       EINVOICE_ENVIRONMENT: ${EINVOICE_ENVIRONMENT:-sandbox}
       EINVOICE_SUPPLIER_NAME: ${EINVOICE_SUPPLIER_NAME:-Velocity Softworks (sandbox)}

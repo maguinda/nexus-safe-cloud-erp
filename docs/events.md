@@ -5,6 +5,30 @@ binding keys. The producer writes the event to an `outbox` table in the same tra
 change; a relay publishes it afterwards, so a crash never loses an event. Consumers are idempotent
 (they remember the processed `eventId`) and failed messages go to a dead-letter queue.
 
+## OverdueDetected
+
+- Published by: `billing-receivables` (a periodic check every `OVERDUE_CHECK_MS`, 60 s by default; `OVERDUE_ENABLED=false` turns it off), in the same transaction that writes the outbox row
+- Routing key: `billing.invoice.overdue`
+- Consumed by: `analytics` (queue `q.analytics`), which counts it as an overdue invoice on the dashboard
+- **Once per invoice, ever:** the database has a unique outbox row per (invoice, event type) and the check skips invoices that already have one. It is sent the first time the invoice is found overdue, with the days it had then (it is not repeated each day).
+- **Overdue** = an ISSUED invoice whose due day (UTC calendar day) is **before** today's UTC day: on the due day itself it is not overdue yet. There are no payments in this MVP, so every issued invoice counts as receivable.
+
+```json
+{
+  "eventId": "7d2c1a90-4b8e-4f31-a1c5-9e0f2b3c4d5e",
+  "type": "OverdueDetected",
+  "occurredAt": "2026-11-20T00:00:00.000Z",
+  "correlationId": "overdue-20261120-1a2b3c4d",
+  "data": {
+    "invoiceNumber": "INV-0103", "milestoneId": "m2", "projectName": "Branch network upgrade", "milestoneName": "Link redundancy design",
+    "clientName": "Banco Andino (example)", "amountCop": 18500000, "taxCop": 3515000, "totalCop": 22015000,
+    "dueDate": "2026-11-17T15:00:00.000Z", "daysOverdue": 3
+  }
+}
+```
+
+- No personal data: only amounts and business names. All the events of one pass share the correlation id.
+
 ## MilestoneCreated
 
 - Published by: `projects`, in the same transaction that creates the milestone (transactional outbox)

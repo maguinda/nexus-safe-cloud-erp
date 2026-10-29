@@ -35,6 +35,17 @@ export interface IssueUnitOfWork {
   run<T>(work: (tx: IssueScope) => Promise<T>): Promise<T>;
 }
 
+/** Lo que el detector de facturas vencidas hace dentro de UNA transacción. */
+export interface OverdueScope {
+  /** Facturas emitidas con vencimiento anterior a `today` (AAAA-MM-DD, UTC) que todavía no tienen su evento OverdueDetected. Las bloquea (FOR UPDATE SKIP LOCKED): varias réplicas no se pisan. */
+  findNewlyOverdue(today: string, limit: number): Promise<Invoice[]>;
+  /** true si se escribió; false si ya había uno para esa factura (dos detectores a la vez no duplican ni fallan: el segundo simplemente no escribe). */
+  addToOutbox(event: BillingEvent): Promise<boolean>;
+}
+export interface OverdueUnitOfWork {
+  run<T>(work: (tx: OverdueScope) => Promise<T>): Promise<T>;
+}
+
 // ---------------------------------------------------------------- factura electrónica (sandbox)
 
 /** El documento tal como se guardó (inmutable salvo su estado de envío). */

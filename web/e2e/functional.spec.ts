@@ -1060,6 +1060,24 @@ test('E-invoice: an invoice of a client with no fiscal data waits; the form says
   await expect(row.getByText('Generated · sandbox')).toBeVisible();
 });
 
+const billingSql = (sql: string) => { execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d billing -Atc "${sql}"`, { cwd: join(here, '..', '..'), stdio: 'ignore' }); };
+
+test('Overdue invoices: when an issued invoice passes its due day the dashboard shows it by itself (the service notices, announces it once, and the dashboard counts it)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await openAs(page, 'manager');
+  const kpi = page.getByText('Overdue invoices', { exact: true });
+  await expect(kpi).toBeVisible();
+  const value = async () => Number(await kpi.locator('xpath=following-sibling::strong[1]').innerText());
+  const before = await value();
+  // La factura sembrada INV-0102 pasa a estar emitida hace mes y medio y vencida hace dos semanas (el reinicio de la demo la devuelve a su fecha).
+  billingSql("UPDATE invoices SET issued_at = '2026-09-01T10:00:00Z', due_date = '2026-10-01T10:00:00Z' WHERE number = 'INV-0102'");
+  await expect.poll(value, { timeout: 60_000, message: 'la tarjeta «Overdue invoices» sube sola' }).toBe(before + 1);
+  await expect(kpi.locator('xpath=following-sibling::span[1]')).toContainText('11.662.000 COP');
+  // En la lista de actividad queda dicho, con los días, y la columna del proyecto lo cuenta.
+  await expect(page.getByText(/Invoice INV-0102 is overdue by \d+ days/)).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Retail POS integration' }).getByRole('cell').nth(6)).toHaveText('1');
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');
