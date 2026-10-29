@@ -40,6 +40,24 @@ describe('parseMilestoneApproved', () => {
     expect(e.data).not.toHaveProperty('note');
   });
 
+  describe('clientName (new, optional)', () => {
+    const client = (v: unknown) => parseMilestoneApproved(ev({}, { clientName: v })).data.clientName;
+    it('an old event without it gives null; null and empty give null', () => {
+      expect(parseMilestoneApproved(ev()).data.clientName).toBeNull();
+      expect(client(null)).toBeNull(); expect(client('')).toBeNull(); expect(client('   \t ')).toBeNull();
+    });
+    it('keeps a normal name, collapses spaces and strips control and line-separator characters instead of refusing the event', () => {
+      expect(client('  Banco   Andino (example) ')).toBe('Banco Andino (example)');
+      expect(client('Banco\u0000\u0008 Andino\u2028X')).toBe('Banco Andino X');
+      expect(client('Peña 🚀')).toBe('Peña 🚀');
+    });
+    it('120 characters is the limit; 121 or a non-text value is a bad event', () => {
+      expect(client('a'.repeat(120))).toHaveLength(120);
+      expect(() => client('a'.repeat(121))).toThrow(InvalidEventError);
+      for (const bad of [5, {}, [], true]) expect(() => client(bad)).toThrow(InvalidEventError);
+    });
+  });
+
   it.each<[string, unknown]>([
     ['null', null], ['an array', []], ['a string', 'hello'],
     ['wrong type', ev({ type: 'MilestoneRejected' })],
@@ -126,7 +144,7 @@ describe('HandleMilestoneApprovedUseCase', () => {
 });
 
 describe('IssueInvoiceUseCase', () => {
-  const draft: Invoice = { number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 5, taxCop: 1, totalCop: 6, status: 'draft', approvedBy: null, approvedAt: null, createdAt: NOW, issuedAt: null, issuedBy: null, sourceEventId: null, dueDate: null };
+  const draft: Invoice = { number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 5, taxCop: 1, totalCop: 6, status: 'draft', approvedBy: null, approvedAt: null, createdAt: NOW, issuedAt: null, issuedBy: null, sourceEventId: null, dueDate: null, clientName: null };
   let outbox: BillingEvent[] = [];
   beforeEach(() => { outbox = []; });
   // Transacción simulada: si el trabajo falla, se deshacen la factura y el outbox.

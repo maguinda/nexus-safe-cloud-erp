@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { translate } from '../src/i18n';
-import { openAs, preferLanguage, waitForLoginCapacity } from './helpers';
+import { currentSessions, openAs, preferLanguage, waitForLoginCapacity } from './helpers';
 
 const here = dirname(fileURLToPath(import.meta.url));
 test.describe.configure({ mode: 'serial' });
@@ -961,6 +961,103 @@ test('Invoices: with many invoices only the first 50 are drawn, «Show more» ad
   await expect(page.getByText(`Showing 50 of ${total}`)).toBeVisible();
   await page.getByLabel('Search invoices').fill('scale m05');
   await expect(page.getByText(`Showing 1 of ${total}`)).toBeVisible();
+});
+
+const openInvoices = async (page: import('@playwright/test').Page, role: 'lead' | 'billing') => {
+  await openAs(page, role);
+  await page.getByRole('button', { name: 'Invoices', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Invoices', exact: true })).toBeVisible();
+};
+const einvPanel = (page: import('@playwright/test').Page) => page.getByRole('region', { name: 'Electronic invoice (test mode)' });
+
+test('E-invoice: only the billing analyst sees the panel, and the sandbox banner is always on screen', async ({ page }) => {
+  await openInvoices(page, 'lead');
+  await expect(page.getByText('Electronic invoice (test mode)')).toHaveCount(0);
+  const p2 = await page.context().newPage();
+  await openInvoices(p2, 'billing');
+  await expect(einvPanel(p2)).toBeVisible();
+  await expect(einvPanel(p2).getByRole('note')).toContainText('SANDBOX – NO LEGAL VALIDITY');
+  await expect(einvPanel(p2).getByRole('note')).toContainText('not valid electronic sales invoices');
+  await p2.close();
+});
+
+test('E-invoice: generate, view, download the XML, simulate the send and register the delivery of an issued invoice; every step says it is only a test', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openInvoices(page, 'billing');
+  const panel = einvPanel(page);
+  const row = panel.getByRole('row').filter({ hasText: 'INV-0101' });
+  await expect(row.getByText('Ready to generate')).toBeVisible();
+  await row.getByRole('button', { name: 'Generate document: INV-0101' }).click();
+  // El número del documento depende de cuántos se generaron antes en la corrida (otras pruebas emiten facturas y su documento sale solo): se lee del aviso.
+  const toast = page.getByText(/^INV-0101: document FE\d+ generated \(sandbox, no legal validity\)\.$/);
+  await expect(toast).toBeVisible();
+  const doc = /FE\d+/.exec(await toast.innerText())![0];
+  await expect(row.getByText('Generated · sandbox')).toBeVisible();
+  // Ver: se abre otra pestaña con la representación, que lleva el aviso y el número.
+  const popupPromise = page.waitForEvent('popup');
+  await row.getByRole('button', { name: 'View: INV-0101' }).click();
+  const popup = await popupPromise;
+  await expect(popup.getByRole('alert')).toContainText('SANDBOX – SIN VALIDEZ LEGAL', { timeout: 15_000 });
+  await expect(popup.getByRole('heading', { level: 1 })).toContainText(doc);
+  await expect(popup.locator('.qr svg')).toBeVisible();
+  await popup.close();
+  // Descargar el XML.
+  const dl = page.waitForEvent('download');
+  await row.getByRole('button', { name: 'Download XML: INV-0101' }).click();
+  const file = await dl;
+  expect(file.suggestedFilename()).toBe('INV0101.xml');
+  const xml = readFileSync((await file.path())!, 'utf8');
+  expect(xml).toContain(`<cbc:ID>${doc}</cbc:ID>`); expect(xml).toContain('SANDBOX – NO LEGAL VALIDITY'); expect(xml).toContain('<cbc:PayableAmount currencyID="COP">14280000.00</cbc:PayableAmount>');
+  // Enviar (simulado) y registrar el envío por correo.
+  await row.getByRole('button', { name: 'Send (simulated): INV-0101' }).click();
+  await expect(page.getByText('INV-0101: SIMULATED send to the sandbox. Nothing was sent to the DIAN.')).toBeVisible();
+  await expect(row.getByText('Simulated send · sandbox')).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Send (simulated): INV-0101' })).toHaveCount(0); // ya no se puede enviar otra vez
+  await row.getByRole('button', { name: 'Register delivery by email: INV-0101' }).click();
+  await expect(page.getByText('INV-0101: delivery REGISTERED. No email was sent: no mail server is connected.')).toBeVisible();
+  expect(await page.locator('text=/accepted|aceptad/i').count()).toBe(0); // en ninguna parte dice que alguien lo aceptó
+});
+
+test('E-invoice: an invoice of a client with no fiscal data waits; the form says what is wrong in its own words; with the data saved the document is generated', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const sessions = await currentSessions();
+  const as = (role: 'lead' | 'billing') => ({ Authorization: `Bearer ${sessions[role].token}` });
+  const client = `Cliente E2E ${Date.now() % 100000}`;
+  const project = await (await request.post('/projects', { headers: as('lead'), data: { name: 'Proyecto factura electrónica', client } })).json();
+  const milestone = await (await request.post(`/projects/${project.id}/milestones`, { headers: as('lead'), data: { name: 'Hito electrónico', amountCop: 2_000_000 } })).json();
+  expect((await request.post(`/milestones/${milestone.id}/approve`, { headers: as('lead') })).status()).toBe(200);
+  let invoice: { number: string } | undefined;
+  for (let i = 0; i < 40 && !invoice; i++) { invoice = (await (await request.get('/invoices', { headers: as('billing') })).json()).find((x: any) => x.milestoneName === 'Hito electrónico' && x.projectName === 'Proyecto factura electrónica'); if (!invoice) await page.waitForTimeout(500); }
+  expect(invoice, 'la factura borrador apareció sola').toBeTruthy();
+  const issuedRes = await request.patch(`/invoices/${invoice!.number}/issue`, { headers: as('billing') });
+  expect(issuedRes.status()).toBe(200);
+  expect((await issuedRes.json()).electronicStatus).toBe('pending_customer_data'); // la factura queda emitida igual
+  await openInvoices(page, 'billing');
+  const row = einvPanel(page).getByRole('row').filter({ hasText: invoice!.number });
+  await expect(row.getByText('Client data missing')).toBeVisible();
+  await expect(row.getByRole('button', { name: /^Generate document/ })).toHaveCount(0);
+  await row.getByRole('button', { name: `Client data: ${invoice!.number}` }).click();
+  const form = page.getByRole('form', { name: `Fiscal data of ${client}` });
+  await expect(form).toBeVisible();
+  // El formulario valida con sus propios avisos (sin burbujas del navegador) y no manda nada si hay errores.
+  await form.getByRole('button', { name: 'Save data' }).click();
+  await expect(form.getByText('Fill in this field.')).toHaveCount(4);
+  await form.getByLabel('NIT (with or without hyphen and check digit)').fill('900000001-9');
+  await form.getByLabel('Email').fill('x@y');
+  await form.getByLabel('Address').fill('Calle 1 # 2-3');
+  await form.getByLabel('City').fill('Cali');
+  await form.getByRole('button', { name: 'Save data' }).click();
+  await expect(form.getByText('The NIT must have 6 to 10 digits, and if it has a hyphen, the correct check digit.')).toBeVisible();
+  await expect(form.getByText('Enter a valid email.')).toBeVisible();
+  expect((await (await request.get('/customers', { headers: as('billing') })).json()).some((c: any) => c.name === client)).toBe(false);
+  // Con datos buenos: se guarda, el estado pasa a «lista» y se genera.
+  await form.getByLabel('NIT (with or without hyphen and check digit)').fill('900000001-2');
+  await form.getByLabel('Email').fill('cuentas@cliente-e2e.example');
+  await form.getByRole('button', { name: 'Save data' }).click();
+  await expect(page.getByText(`Fiscal data of ${client} saved.`)).toBeVisible();
+  await expect(row.getByText('Ready to generate')).toBeVisible();
+  await row.getByRole('button', { name: `Generate document: ${invoice!.number}` }).click();
+  await expect(row.getByText('Generated · sandbox')).toBeVisible();
 });
 
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {

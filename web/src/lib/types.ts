@@ -14,7 +14,17 @@ export interface LoginResponse { accessToken: string; expiresIn: number; user: U
 export interface Project { id: string; name: string; client: string; milestonesApproved: number; milestonesTotal: number }
 export interface Milestone { id: string; projectId: string; name: string; amountCop: number; status: 'pending' | 'approved' }
 export interface ApproveResponse { milestone: Milestone; eventId: string }
-export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null }
+export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null; clientName: string | null; electronicStatus: EInvoiceListStatus }
+
+/** Estado del documento electrónico (SANDBOX, sin validez legal) que muestra la lista de facturas. No existe «accepted». */
+export type EInvoiceListStatus = 'not_issued' | 'not_applicable' | 'pending_customer_data' | 'ready' | 'generated' | 'sandbox_simulated';
+export interface EInvoice {
+  invoiceNumber: string; number: string; cufe: string; environment: 'sandbox'; status: 'generated' | 'sandbox_simulated'; signed: false; validForDian: false;
+  legalNotice: { es: string; en: string }; customerName: string; issueDate: string; issueTime: string; dueDate: string;
+  providerRef: string | null; submittedAt: string | null; deliveries: number; createdAt: string; note?: string;
+}
+export interface Customer { name: string; nit: string; dv: number; email: string; address: string; city: string }
+export type CustomerInput = Omit<Customer, 'dv'>;
 
 export interface DashboardProject { projectName: string; milestonesPending: number; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
 export interface Dashboard {

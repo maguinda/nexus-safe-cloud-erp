@@ -101,6 +101,15 @@ services:
       TLS_KEY_PATH: /run/secrets/tls_billing_key
       TLS_CA_PATH: /run/secrets/tls_ca
       TLS_ALLOWED_CLIENTS: gateway,billing
+      # Factura electrónica de PRUEBA (sandbox, sin validez legal). Solo se admite `sandbox`; los datos del emisor son ficticios (ver .env.example).
+      EINVOICE_ENVIRONMENT: ${EINVOICE_ENVIRONMENT:-sandbox}
+      EINVOICE_SUPPLIER_NAME: ${EINVOICE_SUPPLIER_NAME:-Velocity Softworks (sandbox)}
+      EINVOICE_SUPPLIER_NIT: ${EINVOICE_SUPPLIER_NIT:-900123456}
+      EINVOICE_SUPPLIER_EMAIL: ${EINVOICE_SUPPLIER_EMAIL:-facturacion@velocity.example}
+      EINVOICE_SUPPLIER_ADDRESS: ${EINVOICE_SUPPLIER_ADDRESS:-Calle 1 No 2-3}
+      EINVOICE_SUPPLIER_CITY: ${EINVOICE_SUPPLIER_CITY:-Medellín}
+      EINVOICE_TECHNICAL_KEY: ${EINVOICE_TECHNICAL_KEY:-sandbox-technical-key-not-official}
+      EINVOICE_VERIFY_URL_BASE: ${EINVOICE_VERIFY_URL_BASE:-http://localhost:8080/sandbox/einvoice/verify?documentkey=}
     secrets: [jwt_public, tls_ca, tls_billing_cert, tls_billing_key]
 
   analytics:

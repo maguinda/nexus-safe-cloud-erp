@@ -1,5 +1,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { validateCustomer } from './domain/einvoice/customer';
+import { EInvoiceSettings } from './application/einvoice.use-cases';
 
 export interface Config {
   port: number;
@@ -10,6 +12,7 @@ export interface Config {
   consumerEnabled: boolean;
   outboxPollMs: number;
   relayEnabled: boolean;
+  einvoice: EInvoiceSettings;
 }
 
 function required(name: string): string {
@@ -29,5 +32,29 @@ export function loadConfig(): Config {
     consumerEnabled: process.env.CONSUMER_ENABLED !== 'false',
     outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
     relayEnabled: process.env.RELAY_ENABLED !== 'false',
+    einvoice: loadEInvoiceSettings(),
+  };
+}
+
+/**
+ * Datos del emisor y reglas del documento electrónico. SOLO existe el ambiente `sandbox`: pedir `production` impide arrancar, porque no hay proveedor
+ * tecnológico, certificado de firma ni habilitación de la DIAN conectados y este servicio no puede afirmar lo contrario. Los valores por defecto son
+ * ficticios (NIT inventado).
+ */
+function loadEInvoiceSettings(): EInvoiceSettings {
+  const environment = process.env.EINVOICE_ENVIRONMENT ?? 'sandbox';
+  if (environment !== 'sandbox') throw new Error(`EINVOICE_ENVIRONMENT=${environment} is not supported: only "sandbox" exists (no DIAN provider, signing certificate or habilitation is connected)`);
+  const s = validateCustomer({
+    name: process.env.EINVOICE_SUPPLIER_NAME ?? 'Velocity Softworks (sandbox)',
+    nit: process.env.EINVOICE_SUPPLIER_NIT ?? '900123456',
+    email: process.env.EINVOICE_SUPPLIER_EMAIL ?? 'facturacion@velocity.example',
+    address: process.env.EINVOICE_SUPPLIER_ADDRESS ?? 'Calle 1 No 2-3',
+    city: process.env.EINVOICE_SUPPLIER_CITY ?? 'Medellín',
+  });
+  return {
+    environment,
+    supplier: { nit: s.nit, dv: s.dv, name: s.name, address: s.address, city: s.city, email: s.email },
+    technicalKey: process.env.EINVOICE_TECHNICAL_KEY ?? 'sandbox-technical-key-not-official',
+    verifyUrlBase: process.env.EINVOICE_VERIFY_URL_BASE ?? 'http://localhost:8080/sandbox/einvoice/verify?documentkey=',
   };
 }

@@ -24,7 +24,19 @@ export const unsigned = (u: { id: string; email: string; role: string }) => `${b
 
 import { PrismaClient } from '@prisma/client';
 /** Deja solo las 2 facturas del seed, borra la bandeja de eventos y reinicia la secuencia en 103. */
+/** Los documentos electrónicos NO se pueden borrar (la base lo impide); las pruebas lo declaran dentro de su transacción, igual que el reinicio de la demo. */
+export async function wipeEInvoices(prisma: PrismaClient) {
+  await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config('erp.allow_einvoice_delete', 'on', true)`,
+    prisma.eInvoiceDelivery.deleteMany(),
+    prisma.electronicInvoice.deleteMany(),
+  ]);
+}
+
 export async function resetState(prisma: PrismaClient) {
+  await wipeEInvoices(prisma);
+  await prisma.customer.deleteMany();
+  await prisma.$executeRaw`UPDATE einvoice_numbering SET next_number = range_from, range_to = 1999, valid_from = '2026-01-01T05:00:00Z', valid_to = '2028-01-01T04:59:59Z' WHERE id = 1`;
   await prisma.invoice.deleteMany({ where: { number: { notIn: ['INV-0101', 'INV-0102'] } } });
   await prisma.processedEvent.deleteMany();
   await prisma.outboxEvent.deleteMany();

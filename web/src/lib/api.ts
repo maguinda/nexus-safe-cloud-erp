@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { Advice, ApproveResponse, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -46,6 +46,20 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     return json as T;
   }
 
+  /** Igual que `request` pero la respuesta es texto (XML o HTML), no JSON. Los errores siguen llegando en JSON. */
+  async function requestText(method: string, path: string): Promise<string> {
+    const token = getToken();
+    const res = await fetchImpl(baseUrl + path, { method, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const text = await res.text();
+    if (!res.ok) {
+      if (res.status === 401 && token) onUnauthorized();
+      let json: any = null;
+      try { json = JSON.parse(text); } catch { /* sin cuerpo JSON */ }
+      throw new ApiError(res.status, typeof json?.message === 'string' ? json.message : `Request failed (${res.status})`, json?.correlationId);
+    }
+    return text;
+  }
+
   return {
     login: (email: string, password: string) => request<LoginResponse>('POST', '/auth/login', { email, password }),
     /**
@@ -68,6 +82,14 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createMilestone: (projectId: string, name: string, amountCop: number) => request<Milestone>('POST', `/projects/${encodeURIComponent(projectId)}/milestones`, { name, amountCop }),
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
     invoices: () => request<Invoice[]>('GET', '/invoices'),
+    /** Factura electrónica de PRUEBA (sandbox, sin validez legal). El XML y el HTML llegan como texto: llevan datos fiscales del cliente y solo los pide el analista de facturación. */
+    customers: () => request<(Customer & { updatedAt: string })[]>('GET', '/customers'),
+    putCustomer: (c: CustomerInput) => request<Customer>('PUT', '/customers', c),
+    eInvoiceGenerate: (n: string) => request<EInvoice>('POST', `/invoices/${encodeURIComponent(n)}/electronic`),
+    eInvoiceXml: (n: string) => requestText('GET', `/invoices/${encodeURIComponent(n)}/electronic/xml`),
+    eInvoiceHtml: (n: string) => requestText('GET', `/invoices/${encodeURIComponent(n)}/electronic/html`),
+    eInvoiceSubmit: (n: string) => request<EInvoice>('POST', `/invoices/${encodeURIComponent(n)}/electronic/submit`),
+    eInvoiceDeliver: (n: string) => request<EInvoice>('POST', `/invoices/${encodeURIComponent(n)}/electronic/deliveries`),
     dashboard: () => request<Dashboard>('GET', '/dashboard'),
     telemetry: () => request<TelemetrySummary>('GET', '/telemetry/summary'),
     telemetryTrends: (range: RangeKey = '1d') => request<Trends>('GET', `/telemetry/trends?range=${range}`),

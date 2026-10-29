@@ -1,10 +1,13 @@
-import { Controller, Get, Inject, Param, Patch, Req } from '@nestjs/common';
+import { Controller, Get, Inject, Logger, Param, Patch, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
+import { GenerateElectronicInvoiceUseCase } from '../application/einvoice.use-cases';
 import { IssueInvoiceUseCase } from '../application/invoices.use-cases';
 import { ListInvoicesUseCase, ReconcileInvoicesUseCase } from '../application/invoices.use-cases';
 import { AuthUser, Roles } from '../auth/auth.guard';
+import { EInvoiceNotReadyError } from '../domain/errors';
 import { Invoice } from '../domain/invoice';
+import { GENERATE_EINVOICE } from './einvoice.controller';
 import { InvoiceNumberPipe } from './invoice-number.pipe';
 
 export const LIST_INVOICES = 'LIST_INVOICES';
@@ -12,7 +15,7 @@ export const ISSUE_INVOICE = 'ISSUE_INVOICE';
 export const RECONCILE_INVOICES = 'RECONCILE_INVOICES';
 
 /** Solo los campos del contrato (docs/openapi.yaml). */
-const toDto = (i: Invoice) => ({ number: i.number, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString(), dueDate: i.dueDate ? i.dueDate.toISOString() : null });
+const toDto = (i: Invoice, electronicStatus: string = 'not_issued') => ({ number: i.number, clientName: i.clientName, electronicStatus, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString(), dueDate: i.dueDate ? i.dueDate.toISOString() : null });
 
 @ApiTags('Invoices')
 @ApiBearerAuth()
@@ -22,7 +25,9 @@ export class InvoicesController {
     @Inject(LIST_INVOICES) private readonly listInvoices: ListInvoicesUseCase,
     @Inject(ISSUE_INVOICE) private readonly issueInvoice: IssueInvoiceUseCase,
     @Inject(RECONCILE_INVOICES) private readonly reconcileInvoices: ReconcileInvoicesUseCase,
+    @Inject(GENERATE_EINVOICE) private readonly generateEInvoice: GenerateElectronicInvoiceUseCase,
   ) {}
+  private readonly log = new Logger('Invoices');
 
   @Get('reconciliation')
   @Roles('project_lead', 'billing_analyst')
@@ -37,7 +42,7 @@ export class InvoicesController {
   @ApiOperation({ summary: 'List invoices (roles project_lead and billing_analyst)' })
   @ApiResponse({ status: 403, description: 'Role not allowed (sales)' })
   async list() {
-    return (await this.listInvoices.execute()).map(toDto);
+    return (await this.listInvoices.execute()).map((i) => toDto(i, i.electronicStatus));
   }
 
   @Patch(':invoiceNumber/issue')
@@ -49,6 +54,16 @@ export class InvoicesController {
   async issue(@Param('invoiceNumber', new InvoiceNumberPipe()) number: string, @Req() req: Request) {
     // Quién emite sale del token verificado, nunca del cuerpo de la petición.
     const user = (req as any).user as AuthUser;
-    return toDto(await this.issueInvoice.execute(number, user.email, (req as any).correlationId));
+    const issued = await this.issueInvoice.execute(number, user.email, (req as any).correlationId);
+    // Emitir es lo que cuenta (dinero): el documento electrónico se intenta DESPUÉS, en su propia transacción, y si no se puede (falta el cliente o sus datos
+    // fiscales) la factura queda emitida igual y el documento se genera cuando haya datos. Nunca se deshace una emisión por esto.
+    let electronicStatus = 'ready';
+    try {
+      electronicStatus = (await this.generateEInvoice.execute(number)).document.status;
+    } catch (e) {
+      if (e instanceof EInvoiceNotReadyError) electronicStatus = issued.clientName ? 'pending_customer_data' : 'not_applicable';
+      else this.log.warn(`${(req as any).correlationId} the electronic document of ${number} could not be generated now: ${e instanceof Error ? e.name : 'error'}`);
+    }
+    return toDto(issued, electronicStatus);
   }
 }

@@ -12,6 +12,8 @@ export interface MilestoneApprovedEvent {
     milestoneName: string;
     projectId: string;
     projectName: string;
+    /** El cliente del proyecto: con él facturación sabe a quién se factura (datos fiscales en su propio servicio, nunca por el bus). */
+    clientName: string;
     amountCop: number;
     approvedBy: string;
   };
@@ -40,7 +42,7 @@ export function milestoneCreated(m: Milestone, projectName: string, correlationI
   };
 }
 
-export function milestoneApproved(m: Milestone, projectName: string, correlationId: string, now: Date): MilestoneApprovedEvent {
+export function milestoneApproved(m: Milestone, projectName: string, clientName: string, correlationId: string, now: Date): MilestoneApprovedEvent {
   return {
     eventId: randomUUID(),
     type: 'MilestoneApproved',
@@ -51,6 +53,7 @@ export function milestoneApproved(m: Milestone, projectName: string, correlation
       milestoneName: m.name,
       projectId: m.projectId,
       projectName,
+      clientName,
       amountCop: m.amountCop,
       approvedBy: m.approvedBy as string,
     },

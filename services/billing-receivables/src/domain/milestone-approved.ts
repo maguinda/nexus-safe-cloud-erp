@@ -7,7 +7,7 @@ export interface MilestoneApprovedEvent {
   type: 'MilestoneApproved';
   occurredAt: string;
   correlationId: string;
-  data: { milestoneId: string; milestoneName: string; projectId: string; projectName: string; amountCop: number; approvedBy: string };
+  data: { milestoneId: string; milestoneName: string; projectId: string; projectName: string; clientName: string | null; amountCop: number; approvedBy: string };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,6 +18,18 @@ const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}$/;
 function text(v: unknown, field: string, max = 200): string {
   if (typeof v !== 'string' || v.trim().length === 0 || v.length > max) throw new InvalidEventError(`${field} must be a non-empty string up to ${max} chars`);
   return v;
+}
+
+/**
+ * El cliente del proyecto se LIMPIA (no se rechaza): sin caracteres de control y con los espacios repetidos en uno. Rechazar el evento dejaría al hito sin factura;
+ * y un nombre con caracteres de control nunca podría coincidir con los datos fiscales (que no los admiten). Queda vacío = sin cliente (null). Máximo 120.
+ */
+export function cleanClientName(v: unknown): string | null {
+  if (typeof v !== 'string') throw new InvalidEventError('clientName must be a string');
+  // eslint-disable-next-line no-control-regex
+  const t = v.normalize('NFC').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (t.length > 120) throw new InvalidEventError('clientName must be up to 120 chars');
+  return t === '' ? null : t;
 }
 
 /** Todo lo que llega por el bus es entrada no confiable: se valida antes de tocar la base de datos. */
@@ -34,6 +46,8 @@ export function parseMilestoneApproved(raw: unknown): MilestoneApprovedEvent {
   if (typeof d.projectId !== 'string' || !ID.test(d.projectId)) throw new InvalidEventError('projectId has an invalid format');
   if (!Number.isInteger(d.amountCop) || d.amountCop < 1 || d.amountCop > MAX_SUBTOTAL_COP) throw new InvalidEventError(`amountCop must be an integer between 1 and ${MAX_SUBTOTAL_COP}`);
   if (typeof d.approvedBy !== 'string' || d.approvedBy.length > 254 || !EMAIL.test(d.approvedBy)) throw new InvalidEventError('approvedBy must be an email');
+  // clientName es nuevo: los eventos viejos no lo traen (null); si viene, se valida como cualquier texto.
+  const clientName = d.clientName === undefined || d.clientName === null ? null : cleanClientName(d.clientName);
   return {
     eventId: e.eventId.toLowerCase(),
     type: 'MilestoneApproved',
@@ -44,6 +58,7 @@ export function parseMilestoneApproved(raw: unknown): MilestoneApprovedEvent {
       milestoneName: text(d.milestoneName, 'milestoneName'),
       projectId: d.projectId,
       projectName: text(d.projectName, 'projectName'),
+      clientName,
       amountCop: d.amountCop,
       approvedBy: d.approvedBy,
     },

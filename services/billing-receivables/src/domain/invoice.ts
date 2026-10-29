@@ -21,6 +21,8 @@ export interface Invoice {
   approvedAt: Date | null;
   /** Solo las emitidas: fecha de emisión + 30 días (domain/due-date.ts). */
   dueDate: Date | null;
+  /** El cliente del proyecto (viene en MilestoneApproved); null en las facturas anteriores a ese campo. */
+  clientName: string | null;
 }
 
 /** Regla: una factura solo se emite una vez (draft -> issued) y al emitirse queda con su fecha de vencimiento. No muta el original. */

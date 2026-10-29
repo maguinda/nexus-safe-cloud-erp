@@ -1,0 +1,5 @@
+[
+  { "name": "Banco Andino (example)", "key": "banco andino (example)", "nit": "900000001", "dv": 2, "email": "cuentas@banco-andino.example", "address": "Carrera 7 # 71-21", "city": "Bogotá" },
+  { "name": "Retail Norte (example)", "key": "retail norte (example)", "nit": "900000002", "dv": 1, "email": "facturas@retail-norte.example", "address": "Calle 10 # 4-33", "city": "Barranquilla" },
+  { "name": "Pyme Sur (example)", "key": "pyme sur (example)", "nit": "900000003", "dv": 7, "email": "contabilidad@pyme-sur.example", "address": "Avenida 5N # 23-40", "city": "Cali" }
+]

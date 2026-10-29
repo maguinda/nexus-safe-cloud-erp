@@ -16,7 +16,7 @@ function fakeUow(initial: Milestone[]) {
       const snapStore = new Map(store);
       const snapOutbox = [...outbox];
       const tx: TransactionScope = {
-        findMilestoneForUpdate: async (id) => (store.has(id) ? { milestone: store.get(id) as Milestone, projectName: 'Branch network upgrade' } : null),
+        findMilestoneForUpdate: async (id) => (store.has(id) ? { milestone: store.get(id) as Milestone, projectName: 'Branch network upgrade', clientName: 'Banco Andino (example)' } : null),
         saveMilestone: async (m) => { store.set(m.id, m); },
         findProjectName: async () => 'Branch network upgrade',
         insertMilestone: async (m) => { store.set(m.id, m); },
@@ -37,7 +37,7 @@ describe('ApproveMilestoneUseCase', () => {
     expect(db.outbox).toHaveLength(1);
     expect(db.outbox[0]).toMatchObject({
       eventId: r.eventId, type: 'MilestoneApproved', occurredAt: NOW.toISOString(), correlationId: 'corr-1',
-      data: { milestoneId: 'm2', projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 18_500_000, approvedBy: 'laura.rios@nexus.example' },
+      data: { milestoneId: 'm2', projectId: 'p1', projectName: 'Branch network upgrade', clientName: 'Banco Andino (example)', amountCop: 18_500_000, approvedBy: 'laura.rios@nexus.example' },
     });
   });
 

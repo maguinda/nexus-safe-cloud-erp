@@ -6,7 +6,7 @@ import type { Invoice } from './types';
 
 const inv = (number: string, o: Partial<Invoice> = {}): Invoice => ({
   number, projectName: 'Branch network upgrade', milestoneName: 'Site survey', amountCop: 1000, taxCop: 190, totalCop: 1190,
-  status: 'issued', createdAt: '2026-10-18T10:00:00.000Z', dueDate: '2026-11-17T10:00:00.000Z', ...o,
+  status: 'issued', createdAt: '2026-10-18T10:00:00.000Z', dueDate: '2026-11-17T10:00:00.000Z', clientName: null, electronicStatus: 'not_applicable', ...o,
 });
 const draft = (number: string, o: Partial<Invoice> = {}) => inv(number, { status: 'draft', dueDate: null, ...o });
 const nums = (l: Invoice[]) => l.map((i) => i.number);

@@ -640,6 +640,113 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /customers:
+    get:
+      tags: [Customers (fiscal data)]
+      operationId: listCustomers
+      summary: 'Fiscal data of the clients (personal data, role billing_analyst only)'
+      responses:
+        '200': { description: The clients with NIT, check digit, email, address and city, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Customer' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Customers (fiscal data)]
+      operationId: putCustomer
+      summary: "Create or update the fiscal data of a client (role billing_analyst). Documents already generated keep their own copy."
+      description: "One client per normalized name (no case, accents or extra spaces). The NIT is 6 to 10 digits, optionally with -DV, and the check digit must be right."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Customer' } } } }
+        '400': { description: 'Invalid data (NIT, check digit, email, texts)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /invoices/{invoiceNumber}/electronic:
+    post:
+      tags: [Electronic invoice (sandbox)]
+      operationId: generateElectronicInvoice
+      summary: "Generate the SANDBOX electronic document of an issued invoice (role billing_analyst). NOT legally valid."
+      description: |
+        Builds a UBL 2.1 document with its CUFE (SHA-384 of the Anexo Técnico formula, computed with a TEST technical key, so it is not an official CUFE) and QR text. **SANDBOX – NO LEGAL VALIDITY:**
+        it is not signed, it is never sent to the DIAN and it is not a valid electronic sales invoice. A valid one needs a technology provider authorized by the DIAN, a signing certificate,
+        a current numbering resolution and the production environment, none of which is connected. Idempotent: asking twice returns the same document. The consecutive comes from a counter row taken inside the
+        same transaction (no gaps, no repeats); the numbering range is a SANDBOX range.
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '201': { description: Generated now, content: { application/json: { schema: { $ref: '#/components/schemas/ElectronicInvoice' } } } }
+        '200': { description: It already existed (same document), content: { application/json: { schema: { $ref: '#/components/schemas/ElectronicInvoice' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Not ready: not issued, no client, fiscal data of the client missing, the numbering resolution is not valid on the issue date, the IVA is not 19 % of the subtotal, or the range is exhausted', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      tags: [Electronic invoice (sandbox)]
+      operationId: getElectronicInvoice
+      summary: "Status of the electronic document, without personal data of the client (role billing_analyst)"
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '200': { description: The document status, content: { application/json: { schema: { $ref: '#/components/schemas/ElectronicInvoice' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /invoices/{invoiceNumber}/electronic/xml:
+    get:
+      tags: [Electronic invoice (sandbox)]
+      operationId: downloadElectronicInvoiceXml
+      summary: "Download the UBL 2.1 XML (unsigned, sandbox) (role billing_analyst)"
+      description: "Served as an attachment with nosniff. It carries the fiscal data of both parties and the legal notice in Spanish and English."
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '200': { description: The XML, content: { application/xml: { schema: { type: string } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /invoices/{invoiceNumber}/electronic/html:
+    get:
+      tags: [Electronic invoice (sandbox)]
+      operationId: viewElectronicInvoiceHtml
+      summary: "Printable representation with the QR and the sandbox banner (role billing_analyst)"
+      description: "Built from the invoice as it was when the document was generated. Every text is escaped; the page has no scripts and carries its own content security policy (also sent as a header)."
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '200': { description: The page, content: { text/html: { schema: { type: string } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /invoices/{invoiceNumber}/electronic/submit:
+    post:
+      tags: [Electronic invoice (sandbox)]
+      operationId: submitElectronicInvoice
+      summary: "SIMULATE the send to the provider (role billing_analyst)"
+      description: "The status becomes `sandbox_simulated` with a SANDBOX-… reference. There is no `accepted` status anywhere. The first call wins; later calls return the same reference."
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '200': { description: Simulated, content: { application/json: { schema: { $ref: '#/components/schemas/ElectronicInvoice' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /invoices/{invoiceNumber}/electronic/deliveries:
+    post:
+      tags: [Electronic invoice (sandbox)]
+      operationId: registerElectronicInvoiceDelivery
+      summary: "REGISTER a delivery by email to the client address stored in the document (role billing_analyst)"
+      description: "Nothing is sent: no mail server is connected. The recipient cannot be chosen. At most 20 records per document; the 21st answers 409."
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '201': { description: Registered (note says no email was sent), content: { application/json: { schema: { $ref: '#/components/schemas/ElectronicInvoice' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The delivery registry of the document is full, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 components:
   securitySchemes:
     bearerAuth:
@@ -770,8 +877,52 @@ components:
         taxCop: { type: integer, description: 'IVA 19 %, whole pesos, rounded to the nearest peso (halves up)', example: 3515000 }
         totalCop: { type: integer, description: subtotal + tax, example: 22015000 }
         status: { type: string, enum: [draft, issued] }
+        clientName: { type: string, nullable: true, description: 'The client of the project (it comes in MilestoneApproved); null in invoices older than that field' }
+        electronicStatus: { type: string, enum: [not_issued, not_applicable, pending_customer_data, ready, generated, sandbox_simulated], description: 'SANDBOX electronic document: not_issued (draft), not_applicable (no client), pending_customer_data, ready (can be generated), generated, sandbox_simulated. There is no accepted status.' }
         createdAt: { type: string, format: date-time }
         dueDate: { type: string, format: date-time, nullable: true, description: 'Issue date + 30 calendar days (UTC). null while the invoice is a draft; set when it is issued.', example: '2026-11-17T10:00:00.000Z' }
+    Customer:
+      type: object
+      required: [name, nit, dv, email, address, city]
+      properties:
+        name: { type: string, maxLength: 120, example: Banco Andino (example) }
+        nit: { type: string, example: '900000001', description: Digits only, as written }
+        dv: { type: integer, minimum: 0, maximum: 9, example: 2, description: Check digit computed from the NIT }
+        email: { type: string, example: cuentas@banco.example }
+        address: { type: string, maxLength: 200 }
+        city: { type: string, maxLength: 80 }
+    CustomerInput:
+      type: object
+      additionalProperties: false
+      required: [name, nit, email, address, city]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120, description: The client name of the project }
+        nit: { type: string, description: '6 to 10 digits, optionally with -DV (it must match the computed check digit); dots and spaces are ignored', example: '900.000.001-2' }
+        email: { type: string, maxLength: 254 }
+        address: { type: string, maxLength: 200 }
+        city: { type: string, maxLength: 80 }
+    ElectronicInvoice:
+      type: object
+      description: 'SANDBOX document status. It never carries the NIT, email or address of the client (they are only inside the XML and the HTML).'
+      required: [invoiceNumber, number, cufe, environment, status, signed, validForDian, legalNotice]
+      properties:
+        invoiceNumber: { type: string, example: INV-0103 }
+        number: { type: string, example: FE1000, description: Prefix + consecutive of the (sandbox) numbering range }
+        cufe: { type: string, description: '96 hexadecimal characters; computed with a TEST technical key, not official' }
+        environment: { type: string, enum: [sandbox] }
+        status: { type: string, enum: [generated, sandbox_simulated], description: There is no accepted status }
+        signed: { type: boolean, enum: [false] }
+        validForDian: { type: boolean, enum: [false] }
+        legalNotice: { type: object, properties: { es: { type: string }, en: { type: string } } }
+        customerName: { type: string }
+        issueDate: { type: string, example: '2026-10-29', description: Colombia time (UTC-5) }
+        issueTime: { type: string, example: '10:15:30-05:00' }
+        dueDate: { type: string, example: '2026-11-28', description: Issue date + 30 days, Colombia calendar }
+        providerRef: { type: string, nullable: true, example: SANDBOX-xxxx }
+        submittedAt: { type: string, format: date-time, nullable: true }
+        deliveries: { type: integer, description: Delivery records (nothing was sent) }
+        createdAt: { type: string, format: date-time }
+        note: { type: string, description: Only on the delivery answer }
     Dashboard:
       type: object
       required: [asOf, freshness, totals, projects, recentActivity]

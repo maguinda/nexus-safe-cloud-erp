@@ -20,7 +20,7 @@ export interface ProjectQueries {
 /** Lo que se puede hacer dentro de UNA transacción de base de datos. */
 export interface TransactionScope {
   /** Bloquea la fila del hito hasta el final de la transacción (SELECT ... FOR UPDATE). */
-  findMilestoneForUpdate(id: string): Promise<{ milestone: Milestone; projectName: string } | null>;
+  findMilestoneForUpdate(id: string): Promise<{ milestone: Milestone; projectName: string; clientName: string } | null>;
   saveMilestone(m: Milestone): Promise<void>;
   /** El nombre del proyecto, o null si no existe. */
   findProjectName(projectId: string): Promise<string | null>;

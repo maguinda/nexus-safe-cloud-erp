@@ -44,7 +44,7 @@ class PrismaInboxScope implements InboxScope {
 
   async insertInvoice(i: Invoice): Promise<void> {
     await this.tx.invoice.create({
-      data: { number: i.number, milestoneId: i.milestoneId, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt, sourceEventId: i.sourceEventId, approvedBy: i.approvedBy, approvedAt: i.approvedAt },
+      data: { number: i.number, milestoneId: i.milestoneId, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt, sourceEventId: i.sourceEventId, approvedBy: i.approvedBy, approvedAt: i.approvedAt, clientName: i.clientName },
     });
   }
 }
@@ -63,7 +63,7 @@ class PrismaIssueScope implements IssueScope {
     // FOR UPDATE: dos personas emitiendo la misma factura a la vez no pueden ganar las dos.
     const rows = await this.tx.$queryRaw<any[]>`
       SELECT number, milestone_id AS "milestoneId", project_name AS "projectName", milestone_name AS "milestoneName", amount_cop AS "amountCop", tax_cop AS "taxCop", total_cop AS "totalCop",
-             status::text AS status, created_at AS "createdAt", issued_at AS "issuedAt", issued_by AS "issuedBy", source_event_id AS "sourceEventId", approved_by AS "approvedBy", approved_at AS "approvedAt", due_date AS "dueDate"
+             status::text AS status, created_at AS "createdAt", issued_at AS "issuedAt", issued_by AS "issuedBy", source_event_id AS "sourceEventId", approved_by AS "approvedBy", approved_at AS "approvedAt", due_date AS "dueDate", client_name AS "clientName"
       FROM invoices WHERE number = ${number} FOR UPDATE`;
     return rows[0] ? toDomain(rows[0]) : null;
   }

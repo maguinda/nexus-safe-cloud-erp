@@ -169,6 +169,14 @@ El token de acceso (JWT) dura 15 minutos. Al iniciar sesión, identity también 
 - **Detrás de un balanceador:** pon sus direcciones en `TRUSTED_PROXIES` (CIDR separados por comas) para que el límite de peticiones use la IP real de cada persona. Vacío (lo normal) no se confía en nadie y el `X-Forwarded-For` del cliente se ignora. Se comprueba con `./scripts/gateway-real-ip-check.sh`.
 - **HTTPS y cookie `Secure`:** `docker compose -f docker-compose.yml -f docker-compose.docs.yml -f docker-compose.https.yml up -d identity gateway` abre `https://localhost:8443` con un certificado de la CA de desarrollo y pone `COOKIE_SECURE=true`; `cd web && npm run test:e2e:https` lo prueba en Chromium y WebKit. No lo dejes puesto para la demo normal.
 
+## Factura electrónica (modo de prueba, SIN validez legal)
+Desde **Facturas**, el analista de facturación (`andres.mora@`) ve el panel **«Factura electrónica (modo de prueba)»**. Cada factura emitida puede convertirse en un documento UBL 2.1 con su CUFE y su código QR; se puede ver, descargar el XML, simular el envío y registrar el envío por correo.
+- **Léelo antes de usarlo:** es un *sandbox*. El documento **no está firmado, no se envía a la DIAN y no es una factura electrónica de venta válida**; el aviso va en el XML, en la página y en la API. Para que tuviera validez hacen falta un proveedor tecnológico autorizado por la DIAN, un certificado de firma, una resolución de numeración real y el ambiente de producción, que no están conectados. «Enviar» solo SIMULA (el estado es `sandbox_simulated`, nunca «aceptada») y «Registrar envío por correo» solo REGISTRA: no hay servidor de correo.
+- **Datos del cliente:** la primera vez que se factura a un cliente hay que cargar sus datos fiscales (botón «Datos del cliente»: NIT con su dígito de verificación, correo, dirección y ciudad). Los tres clientes de la demo (Banco Andino, Retail Norte y Pyme Sur) ya traen datos **ficticios**; un cliente nuevo hace que el documento espere en «Faltan datos del cliente» y la factura queda emitida igual.
+- **Numeración:** rango de PRUEBA FE1000–FE1999 en la tabla `einvoice_numbering`; el consecutivo no tiene huecos aunque algo falle a mitad. `./scripts/reset-demo.sh` lo reinicia y borra los documentos de prueba.
+- **Variables** (todas opcionales; ver `.env.example`): `EINVOICE_SUPPLIER_*` (datos del emisor, ficticios por defecto) y `EINVOICE_TECHNICAL_KEY` (clave técnica de PRUEBA: el CUFE no es oficial). `EINVOICE_ENVIRONMENT=production` no existe: billing no arranca.
+- **API:** `POST|GET /invoices/{n}/electronic`, `GET …/xml`, `GET …/html`, `POST …/submit`, `POST …/deliveries` y `GET|PUT /customers` (todas solo `billing_analyst`); detalle en `docs/openapi.yaml`.
+
 ## Idioma de la interfaz (español e inglés)
 
 La interfaz está en **español por defecto** y cada persona puede pasarla a inglés desde su perfil.

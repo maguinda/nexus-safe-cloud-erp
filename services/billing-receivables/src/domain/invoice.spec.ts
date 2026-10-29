@@ -3,7 +3,7 @@ import { Invoice, issue } from './invoice';
 
 const draft: Invoice = {
   number: 'INV-0103', milestoneId: 'm2', projectName: 'P', milestoneName: 'M', amountCop: 1000, taxCop: 190, totalCop: 1190, status: 'draft',
-  createdAt: new Date('2026-10-18T05:00:00Z'), issuedAt: null, issuedBy: null, sourceEventId: null, approvedBy: null, approvedAt: null, dueDate: null,
+  createdAt: new Date('2026-10-18T05:00:00Z'), issuedAt: null, issuedBy: null, sourceEventId: null, approvedBy: null, approvedAt: null, dueDate: null, clientName: null,
 };
 
 describe('issue', () => {

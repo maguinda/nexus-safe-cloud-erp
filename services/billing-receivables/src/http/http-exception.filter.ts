@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { InvoiceNotDraftError, InvoiceNotFoundError } from '../domain/errors';
+import { DeliveryLimitError, EInvoiceNotFoundError, EInvoiceNotReadyError, InvalidCustomerError, InvoiceNotDraftError, InvoiceNotFoundError, NumberingExhaustedError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (docs/openapi.yaml, schema Error). */
 @Catch()
@@ -16,8 +16,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let error = 'Internal Server Error';
     let message = 'Unexpected error';
 
-    if (err instanceof InvoiceNotFoundError) {
+    if (err instanceof InvoiceNotFoundError || err instanceof EInvoiceNotFoundError) {
       statusCode = 404; error = 'Not Found'; message = err.message;
+    } else if (err instanceof InvalidCustomerError) {
+      statusCode = 400; error = 'Bad Request'; message = err.message;
+    } else if (err instanceof EInvoiceNotReadyError || err instanceof NumberingExhaustedError || err instanceof DeliveryLimitError) {
+      statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof InvoiceNotDraftError) {
       statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof HttpException) {
