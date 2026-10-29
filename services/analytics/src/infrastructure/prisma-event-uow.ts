@@ -14,7 +14,7 @@ export class PrismaEventUnitOfWork implements EventUnitOfWork {
 
 const toFact = (r: any): Fact => ({
   milestoneId: r.milestoneId, projectId: r.projectId, projectName: r.projectName, milestoneName: r.milestoneName, amountCop: r.amountCop,
-  approvedBy: r.approvedBy, approvedAt: r.approvedAt, invoiceNumber: r.invoiceNumber, invoiceStatus: r.invoiceStatus, taxCop: r.taxCop, totalCop: r.totalCop,
+  createdAt: r.createdAt, approvedBy: r.approvedBy, approvedAt: r.approvedAt, invoiceNumber: r.invoiceNumber, invoiceStatus: r.invoiceStatus, taxCop: r.taxCop, totalCop: r.totalCop,
   draftedAt: r.draftedAt, issuedAt: r.issuedAt,
 });
 
@@ -35,17 +35,17 @@ class PrismaEventScope implements EventScope {
       VALUES (${d.milestoneId}, ${d.projectName}, ${d.milestoneName}, ${d.amountCop}) ON CONFLICT (milestone_id) DO NOTHING`;
     const rows = await this.tx.$queryRaw<any[]>`
       SELECT milestone_id AS "milestoneId", project_id AS "projectId", project_name AS "projectName", milestone_name AS "milestoneName", amount_cop AS "amountCop",
-             approved_by AS "approvedBy", approved_at AS "approvedAt", invoice_number AS "invoiceNumber", invoice_status::text AS "invoiceStatus",
+             created_at AS "createdAt", approved_by AS "approvedBy", approved_at AS "approvedAt", invoice_number AS "invoiceNumber", invoice_status::text AS "invoiceStatus",
              tax_cop AS "taxCop", total_cop AS "totalCop", drafted_at AS "draftedAt", issued_at AS "issuedAt"
       FROM milestone_facts WHERE milestone_id = ${d.milestoneId} FOR UPDATE`;
     const prev = rows[0] ? toFact(rows[0]) : null;
     // La fila recién creada solo trae lo mínimo: se trata como «sin información previa» para que mande el evento.
-    const isFresh = !!prev && prev.approvedAt === null && prev.invoiceNumber === null;
+    const isFresh = !!prev && prev.createdAt === null && prev.approvedAt === null && prev.invoiceNumber === null;
     const f = merge(isFresh ? null : prev);
     await this.tx.milestoneFact.update({
       where: { milestoneId: f.milestoneId },
       data: {
-        projectId: f.projectId, projectName: f.projectName, milestoneName: f.milestoneName, amountCop: f.amountCop, approvedBy: f.approvedBy, approvedAt: f.approvedAt,
+        projectId: f.projectId, projectName: f.projectName, milestoneName: f.milestoneName, amountCop: f.amountCop, createdAt: f.createdAt, approvedBy: f.approvedBy, approvedAt: f.approvedAt,
         invoiceNumber: f.invoiceNumber, invoiceStatus: f.invoiceStatus, taxCop: f.taxCop, totalCop: f.totalCop, draftedAt: f.draftedAt, issuedAt: f.issuedAt, updatedAt: new Date(),
       },
     });

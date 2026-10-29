@@ -64,6 +64,7 @@ export function DashboardView() {
       {stale && <p className={s.warn} role="status">{t('dashboard.stale', { error })}</p>}
 
       <div className={ui.kpis}>
+        <KpiCard icon="clock" tone={tot.milestonesPending.count > 0 ? 'warn' : undefined} label={t('dashboard.kpi.pending')} value={tot.milestonesPending.count} sub={t('dashboard.copAmount', { amount: formatCop(tot.milestonesPending.cop) })} />
         <KpiCard icon="check" tone="ok" label={t('dashboard.kpi.approved')} value={tot.milestonesApproved} sub={t('dashboard.copAmount', { amount: formatCop(tot.approvedCop) })} />
         <KpiCard icon="hourglass" tone={tot.waitingForInvoice.count > 0 ? 'warn' : undefined} label={t('dashboard.kpi.waiting')} value={tot.waitingForInvoice.count} sub={t('dashboard.copAmount', { amount: formatCop(tot.waitingForInvoice.cop) })} />
         <KpiCard icon="document" label={t('dashboard.kpi.draft')} value={tot.draft.count} sub={t('dashboard.copWithIva', { amount: formatCop(tot.draft.totalCop) })} />
@@ -75,13 +76,14 @@ export function DashboardView() {
         <div className={ui.scroll}>
           <table className={`${ui.table} ${ui.cardsOnPhone}`}>
             <caption className={s.sr}>{t('dashboard.projectsCaption')}</caption>
-            <thead><tr><th>{t('dashboard.col.project')}</th><th className={ui.num}>{t('dashboard.col.approved')}</th><th className={ui.num}>{t('dashboard.col.waiting')}</th><th className={ui.num}>{t('dashboard.col.draft')}</th><th className={ui.num}>{t('dashboard.col.issued')}</th></tr></thead>
+            <thead><tr><th>{t('dashboard.col.project')}</th><th className={ui.num}>{t('dashboard.col.pending')}</th><th className={ui.num}>{t('dashboard.col.approved')}</th><th className={ui.num}>{t('dashboard.col.waiting')}</th><th className={ui.num}>{t('dashboard.col.draft')}</th><th className={ui.num}>{t('dashboard.col.issued')}</th></tr></thead>
             <tbody>
               {data.projects.length === 0
-                ? <tr><td colSpan={5} className={ui.muted}>{t('dashboard.noProjects')}</td></tr>
+                ? <tr><td colSpan={6} className={ui.muted}>{t('dashboard.noProjects')}</td></tr>
                 : data.projects.map((p) => (
                   <tr key={p.projectName}>
                     <td>{p.projectName}</td>
+                    <td className={ui.num} data-label={t('dashboard.col.pending')}>{p.milestonesPending}</td>
                     <td className={ui.num} data-label={t('dashboard.col.approved')}>{p.milestonesApproved} · {formatCop(p.approvedCop)}</td>
                     <td className={ui.num} data-label={t('dashboard.col.waiting')}>{p.waitingForInvoice}</td>
                     <td className={ui.num} data-label={t('dashboard.col.draft')}>{formatCop(p.draftTotalCop)}</td>

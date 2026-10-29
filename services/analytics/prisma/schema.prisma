@@ -21,6 +21,8 @@ model MilestoneFact {
   milestoneName String         @map("milestone_name")
   /// Subtotal aprobado (antes de IVA).
   amountCop     Int            @map("amount_cop")
+  /// Cuándo se creó el hito (evento MilestoneCreated); null en los anteriores a ese evento. Sin approvedAt = pendiente.
+  createdAt     DateTime?      @map("created_at")
   approvedBy    String?        @map("approved_by")
   approvedAt    DateTime?      @map("approved_at")
   invoiceNumber String?        @map("invoice_number")

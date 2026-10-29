@@ -1,7 +1,8 @@
 import { InvalidInputError, ProjectNotFoundError } from '../domain/errors';
 import { newMilestone } from '../domain/milestone';
 import { MAX_MILESTONE_AMOUNT_COP, newProject } from '../domain/project';
-import { ProjectCommands } from '../domain/ports';
+import { ProjectEvent, routingKeyOf } from '../domain/events';
+import { ProjectCommands, TransactionScope, UnitOfWork } from '../domain/ports';
 import { CreateMilestoneUseCase, CreateProjectUseCase } from './create.use-cases';
 
 describe('newProject', () => {
@@ -33,14 +34,25 @@ describe('newMilestone', () => {
 });
 
 describe('create use cases', () => {
-  const fake = (known: string[] = ['p1']) => {
-    const projects: any[] = []; const milestones: any[] = [];
-    const commands: ProjectCommands = {
-      insertProject: async (p) => { projects.push(p); },
-      insertMilestone: async (m) => { if (!known.includes(m.projectId)) return false; milestones.push(m); return true; },
+  /** Base en memoria con transacción simulada: si el trabajo falla, no queda nada (ni el hito ni su evento). */
+  const fake = (known: string[] = ['p1'], failOutbox = false) => {
+    const projects: any[] = []; let milestones: any[] = []; let outbox: ProjectEvent[] = [];
+    const commands: ProjectCommands = { insertProject: async (p) => { projects.push(p); } };
+    const uow: UnitOfWork = {
+      async run(work) {
+        const snapM = [...milestones], snapO = [...outbox];
+        const tx: TransactionScope = {
+          findMilestoneForUpdate: async () => null, saveMilestone: async () => undefined,
+          findProjectName: async (id) => (known.includes(id) ? 'Branch network upgrade' : null),
+          insertMilestone: async (m) => { milestones.push(m); },
+          addToOutbox: async (e) => { if (failOutbox) throw new Error('outbox down'); outbox.push(e); },
+        };
+        try { return await work(tx); } catch (e) { milestones = snapM; outbox = snapO; throw e; }
+      },
     };
-    return { commands, projects, milestones };
+    return { commands, uow, projects, get milestones() { return milestones; }, get outbox() { return outbox; } };
   };
+  const NOW = new Date('2026-10-28T12:00:00.000Z');
   it('CreateProject stores the project and answers with zero milestones', async () => {
     const f = fake();
     const r = await new CreateProjectUseCase(f.commands).execute('P', 'C');
@@ -54,18 +66,35 @@ describe('create use cases', () => {
   });
   it('CreateMilestone stores a pending milestone for an existing project', async () => {
     const f = fake();
-    const m = await new CreateMilestoneUseCase(f.commands).execute('p1', 'Design', 5_000_000);
+    const m = await new CreateMilestoneUseCase(f.uow, () => NOW).execute('p1', 'Design', 5_000_000, 'corr-1');
     expect(f.milestones).toEqual([m]);
     expect(m.status).toBe('pending');
   });
-  it('CreateMilestone answers "not found" for an unknown project and stores nothing', async () => {
+  it('CreateMilestone writes the MilestoneCreated event in the same transaction, with the project name and the correlation id', async () => {
     const f = fake();
-    await expect(new CreateMilestoneUseCase(f.commands).execute('nope', 'Design', 5)).rejects.toBeInstanceOf(ProjectNotFoundError);
+    const m = await new CreateMilestoneUseCase(f.uow, () => NOW).execute('p1', 'Design', 5_000_000, 'corr-1');
+    expect(f.outbox).toHaveLength(1);
+    expect(f.outbox[0]).toMatchObject({
+      type: 'MilestoneCreated', occurredAt: NOW.toISOString(), correlationId: 'corr-1',
+      data: { milestoneId: m.id, milestoneName: 'Design', projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 5_000_000 },
+    });
+    expect(routingKeyOf(f.outbox[0])).toBe('project.milestone.created');
+  });
+  it('if the event cannot be written the milestone is NOT left behind (all or nothing)', async () => {
+    const f = fake(['p1'], true);
+    await expect(new CreateMilestoneUseCase(f.uow).execute('p1', 'Design', 5, 'corr-1')).rejects.toThrow('outbox down');
     expect(f.milestones).toHaveLength(0);
+  });
+  it('CreateMilestone answers "not found" for an unknown project and stores neither the milestone nor an event', async () => {
+    const f = fake();
+    await expect(new CreateMilestoneUseCase(f.uow).execute('nope', 'Design', 5, 'corr-1')).rejects.toBeInstanceOf(ProjectNotFoundError);
+    expect(f.milestones).toHaveLength(0);
+    expect(f.outbox).toHaveLength(0);
   });
   it('CreateMilestone validates BEFORE touching the database', async () => {
     const f = fake();
-    await expect(new CreateMilestoneUseCase(f.commands).execute('p1', 'Design', -5)).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(new CreateMilestoneUseCase(f.uow).execute('p1', 'Design', -5, 'corr-1')).rejects.toBeInstanceOf(InvalidInputError);
     expect(f.milestones).toHaveLength(0);
+    expect(f.outbox).toHaveLength(0);
   });
 });

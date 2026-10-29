@@ -10,6 +10,8 @@ export interface Fact {
   milestoneName: string;
   /** Subtotal aprobado (antes de IVA). */
   amountCop: number;
+  /** Cuándo se creó el hito (lo dice MilestoneCreated); null en los hitos anteriores a ese evento. Sin `approvedAt` = pendiente. */
+  createdAt: Date | null;
   approvedBy: string | null;
   approvedAt: Date | null;
   invoiceNumber: string | null;
@@ -24,7 +26,7 @@ export interface Fact {
 export function emptyFact(e: AnalyticsEvent): Fact {
   return {
     milestoneId: e.data.milestoneId, projectId: null, projectName: e.data.projectName, milestoneName: e.data.milestoneName, amountCop: e.data.amountCop,
-    approvedBy: null, approvedAt: null, invoiceNumber: null, invoiceStatus: null, taxCop: null, totalCop: null, draftedAt: null, issuedAt: null,
+    createdAt: null, approvedBy: null, approvedAt: null, invoiceNumber: null, invoiceStatus: null, taxCop: null, totalCop: null, draftedAt: null, issuedAt: null,
   };
 }
 
@@ -36,6 +38,10 @@ export function mergeEvent(prev: Fact | null, e: AnalyticsEvent): Fact {
   const f: Fact = { ...(prev ?? emptyFact(e)) };
   const at = new Date(e.occurredAt);
   switch (e.type) {
+    case 'MilestoneCreated':
+      f.projectId = e.data.projectId; f.projectName = e.data.projectName; f.milestoneName = e.data.milestoneName; f.amountCop = e.data.amountCop;
+      f.createdAt = f.createdAt ?? at;
+      break;
     case 'MilestoneApproved':
       f.projectId = e.data.projectId; f.projectName = e.data.projectName; f.milestoneName = e.data.milestoneName; f.amountCop = e.data.amountCop;
       f.approvedBy = e.data.approvedBy; f.approvedAt = f.approvedAt ?? at;
@@ -56,6 +62,7 @@ const cop = (n: number) => `${new Intl.NumberFormat('es-CO').format(n)} COP`;
 /** Texto corto para la lista de actividad reciente. */
 export function describe(e: AnalyticsEvent): string {
   switch (e.type) {
+    case 'MilestoneCreated': return `New milestone “${e.data.milestoneName}” (${e.data.projectName}) · ${cop(e.data.amountCop)} pending approval`;
     case 'MilestoneApproved': return `${e.data.approvedBy} approved “${e.data.milestoneName}” (${e.data.projectName}) · ${cop(e.data.amountCop)}`;
     case 'InvoiceDrafted': return `Draft invoice ${e.data.invoiceNumber} created for “${e.data.milestoneName}” · total ${cop(e.data.totalCop)}`;
     case 'InvoiceIssued': return `${e.data.issuedBy} issued invoice ${e.data.invoiceNumber} · total ${cop(e.data.totalCop)}`;

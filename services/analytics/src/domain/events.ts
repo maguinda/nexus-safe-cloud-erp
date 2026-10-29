@@ -5,6 +5,10 @@ import { InvalidEventError } from './errors';
  * los que faltan o son raros, no: todo lo que llega por el bus es entrada no confiable.
  */
 interface Envelope { eventId: string; occurredAt: string; correlationId: string }
+export interface MilestoneCreatedEvent extends Envelope {
+  type: 'MilestoneCreated';
+  data: { milestoneId: string; milestoneName: string; projectId: string; projectName: string; amountCop: number };
+}
 export interface MilestoneApprovedEvent extends Envelope {
   type: 'MilestoneApproved';
   data: { milestoneId: string; milestoneName: string; projectId: string; projectName: string; amountCop: number; approvedBy: string };
@@ -12,9 +16,9 @@ export interface MilestoneApprovedEvent extends Envelope {
 interface InvoiceData { invoiceNumber: string; milestoneId: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number }
 export interface InvoiceDraftedEvent extends Envelope { type: 'InvoiceDrafted'; data: InvoiceData & { approvedBy: string | null } }
 export interface InvoiceIssuedEvent extends Envelope { type: 'InvoiceIssued'; data: InvoiceData & { issuedBy: string } }
-export type AnalyticsEvent = MilestoneApprovedEvent | InvoiceDraftedEvent | InvoiceIssuedEvent;
+export type AnalyticsEvent = MilestoneCreatedEvent | MilestoneApprovedEvent | InvoiceDraftedEvent | InvoiceIssuedEvent;
 
-export const ROUTING_KEYS = ['project.milestone.approved', 'billing.invoice.drafted', 'billing.invoice.issued'] as const;
+export const ROUTING_KEYS = ['project.milestone.created', 'project.milestone.approved', 'billing.invoice.drafted', 'billing.invoice.issued'] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -60,6 +64,10 @@ export function parseEvent(raw: unknown): AnalyticsEvent {
   if (typeof d !== 'object' || d === null || Array.isArray(d)) throw new InvalidEventError('data must be an object');
   const base = { eventId: e.eventId.toLowerCase(), occurredAt: e.occurredAt, correlationId: e.correlationId };
   switch (e.type) {
+    case 'MilestoneCreated':
+      return { ...base, type: 'MilestoneCreated', data: {
+        milestoneId: id(d.milestoneId, 'milestoneId'), milestoneName: text(d.milestoneName, 'milestoneName'), projectId: id(d.projectId, 'projectId'),
+        projectName: text(d.projectName, 'projectName'), amountCop: int(d.amountCop, 'amountCop', 1, MAX_AMOUNT_COP) } };
     case 'MilestoneApproved':
       return { ...base, type: 'MilestoneApproved', data: {
         milestoneId: id(d.milestoneId, 'milestoneId'), milestoneName: text(d.milestoneName, 'milestoneName'), projectId: id(d.projectId, 'projectId'),

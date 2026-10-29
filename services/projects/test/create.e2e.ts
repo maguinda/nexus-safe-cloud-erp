@@ -118,4 +118,45 @@ describe('creating projects and milestones (e2e, real PostgreSQL)', () => {
     expect(new Set(res.map((r) => r.body.id)).size).toBe(40);
     expect((await counts()).projects).toBe(before.projects + 40);
   });
+
+  describe('the MilestoneCreated event (transactional outbox)', () => {
+    const createdEvents = () => prisma.outboxEvent.findMany({ where: { type: 'MilestoneCreated' }, orderBy: { createdAt: 'asc' } });
+    it('creating a milestone leaves exactly one MilestoneCreated in the outbox, with the project name, amount and the correlation id of the request', async () => {
+      const p = await send('post', '/projects', lead(), { name: 'Warehouse Wi-Fi rollout', client: 'C' });
+      const m = await send('post', `/projects/${p.body.id}/milestones`, lead(), { name: 'Site survey', amountCop: 12_000_000 }).set('X-Correlation-Id', 'trace-created-0001');
+      expect(m.status).toBe(201);
+      const evs = await createdEvents();
+      expect(evs).toHaveLength(1);
+      expect(evs[0]).toMatchObject({ aggregateId: m.body.id, type: 'MilestoneCreated', routingKey: 'project.milestone.created', publishedAt: null });
+      expect(evs[0].payload).toMatchObject({
+        type: 'MilestoneCreated', correlationId: 'trace-created-0001',
+        data: { milestoneId: m.body.id, milestoneName: 'Site survey', projectId: p.body.id, projectName: 'Warehouse Wi-Fi rollout', amountCop: 12_000_000 },
+      });
+    });
+    it('approving the same milestone adds a second, different event (created and approved do not collide in the outbox)', async () => {
+      const m = await send('post', '/projects/p1/milestones', lead(), { name: 'Both events', amountCop: 5_000 });
+      expect((await send('post', `/milestones/${m.body.id}/approve`, lead())).status).toBe(200);
+      expect((await prisma.outboxEvent.findMany({ where: { aggregateId: m.body.id }, orderBy: { createdAt: 'asc' } })).map((e) => e.type)).toEqual(['MilestoneCreated', 'MilestoneApproved']);
+    });
+    it('nothing is written when the milestone is refused (unknown project, bad amount, bad name, role without permission)', async () => {
+      const before = await prisma.outboxEvent.count();
+      await send('post', '/projects/nope/milestones', lead(), { name: 'N', amountCop: 10 });
+      await send('post', '/projects/p1/milestones', lead(), { name: 'N', amountCop: -1 });
+      await send('post', '/projects/p1/milestones', lead(), { name: '', amountCop: 10 });
+      await send('post', '/projects/p1/milestones', bearer(token(USERS.sales)), { name: 'N', amountCop: 10 });
+      expect(await prisma.outboxEvent.count()).toBe(before);
+    });
+    it('CONCURRENCY (30 rounds): 20 simultaneous milestones give exactly 20 milestones and 20 events, never a milestone without its event or an event without its milestone', async () => {
+      for (let round = 0; round < 30; round++) {
+        await resetState(prisma);
+        const res = await Promise.all(Array.from({ length: 20 }, (_, i) => send('post', '/projects/p1/milestones', lead(), { name: `R${round} M${i}`, amountCop: 1000 + i })));
+        expect(res.map((r) => r.status)).toEqual(Array(20).fill(201));
+        const ids = res.map((r) => r.body.id).sort();
+        const events = (await createdEvents()).map((e) => e.aggregateId).sort();
+        expect(events).toEqual(ids);
+        const stored = (await prisma.milestone.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((x) => x.id).sort();
+        expect(stored).toEqual(ids);
+      }
+    });
+  });
 });

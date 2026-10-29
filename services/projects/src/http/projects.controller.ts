@@ -60,8 +60,8 @@ export class ProjectsController {
   @ApiResponse({ status: 400, description: 'Invalid body' })
   @ApiResponse({ status: 403, description: 'Role not allowed' })
   @ApiResponse({ status: 404, description: 'Project not found' })
-  async addMilestone(@Param('projectId', new IdPipe()) projectId: string, @Body() dto: CreateMilestoneDto) {
-    return toDto(await this.createMilestone.execute(projectId, dto.name, dto.amountCop));
+  async addMilestone(@Param('projectId', new IdPipe()) projectId: string, @Body() dto: CreateMilestoneDto, @Req() req: Request) {
+    return toDto(await this.createMilestone.execute(projectId, dto.name, dto.amountCop, (req as any).correlationId));
   }
 
   @Post('milestones/:milestoneId/approve')

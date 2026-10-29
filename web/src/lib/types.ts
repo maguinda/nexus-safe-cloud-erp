@@ -16,17 +16,18 @@ export interface Milestone { id: string; projectId: string; name: string; amount
 export interface ApproveResponse { milestone: Milestone; eventId: string }
 export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null }
 
-export interface DashboardProject { projectName: string; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
+export interface DashboardProject { projectName: string; milestonesPending: number; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
 export interface Dashboard {
   asOf: string;
   freshness: { lastEventAt: string | null; lastEventLagMs: number | null; eventsProcessed: number };
   totals: {
+    milestonesPending: { count: number; cop: number };
     milestonesApproved: number; approvedCop: number;
     waitingForInvoice: { count: number; cop: number }; draft: { count: number; totalCop: number };
     issued: { count: number; subtotalCop: number; taxCop: number; totalCop: number };
   };
   projects: DashboardProject[];
-  recentActivity: { at: string; kind: 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued'; message: string }[];
+  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued'; message: string }[];
 }
 
 export type DeviceState = 'normal' | 'warning' | 'alert' | 'no_data';
