@@ -29,6 +29,7 @@ docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d   # ademá
 Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), diana.vega@ (manager: ve el Dashboard de Analytics y administra usuarios en la pestaña Users; 403 en el resto), todos `@nexus.example`.
 
 ## Trampas aprendidas
+- **`.env.example` lo leen docker compose Y el shell** (`set -a; . ./.env`, que usan `e2e-flow` y el job `stack` de la CI): un valor con espacios o paréntesis sin comillas (`EINVOICE_SUPPLIER_NAME=Velocity Softworks (sandbox)`) lo acepta compose y el shell lo rechaza como error de sintaxis, y además ` #` empieza un comentario. Van entre comillas y sin ` # `. Lo atrapó el CI (mi `.env` local era anterior y no lo veía); ahora `scripts/check-env-example.sh` lo comprueba y corre en el job `stack` antes de levantar nada.
 - Colima (motor de contenedores) solo comparte `$HOME` con su VM: un repo/clon fuera de tu carpeta personal no puede montar las llaves.
 - El gateway limita el login (10 por minuto por IP): el setup de Playwright reutiliza las sesiones guardadas; si ves 429, espera un minuto.
 - Los tests funcionales de `web/` escriben datos de demo; correr `./scripts/reset-demo.sh` después.
