@@ -163,7 +163,16 @@ Gateway → servicios va por HTTPS con certificado en ambos lados (CA propia, `i
 - Concurrencia: ≥ 30 rondas e invariante, no una sola pasada. Pruebas de pantalla: bloquear escrituras y comparar la base.
 - Los secretos nunca van a Git (`.env`, `*.pem`, `*.key` ignorados). `npm install` siempre con `--ignore-scripts`.
 
-## Pendiente
-- Corte 2 (en `../corte_2/`): informe PDF, slides y guion de pitch y demo ya escritos el 2026-10-19; falta que Marlon y Edwin ensayen la demo y los 10 minutos.
-- Opcionales aprobables: evento al crear hitos (para que el dashboard muestre los pendientes), política de contenido en bloqueo, TLS en el despliegue, probar en celular real y Android.
-- Verificar en la documentación de AWS: mTLS en API Gateway, Istio con la versión de EKS, tiempo real de failover de RDS Multi-AZ (solo afecta lo dicho en la sustentación sobre la arquitectura objetivo).
+## Pendiente (actualizado el 2026-10-28)
+- **Corte 2 (en `../corte_2/`):** ya expusieron y el envío a la docente está hecho; los artifacts están compartidos con Edwin y Esteban; la declaración de IA NO hace falta (la docente no la pidió para el Corte 2 y la del Corte 1 ya se entregó). **Solo queda un trámite de Marlon: confirmar con la docente lo de «mínimo 2 requisitos».** La plataforma tiene la versión ANTERIOR del guion de demo (la frase de «Simular token vencido» ya se corrigió en los archivos locales y no se reenvía).
+- **Plan por fases del MVP (decisión de Marlon del 2026-10-28: no hechas, opcionales, el alcance lo define él).** Fase 1, telemetría en tiempo real, **hecha** (ruta de ingesta con clave de servicio, simulador, Sensores en vivo, rangos de tiempo). Quedan:
+  - **Fase 2, servicio Operations & Telemetry (🔴):** mover la ingesta a su propio servicio con RabbitMQ y outbox, y que Analytics consuma sus eventos. Es lo que más acerca el código a la arquitectura defendida (hoy la ingesta vive dentro de Analytics y escribe directo en su base).
+  - **Fase 3, Notifications (🟡):** avisos al gerente por alertas de sensores y por facturas vencidas. Primero habría que **detectar las facturas vencidas** (hoy tienen fecha de vencimiento pero nada emite `OverdueDetected`); esa es la parte más pequeña y la que conviene empezar.
+  - **Fase 4, Technical Capacity y Procurement & Inventory (🟡):** solo si el equipo quiere llegar a los 8 servicios (hoy hay 4: identity, projects, billing y analytics).
+- **Mejoras técnicas aparcadas a propósito (cada una con su motivo):**
+  - Borrar lecturas viejas de la base (🔴): con 190.000 lecturas todo respondió en menos de 100 ms, no hace falta todavía.
+  - Contadores incrementales para `/telemetry/summary` (🔴, concurrencia): solo si el simulador va a correr días seguidos (summary tardó 157 ms con 190.000 lecturas y crece con la tabla).
+  - «Cerrar todas mis sesiones» (🔴): hoy se detecta el robo de un token de renovación, pero la persona no puede cerrar sus otras sesiones a mano.
+  - Probar la cookie `Secure` en Safari real y detrás de un balanceador real; IPv6, `Strict-Transport-Security` y la redirección de 8080 a 8443.
+- **Opcionales aprobables de antes:** evento al crear hitos (para que el dashboard muestre los pendientes), política de contenido en bloqueo (CSP en dos pasos), probar en celular real, teclado virtual y Android real.
+- **Verificar en la documentación de AWS** (solo afecta lo dicho en la sustentación sobre la arquitectura objetivo): mTLS en API Gateway, Istio con la versión de EKS, tiempo real de failover de RDS Multi-AZ.
