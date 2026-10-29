@@ -1110,6 +1110,91 @@ test('Notifications: an overdue invoice rings the bell of billing and management
   } finally { await billing.ctx.close(); await manager.ctx.close(); await lead.ctx.close(); }
 });
 
+test('Capacity: each role sees what it may — sales only reads, the project lead allocates, the manager adds engineers, billing has no screen', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const nav = (page: import('@playwright/test').Page) => page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true });
+  const open = async (role: 'billing' | 'sales' | 'lead' | 'manager') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [sales, lead, manager, billing] = [await open('sales'), await open('lead'), await open('manager'), await open('billing')];
+  try {
+    await expect(billing.page.getByRole('navigation').getByRole('button', { name: 'Invoices' })).toBeVisible();
+    await expect(nav(billing.page)).toHaveCount(0);
+    for (const who of [sales, lead, manager]) { await nav(who.page).click(); await expect(who.page.getByRole('heading', { name: 'Technical capacity' })).toBeVisible(); await expect(who.page.getByRole('heading', { name: 'Ana Torres' })).toBeVisible(); }
+    // La carga de Ana sale de las asignaciones sembradas (60 % + 30 % más adelante).
+    await expect(sales.page.locator('[data-engineer="Ana Torres"]')).toContainText(/Load today \d+%/);
+    await expect(sales.page.getByRole('button', { name: /^Allocate / })).toHaveCount(0);
+    await expect(sales.page.getByRole('button', { name: 'Remove' })).toHaveCount(0);
+    await expect(sales.page.getByRole('heading', { name: 'New engineer' })).toHaveCount(0);
+    await expect(lead.page.getByRole('button', { name: 'Allocate Ana Torres' })).toBeVisible();
+    await expect(lead.page.getByRole('heading', { name: 'New engineer' })).toHaveCount(0);
+    await expect(manager.page.getByRole('heading', { name: 'New engineer' })).toBeVisible();
+  } finally { for (const w of [sales, lead, manager, billing]) await w.ctx.close(); }
+});
+
+test('Capacity: the 100% rule end to end — a second allocation is refused with the peak, the manager may allow it on purpose, and the over-allocation reaches the bells of management and sales', async ({ browser }) => {
+  test.setTimeout(180_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'sales' | 'lead' | 'manager') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); await page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click(); return { ctx, page }; };
+  const bell = (page: import('@playwright/test').Page) => page.getByRole('button', { name: /^Notifications \(/ });
+  const [manager, lead, sales] = [await open('manager'), await open('lead'), await open('sales')];
+  const card = (page: import('@playwright/test').Page) => page.locator('[data-engineer="Playwright Engineer"]');
+  const fill = async (page: import('@playwright/test').Page, percent: string, start: string, end: string) => {
+    const form = page.getByRole('form', { name: 'Allocate Playwright Engineer' });
+    await form.getByLabel('The project').fill('Branch network upgrade'); await form.getByLabel('Percent (1 to 100)').fill(percent);
+    await form.getByLabel('From (YYYY-MM-DD)').fill(start); await form.getByLabel('To (YYYY-MM-DD)').fill(end);
+    return form;
+  };
+  try {
+    // El gerente agrega al ingeniero (el formulario avisa si falta algo, sin enviar).
+    const newForm = manager.page.getByRole('form', { name: 'New engineer' });
+    await newForm.getByRole('button', { name: 'Add engineer' }).click();
+    await expect(newForm.getByText(/The name must have at least 2 characters/)).toBeVisible();
+    await newForm.getByLabel('The name').fill('Playwright Engineer'); await newForm.getByLabel('The role').fill('Tester');
+    await newForm.getByLabel('The skills').fill('Jest, Playwright, jest');
+    await newForm.getByRole('button', { name: 'Add engineer' }).click();
+    await expect(manager.page.getByText('Engineer Playwright Engineer added.')).toBeVisible();
+    await expect(card(manager.page)).toContainText('Skills: Jest, Playwright');
+    // Fechas relativas a hoy para que la carga de hoy se vea en la tarjeta.
+    const iso = (offset: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
+    await lead.page.reload(); await lead.page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click();
+    await card(lead.page).getByRole('button', { name: 'Allocate Playwright Engineer' }).click();
+    // Validación del lado del navegador: se avisa, no se envía.
+    let form = await fill(lead.page, '150', iso(0), iso(10));
+    await form.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(form.getByText('The percent must be a whole number from 1 to 100.')).toBeVisible();
+    form = await fill(lead.page, '100', iso(0), iso(10));
+    await form.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(lead.page.getByText('Playwright Engineer allocated to “Branch network upgrade” at 100%.')).toBeVisible();
+    await expect(card(lead.page)).toContainText('Load today 100%');
+    // La segunda asignación pasaría de 100 %: se rechaza y se dice el máximo. El líder no ve la casilla de permitir.
+    await card(lead.page).getByRole('button', { name: 'Allocate Playwright Engineer' }).click();
+    form = await fill(lead.page, '10', iso(5), iso(8));
+    await expect(form.getByLabel(/Allow going over 100%/)).toHaveCount(0);
+    await form.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(form.getByRole('alert')).toHaveText('Playwright Engineer would be at 110% (the limit is 100%).');
+    await expect(card(lead.page).locator('li', { hasText: '10%' })).toHaveCount(0);
+    // El gerente sí puede permitirlo a propósito.
+    await manager.page.reload(); await manager.page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click();
+    await card(manager.page).getByRole('button', { name: 'Allocate Playwright Engineer' }).click();
+    form = await fill(manager.page, '10', iso(5), iso(8));
+    await form.getByLabel(/Allow going over 100%/).check();
+    await form.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(manager.page.getByText(/Playwright Engineer is now at 110% \(authorized by management\)/)).toBeVisible();
+    await expect(card(manager.page)).toContainText('Over 100% (authorized)');
+    // Nadie más se entera por la pantalla: el aviso llega por RabbitMQ y Notifications a la campana de gerencia y de ventas (no a la del líder).
+    for (const who of [manager, sales]) {
+      await expect(bell(who.page)).toHaveAccessibleName(/Notifications \([1-9]\d* unread\)/, { timeout: 60_000 });
+      await bell(who.page).click();
+      await expect(who.page.getByRole('dialog').getByText(/Playwright Engineer is allocated at 110% between/)).toBeVisible();
+    }
+    await expect(bell(lead.page)).toHaveAccessibleName('Notifications (none unread)');
+    // Quitar la asignación libera la capacidad.
+    await card(manager.page).locator('li', { hasText: '· 100% ·' }).getByRole('button', { name: /^Remove the allocation/ }).click();
+    await expect(manager.page.getByText('Allocation removed.')).toBeVisible();
+    await expect(card(manager.page)).toContainText('Load today 0% · free 100% · peak of the next 30 days 10%');
+  } finally { await manager.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');
@@ -1227,9 +1312,10 @@ test('Menu: the manager\'s options are grouped under labels, with icons that onl
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
+  await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(4);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(5);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1267,7 +1353,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(4);
+  expect(edges.length).toBe(5);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

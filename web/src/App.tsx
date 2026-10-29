@@ -8,6 +8,7 @@ import { NetworkView } from './components/NetworkView';
 import { ProjectsView } from './components/ProjectsView';
 import { SensorsView } from './components/SensorsView';
 import { NotificationsBell } from './components/NotificationsBell';
+import { CapacityView } from './components/CapacityView';
 import { ProfileMenu } from './components/ProfileMenu';
 import { icon, type IconName } from './components/Icons';
 import { Toast } from './components/Toast';
@@ -17,8 +18,8 @@ import { mmss } from './lib/format';
 import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
-type View = 'projects' | 'invoices';
-type ManagerView = 'dashboard' | 'sensors' | 'network' | 'users';
+type View = 'projects' | 'invoices' | 'capacity';
+type ManagerView = 'dashboard' | 'sensors' | 'network' | 'capacity' | 'users';
 interface NavItem { label: MsgKey; icon: IconName; on: boolean; go: () => void }
 interface NavGroup { label?: MsgKey; items: NavItem[] }
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
@@ -35,9 +36,12 @@ function Shell() {
     ? [
       { items: [{ label: 'nav.dashboard', icon: 'grid', on: managerView === 'dashboard', go: () => setManagerView('dashboard') }] },
       { label: 'nav.group.data', items: [{ label: 'nav.sensors', icon: 'pulse', on: managerView === 'sensors', go: () => setManagerView('sensors') }, { label: 'nav.network', icon: 'network', on: managerView === 'network', go: () => setManagerView('network') }] },
+      { label: 'nav.group.team', items: [{ label: 'nav.capacity', icon: 'users', on: managerView === 'capacity', go: () => setManagerView('capacity') }] },
       { label: 'nav.group.admin', items: [{ label: 'nav.users', icon: 'users', on: managerView === 'users', go: () => setManagerView('users') }] },
     ]
-    : [{ items: [{ label: 'nav.projects', icon: 'layers', on: view === 'projects', go: () => setView('projects') }, { label: 'nav.invoices', icon: 'receipt', on: view === 'invoices', go: () => setView('invoices') }] }];
+    : [{ items: [{ label: 'nav.projects', icon: 'layers', on: view === 'projects', go: () => setView('projects') }, { label: 'nav.invoices', icon: 'receipt', on: view === 'invoices', go: () => setView('invoices') },
+      // Facturación no ve la capacidad técnica (la API le responde 403).
+      ...(user?.role === 'billing_analyst' ? [] : [{ label: 'nav.capacity' as const, icon: 'users' as const, on: view === 'capacity', go: () => setView('capacity') }])] }];
 
   return (
     <div className={s.app}>
@@ -71,7 +75,7 @@ function Shell() {
             </div>
           </nav>
           <main className={s.content}>
-            {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>) : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? (managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>

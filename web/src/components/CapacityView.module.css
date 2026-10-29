@@ -1,0 +1,99 @@
+.stack {
+  display: grid;
+  gap: var(--sp-3);
+}
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: grid;
+  gap: var(--sp-2);
+  align-content: start;
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.name {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+.bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.fill,
+.fillFull,
+.fillOver {
+  width: var(--w, 0%);
+  height: 100%;
+  border-radius: 999px;
+}
+.fill {
+  background: var(--ok, var(--accent));
+}
+.fillFull {
+  background: var(--warn);
+}
+.fillOver {
+  background: var(--bad);
+}
+.nums,
+.tags {
+  margin: 0;
+}
+.sub {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-base);
+  color: var(--muted);
+}
+.allocs {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.alloc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.alloc > span {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.overTag {
+  color: var(--bad);
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.check input {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  margin: 0;
+}

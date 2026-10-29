@@ -13,3 +13,4 @@ export { summary } from './summary';
 export { advisor } from './advisor';
 export { einvoice } from './einvoice';
 export { notifications } from './notifications';
+export { capacity } from './capacity';

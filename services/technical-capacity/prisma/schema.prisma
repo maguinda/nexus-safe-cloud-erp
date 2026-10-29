@@ -1,0 +1,54 @@
+// Base de Technical Capacity: ingenieros y sus asignaciones por período. Ningún otro servicio la lee ni la escribe.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Engineer {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  role           String
+  skills         String[]
+  certifications String[]
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  allocations    Allocation[]
+
+  @@map("engineers")
+}
+
+/// Un porcentaje de la jornada de un ingeniero, del día start al end (los dos incluidos).
+model Allocation {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  engineerId    String   @map("engineer_id") @db.Uuid
+  projectName   String   @map("project_name")
+  percent       Int
+  startDate     DateTime @map("start_date") @db.Date
+  endDate       DateTime @map("end_date") @db.Date
+  /// Se aceptó pasando de 100 % a propósito (decisión de gerencia).
+  overAllocated Boolean  @default(false) @map("over_allocated")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  engineer      Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
+
+  @@index([engineerId, startDate, endDate])
+  @@map("allocations")
+}
+
+/// Evento guardado en la misma transacción que el cambio de negocio; un relay lo publica después.
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  aggregateId String    @map("aggregate_id")
+  type        String
+  routingKey  String    @map("routing_key")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+
+  /// Nunca dos eventos del mismo tipo para la misma asignación.
+  @@unique([aggregateId, type])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}

@@ -63,6 +63,8 @@ tags:
     description: Owned by analytics (manager only)
   - name: Network
     description: Owned by analytics (manager only)
+  - name: Capacity
+    description: Engineers, skills and allocations (service technical-capacity, port 4106). Nobody goes over 100% load on any day.
   - name: Notifications
     description: In-app alerts built from events of other services (service notifications, port 4105). Each role sees its own; read marks are per person.
   - name: Advisor
@@ -388,6 +390,85 @@ paths:
               schema: { $ref: '#/components/schemas/Reconciliation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /engineers:
+    get:
+      tags: [Capacity]
+      operationId: listEngineers
+      summary: Engineers with their load today, the peak of the next 30 days and their current and upcoming allocations (roles project_lead, sales, manager)
+      responses:
+        '200':
+          description: One entry per engineer, by name
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CapacityList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Capacity]
+      operationId: createEngineer
+      summary: Add an engineer to the catalog (role manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, role]
+              additionalProperties: false
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80 }
+                role: { type: string, minLength: 2, maxLength: 60 }
+                skills: { type: array, maxItems: 20, items: { type: string, minLength: 2, maxLength: 40 } }
+                certifications: { type: array, maxItems: 20, items: { type: string, minLength: 2, maxLength: 60 } }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /engineers/{id}/allocations:
+    post:
+      tags: [Capacity]
+      operationId: allocateEngineer
+      summary: Allocate an engineer to a project for a period (roles project_lead, manager)
+      description: |
+        Nobody goes over 100% load on any day. The engineer's row is locked and the allocations are read again inside the lock, so two requests at the same time cannot add up above 100.
+        `allowOverallocation` (role manager only, 403 otherwise) accepts going over on purpose; the allocation is stored as such and `OverAllocationDetected` is published.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectName, percent, startDate, endDate]
+              additionalProperties: false
+              properties:
+                projectName: { type: string, minLength: 2, maxLength: 80 }
+                percent: { type: integer, minimum: 1, maximum: 100 }
+                startDate: { type: string, example: '2026-11-02' }
+                endDate: { type: string, example: '2026-11-30' }
+                allowOverallocation: { type: boolean }
+      responses:
+        '201': { description: Allocated (`peak` is the highest load of that period afterwards) }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Engineer not found }
+        '409': { description: It would put the engineer over 100% on some day; the message names the peak and nothing was saved }
+  /allocations/{id}:
+    delete:
+      tags: [Capacity]
+      operationId: deleteAllocation
+      summary: Remove an allocation (roles project_lead, manager)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Allocation not found }
   /notifications:
     get:
       tags: [Notifications]
@@ -851,6 +932,38 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    CapacityList:
+      type: object
+      required: [today, engineers]
+      properties:
+        today: { type: string, example: '2026-11-01' }
+        engineers:
+          type: array
+          items:
+            type: object
+            required: [id, name, role, skills, certifications, loadToday, freeToday, peakNext30, minFreeNext30, allocations]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              role: { type: string }
+              skills: { type: array, items: { type: string } }
+              certifications: { type: array, items: { type: string } }
+              loadToday: { type: integer, description: Sum of the percents that cover today }
+              freeToday: { type: integer, description: 100 minus the load, never negative }
+              peakNext30: { type: integer, description: Highest load of any day in the next 30 days }
+              minFreeNext30: { type: integer }
+              allocations:
+                type: array
+                items:
+                  type: object
+                  required: [id, projectName, percent, startDate, endDate, overAllocated]
+                  properties:
+                    id: { type: string, format: uuid }
+                    projectName: { type: string }
+                    percent: { type: integer }
+                    startDate: { type: string }
+                    endDate: { type: string }
+                    overAllocated: { type: boolean }
     NotificationList:
       type: object
       required: [total, unread, items]

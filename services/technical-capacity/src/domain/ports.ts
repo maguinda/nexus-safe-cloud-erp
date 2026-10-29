@@ -1,0 +1,32 @@
+import { Allocation } from './allocation';
+import { CapacityEvent } from './events';
+import { Engineer } from './engineer';
+
+export interface AllocationView { id: string; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
+export interface EngineerView extends Engineer {
+  loadToday: number; freeToday: number; peakNext30: number; minFreeNext30: number; allocations: AllocationView[];
+}
+
+/** Lecturas: no necesitan transacción. */
+export interface CapacityQueries {
+  /** Todos los ingenieros con sus asignaciones que aún no terminaron (las de `today` en adelante). */
+  engineersWithAllocations(today: number): Promise<{ engineer: Engineer; allocations: (Allocation & { overAllocated: boolean })[] }[]>;
+}
+
+export interface TransactionScope {
+  /** Bloquea la fila del ingeniero hasta el final de la transacción (SELECT ... FOR UPDATE). null si no existe. */
+  lockEngineer(id: string): Promise<Engineer | null>;
+  /** Las asignaciones del ingeniero que se cruzan con [from, to]; se llama DENTRO del bloqueo. */
+  allocationsOverlapping(engineerId: string, from: number, to: number): Promise<Allocation[]>;
+  insertAllocation(a: Allocation, overAllocated: boolean): Promise<void>;
+  /** true si existía y se borró. */
+  deleteAllocation(id: string): Promise<boolean>;
+  addToOutbox(event: CapacityEvent, aggregateId: string): Promise<void>;
+}
+export interface UnitOfWork {
+  run<T>(work: (tx: TransactionScope) => Promise<T>): Promise<T>;
+}
+
+export interface EngineerCommands {
+  insertEngineer(e: Engineer): Promise<void>;
+}

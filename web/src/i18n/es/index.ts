@@ -13,6 +13,7 @@ import { summary } from './summary';
 import { advisor } from './advisor';
 import { einvoice } from './einvoice';
 import { notifications } from './notifications';
+import { capacity } from './capacity';
 
 /** El español es la fuente de las claves: el inglés tiene que tener exactamente las mismas (si falta una, no compila). */
-export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications } as const;
+export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity } as const;
