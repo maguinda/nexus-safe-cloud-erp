@@ -11,6 +11,7 @@ services:
       DB_PROJECTS_PASSWORD: ${DB_PROJECTS_PASSWORD}
       DB_BILLING_PASSWORD: ${DB_BILLING_PASSWORD}
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD}
+      DB_NOTIFICATIONS_PASSWORD: ${DB_NOTIFICATIONS_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -139,6 +140,25 @@ services:
       TLS_ALLOWED_CLIENTS: gateway,analytics
     secrets: [jwt_public, tls_ca, tls_analytics_cert, tls_analytics_key]
 
+  notifications:
+    build: ./services/notifications
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://notifications:${DB_NOTIFICATIONS_PASSWORD}@postgres:5432/notifications
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_notifications_cert
+      TLS_KEY_PATH: /run/secrets/tls_notifications_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,notifications
+    secrets: [jwt_public, tls_ca, tls_notifications_cert, tls_notifications_key]
+
   web:
     build: ./web
     restart: unless-stopped
@@ -152,6 +172,7 @@ services:
       projects: { condition: service_healthy }
       billing: { condition: service_healthy }
       analytics: { condition: service_healthy }
+      notifications: { condition: service_healthy }
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -189,6 +210,10 @@ secrets:
     file: ./infra/certs/analytics.pem
   tls_analytics_key:
     file: ./infra/certs/analytics-key.pem
+  tls_notifications_cert:
+    file: ./infra/certs/notifications.pem
+  tls_notifications_key:
+    file: ./infra/certs/notifications-key.pem
 
 volumes:
   pgdata:

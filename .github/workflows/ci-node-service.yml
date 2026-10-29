@@ -46,6 +46,7 @@ jobs:
       DB_PROJECTS_PASSWORD: changemeprojects1
       DB_BILLING_PASSWORD: changemebilling1
       DB_ANALYTICS_PASSWORD: changemeanalytics1
+      DB_NOTIFICATIONS_PASSWORD: changemenotifications1
       PGHOST: localhost
       PGPASSWORD: ci-postgres-password
       DEMO_PASSWORD: demo-password-1
@@ -85,7 +86,8 @@ jobs:
         run: |
           set -a; . ./.env; set +a
           npx prisma migrate deploy
-          npx ts-node prisma/seed.ts
+          # No todos los servicios llevan datos de demostración (notifications nace de eventos).
+          if [ -f prisma/seed.ts ]; then npx ts-node prisma/seed.ts; fi
       - name: Run e2e tests
         run: |
           set -a; . ./.env; set +a

@@ -26,6 +26,11 @@ export interface EInvoice {
 export interface Customer { name: string; nit: string; dv: number; email: string; address: string; city: string }
 export type CustomerInput = Omit<Customer, 'dv'>;
 
+export interface NotificationItem {
+  id: string; kind: string; severity: 'info' | 'warning' | 'critical'; params: Record<string, string | number>; occurredAt: string; read: boolean;
+}
+export interface NotificationsPage { total: number; unread: number; items: NotificationItem[] }
+
 export interface DashboardProject { projectName: string; overdueInvoices: number; milestonesPending: number; milestonesApproved: number; approvedCop: number; waitingForInvoice: number; draftTotalCop: number; issuedTotalCop: number }
 export interface Dashboard {
   asOf: string;

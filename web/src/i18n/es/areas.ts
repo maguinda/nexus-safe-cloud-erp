@@ -12,3 +12,4 @@ export { netview } from './netview';
 export { summary } from './summary';
 export { advisor } from './advisor';
 export { einvoice } from './einvoice';
+export { notifications } from './notifications';

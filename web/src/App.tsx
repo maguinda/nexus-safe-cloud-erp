@@ -7,6 +7,7 @@ import { LoginView } from './components/LoginView';
 import { NetworkView } from './components/NetworkView';
 import { ProjectsView } from './components/ProjectsView';
 import { SensorsView } from './components/SensorsView';
+import { NotificationsBell } from './components/NotificationsBell';
 import { ProfileMenu } from './components/ProfileMenu';
 import { icon, type IconName } from './components/Icons';
 import { Toast } from './components/Toast';
@@ -45,6 +46,7 @@ function Shell() {
         <span className={s.sp} />
         {user && (
           <>
+            <NotificationsBell />
             <ProfileMenu onChanged={setToast} />
             <span className={s.chip}>{t('header.tokenExpires', { time: mmss(secondsLeft) })}</span>
             <button type="button" className={s.out} onClick={signOut}>{t('header.signOut')}</button>

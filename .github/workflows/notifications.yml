@@ -1,0 +1,27 @@
+# Se activa SOLO si cambia este servicio (o su plantilla): publicar notifications no reconstruye los demás.
+name: notifications
+
+on:
+  pull_request:
+    paths:
+      - 'services/notifications/**'
+      - '.github/workflows/notifications.yml'
+      - '.github/workflows/ci-node-service.yml'
+      - 'infra/postgres/**'
+      - 'infra/keys/gen-keys.sh'
+      - 'infra/certs/gen-certs.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'services/notifications/**'
+      - '.github/workflows/notifications.yml'
+      - '.github/workflows/ci-node-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-node-service.yml
+    with:
+      path: services/notifications

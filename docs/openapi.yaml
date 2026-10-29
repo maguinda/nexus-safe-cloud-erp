@@ -63,6 +63,8 @@ tags:
     description: Owned by analytics (manager only)
   - name: Network
     description: Owned by analytics (manager only)
+  - name: Notifications
+    description: In-app alerts built from events of other services (service notifications, port 4105). Each role sees its own; read marks are per person.
   - name: Advisor
     description: Owned by analytics (manager only)
 security:
@@ -386,6 +388,59 @@ paths:
               schema: { $ref: '#/components/schemas/Reconciliation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: The notifications of my role, newest first, with MY read mark (any role)
+      parameters:
+        - { name: unread, in: query, schema: { type: boolean }, description: Only the ones I have not read }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 100000, default: 0 } }
+      responses:
+        '200':
+          description: "`total` follows the `unread` filter; `unread` is always how many I have not read"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: unreadNotificationCount
+      summary: How many notifications of my role I have not read
+      responses:
+        '200':
+          description: The count
+          content:
+            application/json:
+              schema: { type: object, required: [unread], properties: { unread: { type: integer } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: readAllNotifications
+      summary: Mark as read everything my role can see (only for me)
+      responses:
+        '200':
+          description: How many were newly marked
+          content:
+            application/json:
+              schema: { type: object, required: [marked], properties: { marked: { type: integer } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      operationId: readNotification
+      summary: Mark one notification as read (only for me; repeating it is fine)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Marked }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: It does not exist OR it is not for my role (the answer is the same, so other roles' notifications cannot be probed) }
   /dashboard:
     get:
       tags: [Dashboard]
@@ -796,6 +851,24 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    NotificationList:
+      type: object
+      required: [total, unread, items]
+      properties:
+        total: { type: integer }
+        unread: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, kind, severity, params, occurredAt, read]
+            properties:
+              id: { type: string, format: uuid }
+              kind: { type: string, enum: [OverdueDetected, ThresholdBreached, OverAllocationDetected], description: The screen writes the text from the kind and its params, in the person's language }
+              severity: { type: string, enum: [info, warning, critical] }
+              params: { type: object, additionalProperties: { oneOf: [{ type: string }, { type: number }] } }
+              occurredAt: { type: string, format: date-time }
+              read: { type: boolean, description: Read by ME (not by anyone else) }
     Role:
       type: string
       enum: [project_lead, billing_analyst, sales, manager]

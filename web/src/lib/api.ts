@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -81,6 +81,10 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createProject: (name: string, client: string) => request<Project>('POST', '/projects', { name, client }),
     createMilestone: (projectId: string, name: string, amountCop: number) => request<Milestone>('POST', `/projects/${encodeURIComponent(projectId)}/milestones`, { name, amountCop }),
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
+    notifications: (q: { unread?: boolean; limit?: number; offset?: number } = {}) => request<NotificationsPage>('GET', `/notifications${queryString(q)}`),
+    notificationsUnread: () => request<{ unread: number }>('GET', '/notifications/unread-count'),
+    notificationRead: (id: string) => request<void>('POST', `/notifications/${encodeURIComponent(id)}/read`),
+    notificationsReadAll: () => request<{ marked: number }>('POST', '/notifications/read-all'),
     invoices: () => request<Invoice[]>('GET', '/invoices'),
     /** Factura electrónica de PRUEBA (sandbox, sin validez legal). El XML y el HTML llegan como texto: llevan datos fiscales del cliente y solo los pide el analista de facturación. */
     customers: () => request<(Customer & { updatedAt: string })[]>('GET', '/customers'),

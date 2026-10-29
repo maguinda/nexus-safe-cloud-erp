@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-export type IconName = 'grid' | 'network' | 'users' | 'layers' | 'clock' | 'document' | 'check' | 'hourglass' | 'receipt' | 'signal' | 'pulse' | 'warning' | 'alert';
+export type IconName = 'grid' | 'network' | 'users' | 'layers' | 'clock' | 'document' | 'check' | 'hourglass' | 'receipt' | 'signal' | 'pulse' | 'warning' | 'alert' | 'bell';
 
 const base = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: false } as const;
 
@@ -18,6 +18,7 @@ const icons: Record<IconName, ReactElement> = {
   signal: <svg {...base}><path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0" /><circle cx="12" cy="19" r="1" /></svg>,
   pulse: <svg {...base}><path d="M3 12h4l2.5-6 4 12 2.5-6H21" /></svg>,
   warning: <svg {...base}><path d="M12 4 3 20h18z" /><path d="M12 10v4M12 17.2v.1" /></svg>,
+  bell: <svg {...base}><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z" /><path d="M10 21h4" /></svg>,
   alert: <svg {...base}><path d="M8.5 3h7L21 8.5v7L15.5 21h-7L3 15.5v-7z" /><path d="M12 8v5M12 16.2v.1" /></svg>,
 };
 
