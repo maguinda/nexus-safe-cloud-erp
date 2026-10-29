@@ -34,9 +34,9 @@ emitir() {
   openssl x509 -req -sha256 -in "$TMP/$nombre.csr" -CA "$DIR/ca.pem" -CAkey "$DIR/ca-key.pem" -CAcreateserial -CAserial "$TMP/ca.srl" \
     -days "$DAYS" -extfile "$TMP/$nombre.ext" -out "$DIR/$nombre.pem" 2>/dev/null
 }
-for s in identity projects billing analytics notifications; do emitir "$s" "serverAuth,clientAuth" "DNS:$s,DNS:localhost,IP:127.0.0.1"; done
+for s in identity projects billing analytics notifications capacity; do emitir "$s" "serverAuth,clientAuth" "DNS:$s,DNS:localhost,IP:127.0.0.1"; done
 emitir gateway "clientAuth" "DNS:gateway"
 emitir server "serverAuth" "DNS:localhost,IP:127.0.0.1"
 
 chmod 600 "$DIR"/*-key.pem
-echo "Certificados listos en $DIR (CA + identity, projects, billing, analytics, notifications, gateway, server)"
+echo "Certificados listos en $DIR (CA + identity, projects, billing, analytics, notifications, capacity, gateway, server)"

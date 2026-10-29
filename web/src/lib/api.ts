@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -81,6 +81,10 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createProject: (name: string, client: string) => request<Project>('POST', '/projects', { name, client }),
     createMilestone: (projectId: string, name: string, amountCop: number) => request<Milestone>('POST', `/projects/${encodeURIComponent(projectId)}/milestones`, { name, amountCop }),
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
+    capacity: () => request<CapacityResponse>('GET', '/engineers'),
+    createEngineer: (b: { name: string; role: string; skills: string[]; certifications: string[] }) => request<{ id: string; name: string }>('POST', '/engineers', b),
+    allocate: (engineerId: string, b: AllocationInput) => request<{ id: string; peak: number; overAllocated: boolean }>('POST', `/engineers/${encodeURIComponent(engineerId)}/allocations`, b),
+    deleteAllocation: (id: string) => request<void>('DELETE', `/allocations/${encodeURIComponent(id)}`),
     notifications: (q: { unread?: boolean; limit?: number; offset?: number } = {}) => request<NotificationsPage>('GET', `/notifications${queryString(q)}`),
     notificationsUnread: () => request<{ unread: number }>('GET', '/notifications/unread-count'),
     notificationRead: (id: string) => request<void>('POST', `/notifications/${encodeURIComponent(id)}/read`),

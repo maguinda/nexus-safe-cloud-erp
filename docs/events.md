@@ -119,6 +119,25 @@ Rules:
 - A refused action (403, 409) publishes nothing.
 - Messages that were already waiting in the queue when a consumer starts are processed like any other (regression test `consumer-backlog.e2e.ts`).
 
+## EngineerAllocated and OverAllocationDetected
+
+- Published by: `technical-capacity`, in the **same transaction** that saves the allocation (transactional outbox, relay to `erp.events`)
+- `EngineerAllocated` → routing key `capacity.engineer.allocated` (nobody consumes it yet; it is there for Projects and Analytics)
+- `OverAllocationDetected` → routing key `capacity.overallocation.detected`, consumed by `notifications` (manager and sales see it in the bell). It is published ONLY when the manager accepts, on purpose, an allocation that takes an engineer over 100% on some day (`allowOverallocation`); without that, the API answers 409 and nothing is saved or published.
+- One event of each type per allocation (the outbox has a unique key on allocation + type). No personal data: the engineer's name is a business name, never an email.
+
+```json
+{
+  "eventId": "9d1f2a30-6b7c-4d8e-9f01-a2b3c4d5e6f7",
+  "type": "OverAllocationDetected",
+  "occurredAt": "2026-11-05T14:00:00.000Z",
+  "correlationId": "req-1a2b3c4d",
+  "data": { "allocationId": "…uuid…", "engineerName": "Ana Torres", "allocationPercent": 130, "periodStart": "2026-11-05", "periodEnd": "2026-11-12" }
+}
+```
+
+`allocationPercent` is the **highest load** the engineer reaches (an integer over 100) and the period is the one of the new allocation. `EngineerAllocated` data: `allocationId`, `engineerName`, `projectName`, `percent`, `periodStart`, `periodEnd`.
+
 ## Notifications consumer
 
 `notifications` has its own queue `q.notifications` (dead-letter queue `q.notifications.dlq`) bound to three routing keys. It saves ONE notification per event (idempotent by `eventId`, in one transaction with the processed-event mark) and keeps only what the screen shows: the kind, the severity, who sees it and the few values needed to write the text. **No personal data is stored** (no emails, no client names).

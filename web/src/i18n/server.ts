@@ -6,6 +6,10 @@ const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager'];
 
 /** Los avisos de los servicios, tal como los escriben en inglés. Lo que no está aquí se muestra sin traducir. */
 const RULES: Rule[] = [
+  [/^(.+) would be allocated at (\d+)% \(the limit is 100%\)$/, 'server.overAllocation', (m) => ({ name: m[1], percent: m[2] })],
+  ['Engineer not found', 'server.engineerNotFound'],
+  ['Allocation not found', 'server.allocationNotFound'],
+  ['Only the manager can allow going over 100%', 'server.onlyManagerOver'],
   [/^Role (\w+) is not allowed to do this$/, 'server.roleNotAllowed', (m) => ({ role: m[1] })],
   ['Invalid or expired token', 'server.invalidToken'],
   ['Missing or malformed bearer token', 'server.missingToken'],

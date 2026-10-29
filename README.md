@@ -10,6 +10,7 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
 | `services/analytics` | Read models built from the events and the manager dashboard (`GET /dashboard`), plus the Nexus network and IoT data loaded from the course folder (`GET /telemetry/summary`) |
 | `services/notifications` | Messenger: turns alert events (overdue invoices, sensor thresholds, over-allocation) into in-app notifications per role, with a read mark per person (the bell in the web). Own database, mTLS, port 4105 |
+| `services/technical-capacity` | Engineers, skills and allocations by period. Nobody goes over 100% load on any day (row lock + re-read inside the lock); the manager can allow it on purpose, which publishes `OverAllocationDetected`. Own database, mTLS, port 4106 |
 | `web` | React + TypeScript frontend |
 | `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
 | `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
@@ -65,7 +66,7 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos. Más abajo está el panel **Network & IoT** con los datos de Nexus que dejó la docente: 21 dispositivos y 4.200 lecturas (21 / 21 en línea, 39 advertencias, 3 alertas), una tabla por oficina, las últimas alertas y todos los dispositivos.
 4. En una tercera pestaña entra como Andrés y pulsa **Issue invoice** en el borrador: el estado pasa a Issued y la columna **Due** muestra la fecha de vencimiento (emisión + 30 días).
 5. Entra como Camila: Invoices responde 403. Después, con otra persona, abre **JWT sample** y pulsa **Simulate expired token**: el token «vence» y la app lo **renueva sola** con su cookie (sigues dentro y el contador «token expires in» vuelve a ~15:00). La sesión solo se cierra si ya no hay cookie, a los 30 minutos sin renovar o a las 8 horas en total (ver «Sesión»).
-6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics), :4105 (notifications). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
+6. Swagger de cada servicio: http://localhost:4101/docs (identity), :4102 (projects), :4103 (billing), :4104 (analytics), :4105 (notifications), :4106 (capacity). Inicia sesión una vez en :4101 y pulsa Authorize en los demás.
 7. Opcional: detén RabbitMQ con `docker compose stop rabbitmq`, aprueba otro hito (responde 200 igual), vuelve a arrancarlo con `docker compose start rabbitmq` y espera unos 15 segundos a que la factura aparezca.
 8. Opcional: como Diana, pestaña **Usuarios**, crea un vendedor y entra con él en otra pestaña.
 9. Idioma: pulsa el botón con tu rol (arriba, a la derecha) para abrir **Mi perfil** y cambia entre **Español** y **English**. La pantalla cambia al instante y el idioma queda guardado para esa persona, así que la sigue a cualquier computadora.

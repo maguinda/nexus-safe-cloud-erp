@@ -26,6 +26,14 @@ export interface EInvoice {
 export interface Customer { name: string; nit: string; dv: number; email: string; address: string; city: string }
 export type CustomerInput = Omit<Customer, 'dv'>;
 
+export interface CapacityAllocation { id: string; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
+export interface CapacityEngineer {
+  id: string; name: string; role: string; skills: string[]; certifications: string[];
+  loadToday: number; freeToday: number; peakNext30: number; minFreeNext30: number; allocations: CapacityAllocation[];
+}
+export interface CapacityResponse { today: string; engineers: CapacityEngineer[] }
+export interface AllocationInput { projectName: string; percent: number; startDate: string; endDate: string; allowOverallocation?: boolean }
+
 export interface NotificationItem {
   id: string; kind: string; severity: 'info' | 'warning' | 'critical'; params: Record<string, string | number>; occurredAt: string; read: boolean;
 }

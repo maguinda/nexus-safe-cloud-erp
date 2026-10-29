@@ -1,0 +1,27 @@
+# Se activa SOLO si cambia este servicio (o su plantilla): publicar technical-capacity no reconstruye los demás.
+name: technical-capacity
+
+on:
+  pull_request:
+    paths:
+      - 'services/technical-capacity/**'
+      - '.github/workflows/technical-capacity.yml'
+      - '.github/workflows/ci-node-service.yml'
+      - 'infra/postgres/**'
+      - 'infra/keys/gen-keys.sh'
+      - 'infra/certs/gen-certs.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'services/technical-capacity/**'
+      - '.github/workflows/technical-capacity.yml'
+      - '.github/workflows/ci-node-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci-node-service.yml
+    with:
+      path: services/technical-capacity
