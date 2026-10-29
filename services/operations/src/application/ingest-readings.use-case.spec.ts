@@ -1,12 +1,12 @@
 import type { NewReading } from '../domain/ingest';
-import type { ReadingIngest } from '../domain/ports';
+import type { IngestContext, ReadingIngest } from '../domain/ports';
 import { IngestReadingsUseCase, IngestRejectedError } from './ingest-readings.use-case';
 
 class FakeStore implements ReadingIngest {
   rows = new Map<string, NewReading>();
   inserts = 0;
   async deviceUnits() { return new Map([['TEMP_MON_OF1', '°C']]); }
-  async insertReadings(rows: NewReading[]) {
+  async insertReadings(rows: NewReading[], _ctx: IngestContext) {
     this.inserts++;
     let n = 0;
     for (const r of rows) { const k = `${r.deviceId}|${r.recordedAt.getTime()}`; if (!this.rows.has(k)) { this.rows.set(k, r); n++; } }

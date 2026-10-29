@@ -1,4 +1,4 @@
-import { Module, OnModuleDestroy } from '@nestjs/common';
+import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
@@ -14,6 +14,7 @@ import { AdvisorController, GET_ADVICE } from './http/advisor.controller';
 import { HealthController } from './http/health.controller';
 import { EXPLORE_NETWORK, GET_NETWORK, NetworkController } from './http/network.controller';
 import { EXPLORE_READINGS, GET_TELEMETRY, GET_TRENDS, INGEST_READINGS, TelemetryController } from './http/telemetry.controller';
+import { OutboxRelay } from './infrastructure/outbox-relay';
 import { AnthropicAdviceWriter } from './infrastructure/anthropic-advice-writer';
 import { PrismaNetworkExplorer } from './infrastructure/prisma-network-explorer';
 import { PrismaNetworkQueries } from './infrastructure/prisma-network-queries';
@@ -24,6 +25,7 @@ import { PrismaTrendsQueries } from './infrastructure/prisma-trends-queries';
 
 const prisma = new PrismaClient();
 const cfg = () => loadConfig();
+let relay: OutboxRelay | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
@@ -53,8 +55,18 @@ const cfg = () => loadConfig();
     { provide: EXPLORE_NETWORK, useFactory: () => new ExploreNetworkUseCase(new PrismaNetworkExplorer(prisma)) },
   ],
 })
-export class AppModule implements OnModuleDestroy {
+export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
+  onApplicationBootstrap() {
+    const c = cfg();
+    if (c.relayEnabled) {
+      relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs });
+      relay.start();
+    }
+  }
+
   async onModuleDestroy() {
+    await relay?.stop();
+    relay = undefined;
     await prisma.$disconnect();
   }
 }

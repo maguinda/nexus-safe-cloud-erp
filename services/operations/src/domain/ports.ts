@@ -69,6 +69,11 @@ export interface AdviceWriter {
 export interface ReadingIngest {
   /** Catálogo de dispositivos: id → unidad. */
   deviceUnits(): Promise<Map<string, string>>;
-  /** Guarda las lecturas nuevas y devuelve cuántas entraron: las que ya existían (mismo dispositivo e instante) se ignoran. */
-  insertReadings(rows: import('./ingest').NewReading[]): Promise<number>;
+  /**
+   * Guarda las lecturas nuevas y devuelve cuántas entraron: las que ya existían (mismo dispositivo e instante) se ignoran.
+   * En la misma transacción decide si algún dispositivo EMPEORÓ y deja el aviso `ThresholdBreached` en el outbox.
+   */
+  insertReadings(rows: import('./ingest').NewReading[], ctx: IngestContext): Promise<number>;
 }
+/** Con qué se escribe el lote: el reloj de esta petición y su id de correlación (viaja en el evento). */
+export interface IngestContext { correlationId: string; now: Date }

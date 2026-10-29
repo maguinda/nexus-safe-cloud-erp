@@ -56,7 +56,8 @@ describe('validateBatch', () => {
   it('accepts every status of the catalog', () => { for (const s of READING_STATUSES) expect(run({ readings: [ok({ status: s })] }).problems).toEqual([]); });
 
   it.each([null, undefined, '22.5', 'NaN', NaN, Infinity, -Infinity, true, {}, []])('rejects a value that is not a finite number: %p', (v) => { expect(paths({ readings: [ok({ value: v })] })).toEqual(['readings[0].value']); });
-  it('accepts 0, negatives and very small numbers', () => { for (const v of [0, -12.5, 1e-9, 1e15]) expect(run({ readings: [ok({ value: v })] }).problems).toEqual([]); });
+  it('accepts 0, negatives and very small numbers, up to a billion either way', () => { for (const v of [0, -12.5, 1e-9, 1e9, -1e9]) expect(run({ readings: [ok({ value: v })] }).problems).toEqual([]); });
+  it.each([1e9 + 1, -1e9 - 1, 1e12, 1e15])('rejects a value beyond a billion (the alerts service would drop its warning): %p', (v) => { expect(paths({ readings: [ok({ value: v })] })).toEqual(['readings[0].value']); });
 
   it('limits the note and accepts it missing or null', () => {
     expect(paths({ readings: [ok({ note: 'x'.repeat(NOTE_MAX + 1) })] })).toEqual(['readings[0].note']);

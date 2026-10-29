@@ -1195,6 +1195,35 @@ test('Capacity: the 100% rule end to end — a second allocation is refused with
   } finally { await manager.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
 });
 
+test('Notifications: a sensor that goes into ALERT rings the manager\'s bell (not the project lead\'s), once, through ingestion → outbox → RabbitMQ → Notifications', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const bell = (page: import('@playwright/test').Page) => page.getByRole('button', { name: /^Notifications \(/ });
+  const [manager, lead] = [await open('manager'), await open('lead')];
+  try {
+    await expect(bell(manager.page)).toHaveAccessibleName('Notifications (none unread)');
+    const d = IOT_DEVICES.find((x: { id: string; unit: string }) => x.unit === '°C') as { id: string; name: string; unit: string };
+    const send = (status: string, minAgo: number) => manager.page.request.post('/telemetry/readings', { headers: { 'x-ingest-key': ingestKey() }, data: { readings: [{ deviceId: d.id, recordedAt: new Date(Date.now() - minAgo * 60_000).toISOString(), status, value: 33.5, unit: d.unit, note: 'e2e rango' }] } });
+    expect((await send('ALERT', 3)).status()).toBe(200);
+    await expect(bell(manager.page)).toHaveAccessibleName('Notifications (1 unread)', { timeout: 60_000 });
+    await bell(manager.page).click();
+    const panel = manager.page.getByRole('dialog', { name: 'Notifications' });
+    await expect(panel.getByText(new RegExp(`${d.name} in .+: .+ at 33.5 ${d.unit} \\(ALERT\\)`))).toBeVisible();
+    await expect(panel.getByText('Critical')).toBeVisible();
+    // Otra lectura en alerta NO vuelve a avisar (el dispositivo ya estaba mal); la del líder de proyecto nunca suena.
+    expect((await send('ALERT', 2)).status()).toBe(200);
+    await new Promise((r) => setTimeout(r, 4000));
+    await expect(panel.getByRole('listitem')).toHaveCount(1);
+    await expect(bell(lead.page)).toHaveAccessibleName('Notifications (none unread)');
+    // Mejora en silencio y vuelve a empeorar: ahora sí avisa otra vez.
+    expect((await send('NORMAL', 1)).status()).toBe(200);
+    expect((await send('ALERT', 0)).status()).toBe(200);
+    await expect(panel.getByRole('listitem')).toHaveCount(2, { timeout: 60_000 });
+  } finally { await manager.ctx.close(); await lead.ctx.close(); deleteOldReadings(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');

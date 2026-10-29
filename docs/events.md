@@ -119,6 +119,26 @@ Rules:
 - A refused action (403, 409) publishes nothing.
 - Messages that were already waiting in the queue when a consumer starts are processed like any other (regression test `consumer-backlog.e2e.ts`).
 
+## ThresholdBreached
+
+- Published by: `operations`, in the **same transaction** that stores the readings of an ingestion batch (transactional outbox, relay to `erp.events`)
+- Routing key: `ops.threshold.breached`. Consumed by: `notifications` (the manager sees it in the bell).
+- **When:** a device gets WORSE, measured against the state saved on the device: `normal → warning`, `normal → alert` or `warning → alert`. **Once per device and batch, never per reading**: 50 alert readings in one batch warn once, with the worst reading (the latest of the worst severity). Getting better (`alert → normal`) lowers the saved state **without** warning, so the next time it worsens it warns again.
+- **Order and repeats:** only readings NEWER than the last one already counted take part (a late batch is stored but changes nothing); repeated readings do not count. The state is read inside a row lock (`FOR UPDATE`, devices locked in id order, BEFORE inserting), so two batches at the same time cannot warn twice. One event per reading at most (the outbox has a unique key on `deviceId:recordedAt` + type).
+- **Initial state:** it comes from the last reading of each device when the service is migrated or seeded, so deploying it does not make every device that was already in alert warn at once.
+
+```json
+{
+  "eventId": "3c5e8a10-1d2b-4c3d-8e9f-0a1b2c3d4e5f",
+  "type": "ThresholdBreached",
+  "occurredAt": "2026-11-05T14:00:00.000Z",
+  "correlationId": "req-1a2b3c4d",
+  "data": { "deviceId": "TEMP_MON_OF1", "deviceName": "TEMP_MON_OF1", "location": "Medellín", "readingKind": "TEMP", "status": "ALERT", "value": 31.5, "unit": "°C", "recordedAt": "2026-11-05T13:59:00.000Z" }
+}
+```
+
+No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 120, `readingKind` ≤ 60, `status` ≤ 40, a finite `value` and `unit` ≤ 20 characters; extra fields (`deviceId`, `recordedAt`) are ignored.
+
 ## EngineerAllocated and OverAllocationDetected
 
 - Published by: `technical-capacity`, in the **same transaction** that saves the allocation (transactional outbox, relay to `erp.events`)
@@ -145,7 +165,7 @@ Rules:
 | Event | Routing key | Published by | Who sees it | Severity |
 |---|---|---|---|---|
 | `OverdueDetected` | `billing.invoice.overdue` | billing-receivables (built) | billing_analyst, manager | warning |
-| `ThresholdBreached` | `ops.threshold.breached` | operations-telemetry | manager | `ALERT` → critical, otherwise warning |
+| `ThresholdBreached` | `ops.threshold.breached` | operations | manager | `ALERT` → critical, otherwise warning |
 | `OverAllocationDetected` | `capacity.overallocation.detected` | technical-capacity | manager, sales | warning |
 
 `ThresholdBreached` data: `deviceName`, `location`, `readingKind`, `status` (`ALERT`/`WARNING`), `value` (number), `unit`. `OverAllocationDetected` data: `engineerName`, `allocationPercent` (an integer over 100), `periodStart`, `periodEnd` (`YYYY-MM-DD`). Invalid messages (bad types, limits, size over 16 KB) go to the dead-letter queue and change nothing.
