@@ -8,4 +8,4 @@ if (existsSync('.env')) {
   }
 }
 process.env.NODE_ENV = 'test';
-process.env.RELAY_ENABLED = process.env.RELAY_ENABLED ?? 'false'; // los e2e no publican a RabbitMQ salvo el del relé (que lo enciende)
+process.env.RELAY_ENABLED = 'false'; // los e2e no publican a RabbitMQ (ni siquiera si el .env lo enciende); solo el del relé lo enciende dentro de su archivo
