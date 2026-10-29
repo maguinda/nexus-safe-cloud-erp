@@ -11,12 +11,12 @@ const created = (over: any = {}) => ({ ...base(4, T_1), type: 'MilestoneCreated'
 const approved = (over: any = {}) => ({ ...base(1, T0), type: 'MilestoneApproved', data: { milestoneId: 'm2', milestoneName: 'Link redundancy design', projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 18_500_000, approvedBy: 'laura.rios@nexus.example', ...over } });
 const drafted = (over: any = {}) => ({ ...base(2, T1), type: 'InvoiceDrafted', data: { ...inv, approvedBy: 'laura.rios@nexus.example', ...over } });
 const T3 = '2026-11-20T00:00:00.000Z';
-const overdue = (over: any = {}) => ({ ...base(5, T3), type: 'InvoiceOverdue', data: { ...inv, dueDate: '2026-11-17T15:00:00.000Z', daysOverdue: 3, ...over } });
+const overdue = (over: any = {}) => ({ ...base(5, T3), type: 'OverdueDetected', data: { ...inv, dueDate: '2026-11-17T15:00:00.000Z', daysOverdue: 3, ...over } });
 const issued = (over: any = {}) => ({ ...base(3, T2), type: 'InvoiceIssued', data: { ...inv, issuedBy: 'andres.mora@nexus.example', ...over } });
 
 describe('parseEvent', () => {
   it('accepts the five event types and ignores unknown extra fields', () => {
-    expect(parseEvent(overdue()).type).toBe('InvoiceOverdue');
+    expect(parseEvent(overdue()).type).toBe('OverdueDetected');
     expect(parseEvent(created()).type).toBe('MilestoneCreated');
     expect(parseEvent(approved()).type).toBe('MilestoneApproved');
     expect(parseEvent(drafted()).type).toBe('InvoiceDrafted');
@@ -61,7 +61,7 @@ describe('mergeEvent', () => {
     expect(expected.createdAt).toEqual(new Date(T_1));
     for (const p of perms(all)) expect(fold(p)).toEqual(expected);
   });
-  it('InvoiceOverdue records when it was known and how many days it was late, and does not change the invoice status', () => {
+  it('OverdueDetected records when it was known and how many days it was late, and does not change the invoice status', () => {
     const f = fold([parseEvent(approved()), parseEvent(drafted()), parseEvent(issued()), parseEvent(overdue())]);
     expect(f).toMatchObject({ invoiceStatus: 'issued', overdueAt: new Date(T3), overdueDays: 3 });
     const alone = fold([parseEvent(overdue())]);
@@ -73,7 +73,7 @@ describe('mergeEvent', () => {
     expect(expected).toMatchObject({ createdAt: new Date(T_1), overdueAt: new Date(T3), overdueDays: 3, invoiceStatus: 'issued' });
     for (const p of perms(all)) expect(fold(p)).toEqual(expected);
   });
-  it('a repeated InvoiceOverdue (later, with more days) keeps the FIRST date and days: it is told once', () => {
+  it('a repeated OverdueDetected (later, with more days) keeps the FIRST date and days: it is told once', () => {
     const later = parseEvent(overdue({ daysOverdue: 9 })); const first = parseEvent(overdue());
     const f = fold([first, { ...later, occurredAt: '2026-11-26T00:00:00.000Z' } as AnalyticsEvent]);
     expect(f).toMatchObject({ overdueAt: new Date(T3), overdueDays: 3 });

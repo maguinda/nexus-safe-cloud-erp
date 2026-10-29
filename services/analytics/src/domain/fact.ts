@@ -54,7 +54,7 @@ export function mergeEvent(prev: Fact | null, e: AnalyticsEvent): Fact {
       if (f.invoiceStatus !== 'issued') f.invoiceStatus = 'draft';
       if (f.approvedBy === null) f.approvedBy = e.data.approvedBy;
       break;
-    case 'InvoiceOverdue':
+    case 'OverdueDetected':
       // Vencida: no cambia el estado de la factura (sigue «emitida»), solo se anota cuándo se supo. Si llega antes que otros eventos, el resultado es el mismo.
       f.invoiceNumber = e.data.invoiceNumber; f.taxCop = e.data.taxCop; f.totalCop = e.data.totalCop;
       f.overdueAt = f.overdueAt ?? at; f.overdueDays = f.overdueDays ?? e.data.daysOverdue;
@@ -73,7 +73,7 @@ export function describe(e: AnalyticsEvent): string {
     case 'MilestoneCreated': return `New milestone “${e.data.milestoneName}” (${e.data.projectName}) · ${cop(e.data.amountCop)} pending approval`;
     case 'MilestoneApproved': return `${e.data.approvedBy} approved “${e.data.milestoneName}” (${e.data.projectName}) · ${cop(e.data.amountCop)}`;
     case 'InvoiceDrafted': return `Draft invoice ${e.data.invoiceNumber} created for “${e.data.milestoneName}” · total ${cop(e.data.totalCop)}`;
-    case 'InvoiceOverdue': return `Invoice ${e.data.invoiceNumber} is overdue by ${e.data.daysOverdue} day${e.data.daysOverdue === 1 ? '' : 's'} · total ${cop(e.data.totalCop)}`;
+    case 'OverdueDetected': return `Invoice ${e.data.invoiceNumber} is overdue by ${e.data.daysOverdue} day${e.data.daysOverdue === 1 ? '' : 's'} · total ${cop(e.data.totalCop)}`;
     case 'InvoiceIssued': return `${e.data.issuedBy} issued invoice ${e.data.invoiceNumber} · total ${cop(e.data.totalCop)}`;
   }
 }

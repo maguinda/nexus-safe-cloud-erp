@@ -31,7 +31,7 @@ model MilestoneFact {
   totalCop      Int?           @map("total_cop")
   draftedAt     DateTime?      @map("drafted_at")
   issuedAt      DateTime?      @map("issued_at")
-  /// Cuándo se supo que la factura venció (evento InvoiceOverdue) y cuántos días llevaba entonces; null si no ha vencido.
+  /// Cuándo se supo que la factura venció (evento OverdueDetected) y cuántos días llevaba entonces; null si no ha vencido.
   overdueAt     DateTime?      @map("overdue_at")
   overdueDays   Int?           @map("overdue_days")
   updatedAt     DateTime       @default(now()) @map("updated_at")

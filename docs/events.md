@@ -5,7 +5,7 @@ binding keys. The producer writes the event to an `outbox` table in the same tra
 change; a relay publishes it afterwards, so a crash never loses an event. Consumers are idempotent
 (they remember the processed `eventId`) and failed messages go to a dead-letter queue.
 
-## InvoiceOverdue
+## OverdueDetected
 
 - Published by: `billing-receivables` (a periodic check every `OVERDUE_CHECK_MS`, 60 s by default; `OVERDUE_ENABLED=false` turns it off), in the same transaction that writes the outbox row
 - Routing key: `billing.invoice.overdue`
@@ -16,7 +16,7 @@ change; a relay publishes it afterwards, so a crash never loses an event. Consum
 ```json
 {
   "eventId": "7d2c1a90-4b8e-4f31-a1c5-9e0f2b3c4d5e",
-  "type": "InvoiceOverdue",
+  "type": "OverdueDetected",
   "occurredAt": "2026-11-20T00:00:00.000Z",
   "correlationId": "overdue-20261120-1a2b3c4d",
   "data": {

@@ -95,7 +95,7 @@ class PrismaOverdueScope implements OverdueScope {
              i.approved_by AS "approvedBy", i.approved_at AS "approvedAt", i.due_date AS "dueDate", i.client_name AS "clientName"
       FROM invoices i
       WHERE i.status = 'issued' AND i.due_date IS NOT NULL AND i.due_date::date < ${today}::date
-        AND NOT EXISTS (SELECT 1 FROM outbox_events o WHERE o.aggregate_id = i.number AND o.type = 'InvoiceOverdue')
+        AND NOT EXISTS (SELECT 1 FROM outbox_events o WHERE o.aggregate_id = i.number AND o.type = 'OverdueDetected')
       ORDER BY i.due_date, i.number LIMIT ${limit} FOR UPDATE OF i SKIP LOCKED`;
     return rows.map(toDomain);
   }

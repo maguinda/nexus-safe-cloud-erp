@@ -32,12 +32,12 @@ function fake(invoices: Invoice[], failAfter?: number) {
 
 describe('DetectOverdueInvoicesUseCase', () => {
   const NOW = new Date('2026-11-15T12:00:00Z');
-  it('publishes one InvoiceOverdue per overdue invoice, with the days, the client name and the due date, and nothing for the ones that are not', async () => {
+  it('publishes one OverdueDetected per overdue invoice, with the days, the client name and the due date, and nothing for the ones that are not', async () => {
     const f = fake([inv(1, '2026-11-14T15:00:00Z'), inv(2, '2026-11-10T15:00:00Z'), inv(3, '2026-11-15T20:00:00Z'), inv(4, '2026-11-20T00:00:00Z'), inv(5, '2026-11-01T00:00:00Z', { status: 'draft', dueDate: null })]);
     const r = await new DetectOverdueInvoicesUseCase(f.uow, () => NOW).execute();
     expect(r).toEqual({ detected: 2 });
     expect(f.events.map((e) => [e.data.invoiceNumber, (e.data as any).daysOverdue])).toEqual([['INV-0001', 1], ['INV-0002', 5]]);
-    expect(f.events[0]).toMatchObject({ type: 'InvoiceOverdue', occurredAt: NOW.toISOString(), data: { clientName: 'Cliente', dueDate: '2026-11-14T15:00:00.000Z', amountCop: 1000, taxCop: 190, totalCop: 1190 } });
+    expect(f.events[0]).toMatchObject({ type: 'OverdueDetected', occurredAt: NOW.toISOString(), data: { clientName: 'Cliente', dueDate: '2026-11-14T15:00:00.000Z', amountCop: 1000, taxCop: 190, totalCop: 1190 } });
   });
   it('asks for today in UTC with ONE clock reading and the batch size', async () => {
     const f = fake([]);

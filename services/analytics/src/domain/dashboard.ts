@@ -11,7 +11,7 @@ export interface ProjectRow {
   waitingForInvoice: number;
   draftTotalCop: number;
   issuedTotalCop: number;
-  /** Facturas de este proyecto que ya pasaron su vencimiento (evento InvoiceOverdue de billing). */
+  /** Facturas de este proyecto que ya pasaron su vencimiento (evento OverdueDetected de billing). */
   overdueInvoices: number;
 }
 

@@ -38,7 +38,7 @@ export interface Dashboard {
     issued: { count: number; subtotalCop: number; taxCop: number; totalCop: number };
   };
   projects: DashboardProject[];
-  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued' | 'InvoiceOverdue'; message: string }[];
+  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued' | 'OverdueDetected'; message: string }[];
 }
 
 export type DeviceState = 'normal' | 'warning' | 'alert' | 'no_data';

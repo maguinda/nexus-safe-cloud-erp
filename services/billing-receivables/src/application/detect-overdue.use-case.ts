@@ -7,7 +7,7 @@ import { OverdueUnitOfWork } from '../domain/ports';
 export const OVERDUE_BATCH = 200;
 
 /**
- * Publica `InvoiceOverdue` UNA vez por cada factura emitida cuyo vencimiento ya pasó. Todo en una transacción: la factura se bloquea (SKIP LOCKED), se escribe su evento
+ * Publica `OverdueDetected` UNA vez por cada factura emitida cuyo vencimiento ya pasó. Todo en una transacción: la factura se bloquea (SKIP LOCKED), se escribe su evento
  * en el outbox y listo; si algo falla no queda nada. Idempotente: una factura con su evento ya no vuelve a salir (la consulta la excluye y la base tiene único por factura y tipo).
  * El reloj es UNO solo por pasada (la fecha de hoy y el momento del evento salen de la misma lectura).
  */

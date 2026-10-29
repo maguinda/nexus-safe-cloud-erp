@@ -15,21 +15,21 @@ describe('overdue invoices detector (e2e, real PostgreSQL)', () => {
     return number;
   };
   const detector = (now = NOW) => new DetectOverdueInvoicesUseCase(new PrismaOverdueUnitOfWork(prisma), () => now);
-  const overdueEvents = () => prisma.outboxEvent.findMany({ where: { type: 'InvoiceOverdue' }, orderBy: { aggregateId: 'asc' } });
+  const overdueEvents = () => prisma.outboxEvent.findMany({ where: { type: 'OverdueDetected' }, orderBy: { aggregateId: 'asc' } });
   const clean = async () => { await resetState(prisma); };
 
   beforeEach(clean);
   afterAll(async () => { await clean(); await prisma.$disconnect(); });
 
-  it('writes exactly one InvoiceOverdue per overdue invoice (routing key, payload, unpublished) and none for the ones that are not overdue', async () => {
+  it('writes exactly one OverdueDetected per overdue invoice (routing key, payload, unpublished) and none for the ones that are not overdue', async () => {
     const yesterday = await issued('2026-11-09T15:00:00Z'); const old = await issued('2026-10-01T10:00:00Z');
     await issued('2026-11-10T20:00:00Z'); await issued('2026-12-01T00:00:00Z'); await issued(null, { status: 'draft', issuedAt: null, issuedBy: null });
     expect(await detector().execute()).toEqual({ detected: 2 });
     const events = await overdueEvents();
     expect(events.map((e) => e.aggregateId).sort()).toEqual([yesterday, old].sort());
-    for (const e of events) expect(e).toMatchObject({ type: 'InvoiceOverdue', routingKey: 'billing.invoice.overdue', publishedAt: null });
+    for (const e of events) expect(e).toMatchObject({ type: 'OverdueDetected', routingKey: 'billing.invoice.overdue', publishedAt: null });
     const payload = events.find((e) => e.aggregateId === yesterday)!.payload as any;
-    expect(payload).toMatchObject({ type: 'InvoiceOverdue', occurredAt: NOW.toISOString(), data: { invoiceNumber: yesterday, clientName: 'Banco Andino (example)', dueDate: '2026-11-09T15:00:00.000Z', daysOverdue: 1, amountCop: 1_000_000, taxCop: 190_000, totalCop: 1_190_000 } });
+    expect(payload).toMatchObject({ type: 'OverdueDetected', occurredAt: NOW.toISOString(), data: { invoiceNumber: yesterday, clientName: 'Banco Andino (example)', dueDate: '2026-11-09T15:00:00.000Z', daysOverdue: 1, amountCop: 1_000_000, taxCop: 190_000, totalCop: 1_190_000 } });
     expect(payload.correlationId).toMatch(/^overdue-20261110-[0-9a-f]{8}$/);
     expect(JSON.stringify(payload)).not.toMatch(/@/); // sin correos ni datos personales
   });
@@ -64,10 +64,10 @@ describe('overdue invoices detector (e2e, real PostgreSQL)', () => {
       expect((await overdueEvents()).map((e) => e.aggregateId).sort()).toEqual([...numbers].sort());
     }
   });
-  it('the database refuses a second InvoiceOverdue for the same invoice even if the code were wrong', async () => {
+  it('the database refuses a second OverdueDetected for the same invoice even if the code were wrong', async () => {
     const n = await issued('2026-11-01T10:00:00Z');
     await detector().execute();
-    await expect(prisma.outboxEvent.create({ data: { id: '11111111-1111-4111-8111-111111111111', aggregateId: n, type: 'InvoiceOverdue', routingKey: 'billing.invoice.overdue', payload: {} } })).rejects.toThrow();
+    await expect(prisma.outboxEvent.create({ data: { id: '11111111-1111-4111-8111-111111111111', aggregateId: n, type: 'OverdueDetected', routingKey: 'billing.invoice.overdue', payload: {} } })).rejects.toThrow();
   });
   it('a big backlog is cleared in batches: 250 overdue invoices need two passes and end with exactly 250 events', async () => {
     await prisma.$executeRaw`
@@ -80,7 +80,7 @@ describe('overdue invoices detector (e2e, real PostgreSQL)', () => {
   });
   it('writing the SAME invoice\'s overdue event a second time answers false and neither fails nor duplicates (what a detector that arrives late meets)', async () => {
     const n = await issued('2026-11-01T10:00:00Z');
-    const event = (id: string) => ({ eventId: id, type: 'InvoiceOverdue' as const, occurredAt: NOW.toISOString(), correlationId: 'overdue-20261110-aaaaaaaa', data: { invoiceNumber: n, milestoneId: 'x', projectName: 'P', milestoneName: 'M', amountCop: 1, taxCop: 0, totalCop: 1, clientName: null, dueDate: '2026-11-01T10:00:00.000Z', daysOverdue: 9 } });
+    const event = (id: string) => ({ eventId: id, type: 'OverdueDetected' as const, occurredAt: NOW.toISOString(), correlationId: 'overdue-20261110-aaaaaaaa', data: { invoiceNumber: n, milestoneId: 'x', projectName: 'P', milestoneName: 'M', amountCop: 1, taxCop: 0, totalCop: 1, clientName: null, dueDate: '2026-11-01T10:00:00.000Z', daysOverdue: 9 } });
     const uow = new PrismaOverdueUnitOfWork(prisma);
     const first = await uow.run((tx) => tx.addToOutbox(event('22222222-2222-4222-8222-222222222222')));
     const second = await uow.run((tx) => tx.addToOutbox(event('33333333-3333-4333-8333-333333333333')));

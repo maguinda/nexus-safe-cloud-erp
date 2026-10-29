@@ -945,7 +945,7 @@ components:
               properties: { count: { type: integer }, cop: { type: integer } }
             overdue:
               type: object
-              description: Issued invoices that are past their due day (event InvoiceOverdue from billing), and what they add up to with IVA
+              description: Issued invoices that are past their due day (event OverdueDetected from billing), and what they add up to with IVA
               properties: { count: { type: integer }, totalCop: { type: integer } }
             milestonesApproved: { type: integer }
             approvedCop: { type: integer, description: Sum of the approved subtotals }
