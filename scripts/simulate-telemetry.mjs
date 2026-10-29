@@ -27,9 +27,9 @@ function ingestKey() {
   return '';
 }
 const key = ingestKey();
-if (!opts.dryRun && key.length < 32) { console.error('✖ Falta la clave de servicio (INGEST_KEY, mínimo 32 caracteres).\n  Genérala con: openssl rand -hex 24, ponla en .env (INGEST_KEY=...) y reinicia Analytics: docker compose up -d analytics'); process.exit(2); }
+if (!opts.dryRun && key.length < 32) { console.error('✖ Falta la clave de servicio (INGEST_KEY, mínimo 32 caracteres).\n  Genérala con: openssl rand -hex 24, ponla en .env (INGEST_KEY=...) y reinicia Operations: docker compose up -d operations'); process.exit(2); }
 
-const slots = buildSlots(JSON.parse(readFileSync(`${root}services/analytics/prisma/data/iot-readings.json`, 'utf8')));
+const slots = buildSlots(JSON.parse(readFileSync(`${root}services/operations/prisma/data/iot-readings.json`, 'utf8')));
 if (opts.startIndex >= slots.length) { console.error(`✖ --start-index debe ser menor que ${slots.length}`); process.exit(2); }
 
 async function send(body) {

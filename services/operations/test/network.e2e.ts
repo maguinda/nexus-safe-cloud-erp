@@ -12,7 +12,7 @@ const file = <T>(n: string): T => JSON.parse(readFileSync(`prisma/data/${n}`, 'u
 type Device = { id: number; name: string; category: string; criticality: string };
 type Link = { id: number; originName: string; destinationName: string; linkType: string; functional: boolean | null; criticality: string };
 
-describe('network inventory: the Nexus data loaded into Analytics and read by the manager (e2e, real PostgreSQL)', () => {
+describe('network inventory: the Nexus data loaded into Operations & Telemetry and read by the manager (e2e, real PostgreSQL)', () => {
   let app: INestApplication;
   const prisma = new PrismaClient();
   const devices = file<Device[]>('network-devices.json');

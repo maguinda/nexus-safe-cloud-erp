@@ -13,6 +13,7 @@ services:
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD}
       DB_NOTIFICATIONS_PASSWORD: ${DB_NOTIFICATIONS_PASSWORD}
       DB_CAPACITY_PASSWORD: ${DB_CAPACITY_PASSWORD}
+      DB_OPERATIONS_PASSWORD: ${DB_OPERATIONS_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -130,10 +131,6 @@ services:
       JWT_AUDIENCE: erp-api
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       SEED_DEMO: ${SEED_DEMO:-false}
-      # Opcional: sin llave el asesor de decisiones responde con reglas. La llave va en .env (que Git ignora), nunca en el repo.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      INGEST_KEY: ${INGEST_KEY:-}
-      ADVISOR_MODEL: ${ADVISOR_MODEL:-claude-sonnet-5-5}
       TLS_ENABLED: "true"
       TLS_CERT_PATH: /run/secrets/tls_analytics_cert
       TLS_KEY_PATH: /run/secrets/tls_analytics_key
@@ -180,6 +177,28 @@ services:
       TLS_ALLOWED_CLIENTS: gateway,capacity
     secrets: [jwt_public, tls_ca, tls_capacity_cert, tls_capacity_key]
 
+  operations:
+    build: ./services/operations
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://operations:${DB_OPERATIONS_PASSWORD}@postgres:5432/operations
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      SEED_DEMO: ${SEED_DEMO:-false}
+      # Opcional: sin llave el asesor de decisiones responde con reglas. La llave va en .env (que Git ignora), nunca en el repo.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      INGEST_KEY: ${INGEST_KEY:-}
+      ADVISOR_MODEL: ${ADVISOR_MODEL:-claude-sonnet-5-5}
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_operations_cert
+      TLS_KEY_PATH: /run/secrets/tls_operations_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,operations
+    secrets: [jwt_public, tls_ca, tls_operations_cert, tls_operations_key]
+
   web:
     build: ./web
     restart: unless-stopped
@@ -195,6 +214,7 @@ services:
       analytics: { condition: service_healthy }
       notifications: { condition: service_healthy }
       capacity: { condition: service_healthy }
+      operations: { condition: service_healthy }
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -240,6 +260,10 @@ secrets:
     file: ./infra/certs/capacity.pem
   tls_capacity_key:
     file: ./infra/certs/capacity-key.pem
+  tls_operations_cert:
+    file: ./infra/certs/operations.pem
+  tls_operations_key:
+    file: ./infra/certs/operations-key.pem
 
 volumes:
   pgdata:

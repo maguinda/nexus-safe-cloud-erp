@@ -1,0 +1,107 @@
+// Base de Operations & Telemetry: inventario de sensores y de red, y la serie de lecturas. Ningún otro servicio la lee ni la escribe.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Inventario de dispositivos IoT de Nexus (carpeta PROYECTO_NEXUS de la docente). Se carga con prisma/seed.ts; no viene de eventos.
+model IotDevice {
+  id          String       @id
+  name        String
+  kind        String
+  location    String
+  vlan        String
+  ipAddress   String       @map("ip_address")
+  macAddress  String       @map("mac_address")
+  /// ONLINE u OFFLINE, tal como lo trae el inventario.
+  connection  String
+  /// TEMP, HUMIDITY, STREAM, SMOKE, DETECTION, POWER o STATE.
+  readingKind String       @map("reading_kind")
+  unit        String
+  readings    IotReading[]
+
+  @@index([location])
+  @@map("iot_devices")
+}
+
+/// Lecturas de los sensores (serie de tiempo). El id es el «ID Registro» de la fuente, así que cargar dos veces no duplica nada.
+model IotReading {
+  /// Las del seed traen el id de la fuente (1 a 4200); las de la API de ingesta lo genera la base (identidad desde el id más alto + 1).
+  id         Int       @id @default(autoincrement())
+  deviceId   String    @map("device_id")
+  /// Sin zona horaria en la fuente: se guarda tal cual, como UTC.
+  recordedAt DateTime  @map("recorded_at")
+  /// NORMAL, WARNING, ALERT, ACTIVE, LOCKED, UNLOCKED, CLEAR, DETECTED, ON u OFF.
+  status     String
+  value      Float
+  unit       String
+  note       String?
+  device     IotDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@unique([deviceId, recordedAt])
+  @@index([recordedAt])
+  @@index([status, recordedAt])
+  @@map("iot_readings")
+}
+
+/// Inventario de red de Nexus (hoja «01 Inventario» de «Data para Proveedor ERP», carpeta PROYECTO_NEXUS). Se carga con prisma/seed.ts; no viene de eventos.
+model NetworkDevice {
+  id          Int                @id
+  name        String             @unique
+  ptType      String             @map("pt_type")
+  model       String
+  category    String
+  role        String
+  /// Crítica, Alta o Media (CHECK en la base).
+  criticality String
+  serial      String
+  /// Direcciones IP tal como las trae el inventario («10.0.0.2; 10.0.0.9»); solo los equipos de red y algunos servidores las tienen.
+  ips         String?
+  gateways    String?
+  linksFrom   NetworkLink[]      @relation("LinkOrigin")
+  linksTo     NetworkLink[]      @relation("LinkDestination")
+  monitoring  NetworkMonitoring?
+
+  @@index([category])
+  @@index([criticality])
+  @@map("network_devices")
+}
+
+/// Enlaces entre dispositivos (hoja «03 Enlaces»). Origen y destino son nombres de dispositivos del inventario.
+model NetworkLink {
+  id              Int           @id
+  originName      String        @map("origin_name")
+  originPort      String        @map("origin_port")
+  destinationName String        @map("destination_name")
+  destinationPort String        @map("destination_port")
+  linkType        String        @map("link_type")
+  /// Los enlaces de IoT (eCustomIOLink) no traen tipo de cable ni si son funcionales: null = sin dato.
+  cableType       String?       @map("cable_type")
+  functional      Boolean?
+  length          Float?
+  criticality     String
+  origin          NetworkDevice @relation("LinkOrigin", fields: [originName], references: [name], onDelete: Restrict)
+  destination     NetworkDevice @relation("LinkDestination", fields: [destinationName], references: [name], onDelete: Restrict)
+
+  @@index([originName])
+  @@index([destinationName])
+  @@index([linkType])
+  @@map("network_links")
+}
+
+/// Estado de monitoreo de los equipos de infraestructura (hoja «06 Monitoreo»): qué TIENE configurado hoy y qué señales SE PUEDEN monitorear.
+model NetworkMonitoring {
+  deviceName String        @id @map("device_name")
+  syslog     Boolean
+  snmp       Boolean
+  ntp        Boolean
+  netflow    Boolean
+  signals    String[]
+  device     NetworkDevice @relation(fields: [deviceName], references: [name], onDelete: Restrict)
+
+  @@map("network_monitoring")
+}

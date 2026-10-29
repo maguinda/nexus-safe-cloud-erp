@@ -11,7 +11,7 @@ process.env.RATE_LIMIT = '100000';
 const file = <T>(n: string): T => JSON.parse(readFileSync(`prisma/data/${n}`, 'utf8'));
 type Reading = { id: number; deviceId: string; status: string; value: number; recordedAt: string };
 
-describe('telemetry: the Nexus data loaded into Analytics and read by the manager (e2e, real PostgreSQL)', () => {
+describe('telemetry: the Nexus data loaded into Operations & Telemetry and read by the manager (e2e, real PostgreSQL)', () => {
   let app: INestApplication;
   const prisma = new PrismaClient();
   const readings = file<Reading[]>('iot-readings.json');

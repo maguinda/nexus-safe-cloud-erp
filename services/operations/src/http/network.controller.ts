@@ -17,7 +17,7 @@ export class NetworkController {
     @Inject(EXPLORE_NETWORK) private readonly explore: ExploreNetworkUseCase,
   ) {}
 
-  /** Solo el gerente: inventario de la red de Nexus (dispositivos, enlaces y estado de monitoreo), leído del modelo de lectura de Analytics. */
+  /** Solo el gerente: inventario de la red de Nexus (dispositivos, enlaces y estado de monitoreo), leído de la base de Operations & Telemetry. */
   @Get('summary')
   @Roles('manager')
   @ApiOperation({ summary: 'Network inventory summary from the loaded Nexus data (role manager)' })

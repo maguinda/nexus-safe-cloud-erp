@@ -25,7 +25,7 @@ export class TelemetryController {
     @Inject(INGEST_READINGS) private readonly ingest: IngestReadingsUseCase,
   ) {}
 
-  /** Solo el gerente: estado de la red y de los sensores IoT de Nexus, leído del modelo de lectura de Analytics. */
+  /** Solo el gerente: estado de la red y de los sensores IoT de Nexus, leído de la base de Operations & Telemetry. */
   @Get('summary')
   @Roles('manager')
   @ApiOperation({ summary: 'Network and IoT telemetry summary from the loaded Nexus data (role manager)' })
