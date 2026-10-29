@@ -68,6 +68,26 @@ ok((await call('PATCH', `/invoices/${draft.number}/issue`, { token: lead.token }
 const issued = await call('PATCH', `/invoices/${draft.number}/issue`, { token: bill.token });
 ok(issued.status === 200 && issued.json.status === 'issued', 'Billing analyst emite la factura (200)');
 ok((await call('PATCH', `/invoices/${draft.number}/issue`, { token: bill.token })).status === 409, 'emitir otra vez da 409');
+
+// Factura electrónica de PRUEBA (sandbox): se genera sola al emitir si el cliente tiene datos fiscales, y SIEMPRE dice que no tiene validez legal.
+ok(['generated', 'pending_customer_data'].includes(issued.json.electronicStatus), `la factura quedó emitida y su documento electrónico está «${issued.json.electronicStatus}» (se genera solo si el cliente ya tiene datos fiscales)`);
+if (issued.json.electronicStatus === 'pending_customer_data') {
+  // Camino sin datos fiscales: la factura sigue emitida, el documento NO se genera (409) y el consecutivo no se gasta; al cargar los datos del cliente ya se puede.
+  ok((await call('POST', `/invoices/${draft.number}/electronic`, { token: bill.token })).status === 409, 'sin los datos fiscales del cliente el documento no se genera (409) y la factura sigue emitida');
+  ok((await call('PUT', '/customers', { token: bill.token, body: { name: issued.json.clientName, nit: '900.000.009', email: 'flujo@cliente.example', address: 'Calle 1 # 2-3', city: 'Medellín' } })).status === 200, 'el analista carga los datos fiscales del cliente (200)');
+  const gen = await call('POST', `/invoices/${draft.number}/electronic`, { token: bill.token });
+  ok(gen.status === 201 && gen.json?.status === 'generated', 'y ahora sí se genera el documento (201)');
+}
+const eInv = await call('GET', `/invoices/${draft.number}/electronic`, { token: bill.token });
+ok(eInv.status === 200 && /^FE\d+$/.test(eInv.json?.number) && /^[0-9a-f]{96}$/.test(eInv.json?.cufe) && eInv.json?.environment === 'sandbox', 'el documento tiene su número FE… y un CUFE de 96 hexadecimales');
+ok(eInv.json?.signed === false && eInv.json?.validForDian === false && String(eInv.json?.legalNotice?.es).includes('SIN VALIDEZ LEGAL'), 'dice que NO está firmado ni es válido ante la DIAN');
+ok(!JSON.stringify(eInv.json).includes('@'), 'el estado del documento no trae el correo del cliente (dato personal)');
+const eXml = await fetch(`${BASE}/invoices/${draft.number}/electronic/xml`, { headers: { Authorization: `Bearer ${bill.token}` } });
+const xmlText = await eXml.text();
+ok(eXml.status === 200 && eXml.headers.get('content-type')?.startsWith('application/xml') && xmlText.includes(eInv.json?.cufe) && xmlText.includes('SIN VALIDEZ LEGAL') && xmlText.includes(`${draft.totalCop}.00`), 'el XML UBL lleva el CUFE, el aviso y el total de la factura');
+ok((await call('GET', `/invoices/${draft.number}/electronic/xml`, { token: lead.token })).status === 403 && (await call('GET', '/customers', { token: manager.token })).status === 403, 'solo el analista de facturación descarga el XML y ve los datos fiscales (los demás roles, 403)');
+const eSub = await call('POST', `/invoices/${draft.number}/electronic/submit`, { token: bill.token });
+ok(eSub.status === 200 && eSub.json?.status === 'sandbox_simulated' && !JSON.stringify(eSub.json).match(/accepted/i), 'el envío es SIMULADO (sandbox_simulated), nunca «accepted»');
 ok((await call('POST', `/milestones/${target.id}/approve`, { token: lead.token })).status === 409, 'aprobar otra vez da 409');
 await new Promise((r) => setTimeout(r, 1000));
 ok((await call('GET', '/invoices', { token: bill.token })).json.length === before + 1, 'no se creó una segunda factura');

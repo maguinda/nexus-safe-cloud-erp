@@ -1,9 +1,14 @@
 import { BillingEvent } from './events';
+import { FiscalCustomer } from './einvoice/customer';
+import { EInvoiceStatus } from './einvoice/legal';
+import { EInvoiceListStatus } from './einvoice/status';
+import { Party } from './einvoice/document';
 import { Invoice } from './invoice';
 
+export interface InvoiceListItem extends Invoice { electronicStatus: EInvoiceListStatus }
 export interface InvoiceQueries {
   /** Más nuevas primero. */
-  list(): Promise<Invoice[]>;
+  list(): Promise<InvoiceListItem[]>;
 }
 
 /** Lo que el consumidor puede hacer dentro de UNA transacción: marcar el evento, revisar el hito e insertar la factura. */
@@ -29,3 +34,77 @@ export interface IssueScope {
 export interface IssueUnitOfWork {
   run<T>(work: (tx: IssueScope) => Promise<T>): Promise<T>;
 }
+
+// ---------------------------------------------------------------- factura electrónica (sandbox)
+
+/** El documento tal como se guardó (inmutable salvo su estado de envío). */
+export interface StoredEInvoice {
+  id: string;
+  invoiceNumber: string;
+  number: string;
+  issueDate: string;
+  issueTime: string;
+  dueDate: string;
+  cufe: string;
+  environment: 'sandbox';
+  status: EInvoiceStatus;
+  xml: string;
+  qrText: string;
+  supplier: Party;
+  customer: Party;
+  /** Montos y nombres de la factura al generar el documento. */
+  invoice: InvoiceSummary;
+  providerRef: string | null;
+  submittedAt: Date | null;
+  createdAt: Date;
+  deliveries: number;
+}
+
+export interface NewEInvoice {
+  invoiceNumber: string;
+  prefix: string;
+  consecutive: number;
+  number: string;
+  issueDate: string;
+  issueTime: string;
+  dueDate: string;
+  cufe: string;
+  xml: string;
+  qrText: string;
+  supplier: Party;
+  customer: Party;
+  invoice: InvoiceSummary;
+}
+
+export interface Numbering { prefix: string; consecutive: number; validFrom: Date; validTo: Date }
+
+/** Lo que la generación hace dentro de UNA transacción. Orden de bloqueos (siempre el mismo): factura, cliente, contador. */
+export interface EInvoiceScope {
+  findInvoiceForUpdate(number: string): Promise<Invoice | null>;
+  findElectronic(invoiceNumber: string): Promise<StoredEInvoice | null>;
+  findCustomerForShare(key: string): Promise<FiscalCustomer | null>;
+  /** Toma el siguiente consecutivo (UPDATE ... RETURNING); lanza NumberingExhaustedError si ya no quedan. */
+  takeNextConsecutive(): Promise<Numbering>;
+  insertElectronic(e: NewEInvoice): Promise<StoredEInvoice>;
+}
+export interface EInvoiceUnitOfWork {
+  run<T>(work: (tx: EInvoiceScope) => Promise<T>): Promise<T>;
+}
+
+export interface InvoiceSummary { number: string; milestoneName: string; projectName: string; amountCop: number; taxCop: number; totalCop: number }
+
+export interface EInvoiceRepository {
+  findByInvoiceNumber(invoiceNumber: string): Promise<StoredEInvoice | null>;
+  /** Pasa de `generated` a `sandbox_simulated` una sola vez; si ya estaba enviada devuelve la que hay (la primera gana). */
+  markSubmitted(invoiceNumber: string, providerRef: string, at: Date): Promise<StoredEInvoice | null>;
+  /** Registra el envío por correo al correo que quedó en el documento (no hay servidor de correo conectado). */
+  addDelivery(invoiceNumber: string, recipient: string): Promise<StoredEInvoice | null>;
+}
+
+export interface CustomerRepository {
+  list(): Promise<(FiscalCustomer & { updatedAt: Date })[]>;
+  upsert(c: FiscalCustomer, key: string): Promise<FiscalCustomer>;
+}
+
+/** Dibuja el texto del QR como SVG (la librería es un detalle de infraestructura). */
+export interface QrRenderer { toSvg(text: string): Promise<string> }

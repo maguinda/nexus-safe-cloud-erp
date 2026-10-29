@@ -36,6 +36,8 @@ jobs:
           cp .env.example .env
           # Clave de servicio de la ingesta de telemetría (efímera, solo de este runner): sin ella la ruta responde 503.
           sed -i "s/^INGEST_KEY=.*/INGEST_KEY=$(openssl rand -hex 24)/" .env
+      - name: The example environment file must load in the shell too (e2e-flow and this job source it)
+        run: sh scripts/check-env-example.sh
       - name: Build and start the stack
         run: docker compose up -d --build
       - name: Wait for the gateway

@@ -13,27 +13,30 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id            String        @id @default(uuid()) @db.Uuid
+  id            String             @id @default(uuid()) @db.Uuid
   /// INV-0001... generado con la secuencia invoice_number_seq (ver la migración)
-  number        String        @unique
+  number        String             @unique
   /// A lo sumo una factura por hito: invariante a nivel de base de datos.
-  milestoneId   String        @unique @map("milestone_id")
-  projectName   String        @map("project_name")
-  milestoneName String        @map("milestone_name")
+  milestoneId   String             @unique @map("milestone_id")
+  projectName   String             @map("project_name")
+  milestoneName String             @map("milestone_name")
   /// Subtotal (el monto del hito). IVA y total se calculan con la regla de dominio y la base verifica que cuadren.
-  amountCop     Int           @map("amount_cop")
-  taxCop        Int           @map("tax_cop")
-  totalCop      Int           @map("total_cop")
-  status        InvoiceStatus @default(draft)
-  createdAt     DateTime      @default(now()) @map("created_at")
-  issuedAt      DateTime?     @map("issued_at")
-  issuedBy      String?       @map("issued_by")
-  sourceEventId String?       @map("source_event_id") @db.Uuid
+  amountCop     Int                @map("amount_cop")
+  taxCop        Int                @map("tax_cop")
+  totalCop      Int                @map("total_cop")
+  status        InvoiceStatus      @default(draft)
+  createdAt     DateTime           @default(now()) @map("created_at")
+  issuedAt      DateTime?          @map("issued_at")
+  issuedBy      String?            @map("issued_by")
+  sourceEventId String?            @map("source_event_id") @db.Uuid
   /// Trazabilidad hito -> factura: quién aprobó y cuándo (vienen en el evento).
-  approvedBy    String?       @map("approved_by")
-  approvedAt    DateTime?     @map("approved_at")
+  approvedBy    String?            @map("approved_by")
+  approvedAt    DateTime?          @map("approved_at")
   /// Vence 30 días después de emitirse (domain/due-date.ts). Solo las emitidas la tienen; la base lo exige (ver la migración).
-  dueDate       DateTime?     @map("due_date")
+  dueDate       DateTime?          @map("due_date")
+  /// El cliente del proyecto (viene en MilestoneApproved); null en las facturas anteriores a ese campo.
+  clientName    String?            @map("client_name")
+  electronic    ElectronicInvoice?
 
   @@index([createdAt])
   @@map("invoices")
@@ -63,4 +66,78 @@ model OutboxEvent {
   @@unique([aggregateId, type])
   @@index([publishedAt])
   @@map("outbox_events")
+}
+
+/// Datos fiscales de los clientes (datos personales: no viajan por el bus ni van a los registros).
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Nombre sin mayúsculas, tildes ni espacios de más (domain/einvoice/customer.ts): así se une con el cliente del proyecto.
+  key       String   @unique
+  name      String
+  nit       String
+  dv        Int
+  email     String
+  address   String
+  city      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("customers")
+}
+
+/// Rango de numeración de la resolución (UNA fila): el consecutivo se toma con UPDATE ... RETURNING dentro de la transacción de generación.
+model EInvoiceNumbering {
+  id         Int      @id
+  prefix     String
+  rangeFrom  Int      @map("range_from")
+  rangeTo    Int      @map("range_to")
+  nextNumber Int      @map("next_number")
+  resolution String
+  validFrom  DateTime @map("valid_from")
+  validTo    DateTime @map("valid_to")
+
+  @@map("einvoice_numbering")
+}
+
+/// Documento electrónico de una factura emitida (SANDBOX, SIN VALIDEZ LEGAL). Inmutable: la base impide cambiar el XML, el CUFE o el número.
+model ElectronicInvoice {
+  id              String             @id @default(uuid()) @db.Uuid
+  invoiceId       String             @unique @map("invoice_id") @db.Uuid
+  prefix          String
+  consecutive     Int
+  number          String             @unique
+  issueDate       String             @map("issue_date")
+  issueTime       String             @map("issue_time")
+  dueDate         String             @map("due_date")
+  cufe            String             @unique
+  environment     String
+  /// generated | sandbox_simulated. No existe «accepted».
+  status          String
+  xml             String
+  qrText          String             @map("qr_text")
+  supplier        Json
+  customer        Json
+  /// Montos y nombres de la factura tal como eran al generar (la representación HTML sale de aquí, no de la fila viva).
+  invoiceSnapshot Json               @map("invoice_snapshot")
+  providerRef     String?            @map("provider_ref")
+  submittedAt     DateTime?          @map("submitted_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  invoice         Invoice            @relation(fields: [invoiceId], references: [id])
+  deliveries      EInvoiceDelivery[]
+
+  @@unique([prefix, consecutive])
+  @@map("electronic_invoices")
+}
+
+model EInvoiceDelivery {
+  id         String            @id @default(uuid()) @db.Uuid
+  einvoiceId String            @map("einvoice_id") @db.Uuid
+  channel    String
+  recipient  String
+  status     String
+  createdAt  DateTime          @default(now()) @map("created_at")
+  einvoice   ElectronicInvoice @relation(fields: [einvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([einvoiceId])
+  @@map("einvoice_deliveries")
 }

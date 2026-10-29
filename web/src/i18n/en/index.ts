@@ -11,5 +11,6 @@ import { sensors } from './sensors';
 import { netview } from './netview';
 import { summary } from './summary';
 import { advisor } from './advisor';
+import { einvoice } from './einvoice';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice };

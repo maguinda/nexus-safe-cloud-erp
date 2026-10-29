@@ -95,7 +95,7 @@ describe('invoices: authentication, roles and issuing (e2e, real PostgreSQL)', (
       await addDraft('INV-0103', 'm2');
       const res = await get('/invoices', bearer(token(USERS.billing)));
       expect(res.body.map((i: any) => i.number)).toEqual(['INV-0103', 'INV-0102', 'INV-0101']);
-      expect(Object.keys(res.body[0]).sort()).toEqual(['amountCop', 'createdAt', 'dueDate', 'milestoneName', 'number', 'projectName', 'status', 'taxCop', 'totalCop']);
+      expect(Object.keys(res.body[0]).sort()).toEqual(['amountCop', 'clientName', 'createdAt', 'dueDate', 'electronicStatus', 'milestoneName', 'number', 'projectName', 'status', 'taxCop', 'totalCop']);
       expect(res.body[0].status).toBe('draft');
       expect(res.body[1]).toMatchObject({ number: 'INV-0102', status: 'issued', amountCop: 9_800_000, taxCop: 1_862_000, totalCop: 11_662_000, dueDate: '2026-11-14T15:00:00.000Z' });
       expect(res.body[0].dueDate).toBeNull(); // el borrador no tiene vencimiento

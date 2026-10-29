@@ -51,7 +51,7 @@ describe('creating projects and milestones (e2e, real PostgreSQL)', () => {
       const a = await send('post', `/milestones/${m.body.id}/approve`, lead());
       expect(a.status).toBe(200);
       const ev = await prisma.outboxEvent.findUnique({ where: { id: a.body.eventId } });
-      expect((ev?.payload as any).data).toMatchObject({ milestoneId: m.body.id, projectId: p.body.id, projectName: 'Warehouse Wi-Fi rollout', amountCop: 12_000_000, approvedBy: USERS.lead.email });
+      expect((ev?.payload as any).data).toMatchObject({ milestoneId: m.body.id, projectId: p.body.id, projectName: 'Warehouse Wi-Fi rollout', clientName: 'Nexus Safe-Cloud', amountCop: 12_000_000, approvedBy: USERS.lead.email });
       expect((await send('post', `/milestones/${m.body.id}/approve`, lead())).status).toBe(409);
     });
     it('can add milestones to a seeded project too', async () => {

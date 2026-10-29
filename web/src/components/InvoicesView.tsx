@@ -10,6 +10,7 @@ import type { Invoice } from '../lib/types';
 import { roleKey } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
+import { EInvoicePanel } from './EInvoicePanel';
 import s from './InvoicesView.module.css';
 
 /** Solo en teléfono: las columnas pasan a tarjetas y sin encabezados no hay dónde pulsar para ordenar; estos botones hacen lo mismo. */
@@ -159,6 +160,7 @@ export function InvoicesView({ toast }: { toast: (m: string) => void }) {
         </>
       )}
       <p className={ui.muted}>{t('invoices.note', { created: t('invoices.col.created') })}</p>
+      {user?.role === 'billing_analyst' && invoices !== null && <EInvoicePanel invoices={all} reload={load} toast={toast} />}
     </section>
   );
 }

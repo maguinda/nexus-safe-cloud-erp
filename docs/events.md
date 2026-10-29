@@ -41,11 +41,14 @@ change; a relay publishes it afterwards, so a crash never loses an event. Consum
     "milestoneName": "Link redundancy design",
     "projectId": "p1",
     "projectName": "Branch network upgrade",
+    "clientName": "Banco Andino (example)",
     "amountCop": 18500000,
     "approvedBy": "laura.rios@nexus.example"
   }
 }
 ```
+
+- `clientName` (new, optional): the client of the project. Billing uses it to find the fiscal data of the client for the SANDBOX electronic invoice. The fiscal data itself (NIT, email, address) **never travels on the bus**. Old events without it are valid (`null`); billing cleans it (control characters out, spaces collapsed, up to 120 characters) instead of refusing the event.
 
 Rules:
 - The consumer creates **at most one** invoice per `milestoneId`; a repeated event changes nothing.

@@ -21,7 +21,7 @@ export class ApproveMilestoneUseCase {
       if (!found) throw new MilestoneNotFoundError(milestoneId);
       const now = this.clock();
       const approved = approve(found.milestone, approvedBy, now);
-      const event = milestoneApproved(approved, found.projectName, correlationId, now);
+      const event = milestoneApproved(approved, found.projectName, found.clientName, correlationId, now);
       await tx.saveMilestone(approved);
       await tx.addToOutbox(event);
       return { milestone: approved, eventId: event.eventId };

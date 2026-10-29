@@ -11,3 +11,4 @@ export { sensors } from './sensors';
 export { netview } from './netview';
 export { summary } from './summary';
 export { advisor } from './advisor';
+export { einvoice } from './einvoice';

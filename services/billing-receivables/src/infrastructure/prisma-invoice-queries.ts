@@ -1,16 +1,25 @@
 import { PrismaClient } from '@prisma/client';
 import { Invoice } from '../domain/invoice';
-import { InvoiceQueries } from '../domain/ports';
+import { customerKey } from '../domain/einvoice/customer';
+import { electronicStatusOf } from '../domain/einvoice/status';
+import { InvoiceListItem, InvoiceQueries } from '../domain/ports';
 
 export const toDomain = (r: any): Invoice => ({
   number: r.number, milestoneId: r.milestoneId, projectName: r.projectName, milestoneName: r.milestoneName, amountCop: r.amountCop, taxCop: r.taxCop, totalCop: r.totalCop,
-  status: r.status, createdAt: r.createdAt, issuedAt: r.issuedAt, issuedBy: r.issuedBy, sourceEventId: r.sourceEventId, approvedBy: r.approvedBy, approvedAt: r.approvedAt, dueDate: r.dueDate,
+  status: r.status, createdAt: r.createdAt, issuedAt: r.issuedAt, issuedBy: r.issuedBy, sourceEventId: r.sourceEventId, approvedBy: r.approvedBy, approvedAt: r.approvedAt, dueDate: r.dueDate, clientName: r.clientName ?? null,
 });
 
 export class PrismaInvoiceQueries implements InvoiceQueries {
   constructor(private readonly prisma: PrismaClient) {}
-  async list(): Promise<Invoice[]> {
-    const rows = await this.prisma.invoice.findMany({ orderBy: [{ createdAt: 'desc' }, { number: 'desc' }] });
-    return rows.map(toDomain);
+  async list(): Promise<InvoiceListItem[]> {
+    const [rows, customers] = await Promise.all([
+      this.prisma.invoice.findMany({ orderBy: [{ createdAt: 'desc' }, { number: 'desc' }], include: { electronic: { select: { status: true } } } }),
+      this.prisma.customer.findMany({ select: { key: true } }),
+    ]);
+    const keys = new Set(customers.map((c) => c.key));
+    return rows.map((r) => {
+      const i = toDomain(r);
+      return { ...i, electronicStatus: electronicStatusOf(i, (r.electronic?.status ?? null) as any, !!i.clientName && keys.has(customerKey(i.clientName))) };
+    });
   }
 }

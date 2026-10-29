@@ -20,14 +20,14 @@ class PrismaTransactionScope implements TransactionScope {
   async findMilestoneForUpdate(id: string) {
     // FOR UPDATE: otra transacción que apruebe el mismo hito espera aquí y, al continuar, ya lo ve aprobado.
     const rows = await this.tx.$queryRaw<
-      { id: string; project_id: string; name: string; amount_cop: number; status: 'pending' | 'approved'; approved_at: Date | null; approved_by: string | null; project_name: string }[]
-    >`SELECT m.id, m.project_id, m.name, m.amount_cop, m.status::text AS status, m.approved_at, m.approved_by, p.name AS project_name
+      { id: string; project_id: string; name: string; amount_cop: number; status: 'pending' | 'approved'; approved_at: Date | null; approved_by: string | null; project_name: string; client: string }[]
+    >`SELECT m.id, m.project_id, m.name, m.amount_cop, m.status::text AS status, m.approved_at, m.approved_by, p.name AS project_name, p.client AS client
       FROM milestones m JOIN projects p ON p.id = m.project_id
       WHERE m.id = ${id} FOR UPDATE OF m`;
     const r = rows[0];
     if (!r) return null;
     const milestone: Milestone = { id: r.id, projectId: r.project_id, name: r.name, amountCop: r.amount_cop, status: r.status, approvedAt: r.approved_at, approvedBy: r.approved_by };
-    return { milestone, projectName: r.project_name };
+    return { milestone, projectName: r.project_name, clientName: r.client };
   }
 
   async saveMilestone(m: Milestone) {
