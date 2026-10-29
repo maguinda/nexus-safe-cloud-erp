@@ -1,0 +1,47 @@
+// Base de Notifications: los avisos que nacen de eventos de otros servicios y quién ya los leyó. Ningún otro servicio la lee ni la escribe.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Idempotencia: RabbitMQ entrega «al menos una vez»; un evento ya visto no crea otro aviso.
+model ProcessedEvent {
+  eventId     String   @id @map("event_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@map("processed_events")
+}
+
+/// Un aviso por evento. No guarda texto: guarda el tipo y los datos (params), y la pantalla lo escribe en el idioma de cada persona.
+/// `audienceRoles` dice QUÉ ROLES lo ven (ningún dato personal: nunca se guarda un correo).
+model Notification {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId       String   @unique @map("event_id") @db.Uuid
+  kind          String
+  severity      String
+  audienceRoles String[] @map("audience_roles")
+  params        Json
+  correlationId String   @map("correlation_id")
+  occurredAt    DateTime @map("occurred_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  reads         NotificationRead[]
+
+  @@index([occurredAt(sort: Desc)])
+  @@map("notifications")
+}
+
+/// Quién ya leyó cada aviso (por persona, no por rol: que lo lea una no lo borra para las demás).
+model NotificationRead {
+  notificationId String       @map("notification_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  readAt         DateTime     @default(now()) @map("read_at") @db.Timestamptz(6)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@index([userId])
+  @@map("notification_reads")
+}

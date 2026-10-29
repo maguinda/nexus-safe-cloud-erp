@@ -1,0 +1,20 @@
+/** Campana de avisos: el servidor guarda el tipo y los datos; el texto se escribe aquí, en el idioma de cada persona. */
+export const notifications = {
+  'notif.open': 'Avisos ({n} sin leer)',
+  'notif.openNone': 'Avisos (ninguno sin leer)',
+  'notif.title': 'Avisos',
+  'notif.empty': 'No hay avisos por ahora.',
+  'notif.loading': 'Cargando avisos…',
+  'notif.error': 'No se pudieron cargar los avisos: {reason}',
+  'notif.markAll': 'Marcar todo como leído',
+  'notif.markOne': 'Marcar como leído',
+  'notif.unread': 'Sin leer',
+  'notif.severity.info': 'Información',
+  'notif.severity.warning': 'Aviso',
+  'notif.severity.critical': 'Crítico',
+  'notif.more': 'Ver más avisos',
+  'notif.OverdueDetected': 'La factura {invoiceNumber} de «{projectName}» ({milestoneName}) lleva {days} días vencida · {total} con IVA',
+  'notif.ThresholdBreached': '{deviceName} en {location}: {readingKind} en {value} {unit} ({status})',
+  'notif.OverAllocationDetected': '{engineerName} está asignado al {percent} % entre {from} y {to}',
+  'notif.unknown': 'Aviso nuevo',
+} as const;

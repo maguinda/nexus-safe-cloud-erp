@@ -1063,7 +1063,9 @@ test('E-invoice: an invoice of a client with no fiscal data waits; the form says
 const billingSql = (sql: string) => { execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d billing -Atc "${sql}"`, { cwd: join(here, '..', '..'), stdio: 'ignore' }); };
 
 test('Overdue invoices: when an issued invoice passes its due day the dashboard shows it by itself (the service notices, announces it once, and the dashboard counts it)', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); // estado limpio: INV-0102 aún sin vencer
+  await new Promise((r) => setTimeout(r, 20_000));
   await openAs(page, 'manager');
   const kpi = page.getByText('Overdue invoices', { exact: true });
   await expect(kpi).toBeVisible();
@@ -1076,6 +1078,36 @@ test('Overdue invoices: when an issued invoice passes its due day the dashboard 
   // En la lista de actividad queda dicho, con los días, y la columna del proyecto lo cuenta.
   await expect(page.getByText(/Invoice INV-0102 is overdue by \d+ days/)).toBeVisible();
   await expect(page.getByRole('row').filter({ hasText: 'Retail POS integration' }).getByRole('cell').nth(6)).toHaveText('1');
+});
+
+test('Notifications: an overdue invoice rings the bell of billing and management (not of the project lead), and reading is per person', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); // estado limpio: sin avisos y con INV-0102 aún sin vencer
+  await new Promise((r) => setTimeout(r, 20_000)); // deja que los servicios vean el reinicio
+  const open = async (role: 'billing' | 'manager' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const bell = (page: import('@playwright/test').Page) => page.getByRole('button', { name: /^Notifications \(/ });
+  const [billing, manager, lead] = [await open('billing'), await open('manager'), await open('lead')];
+  try {
+    await expect(bell(billing.page)).toHaveAccessibleName('Notifications (none unread)');
+    // INV-0102 pasa a estar vencida: billing lo detecta, lo anuncia por RabbitMQ y Notifications lo guarda.
+    billingSql("UPDATE invoices SET issued_at = '2026-09-01T10:00:00Z', due_date = '2026-10-01T10:00:00Z' WHERE number = 'INV-0102'");
+    await expect(bell(billing.page)).toHaveAccessibleName('Notifications (1 unread)', { timeout: 60_000 });
+    await expect(bell(manager.page)).toHaveAccessibleName('Notifications (1 unread)', { timeout: 60_000 });
+    await expect(bell(lead.page)).toHaveAccessibleName('Notifications (none unread)');
+    await bell(billing.page).click();
+    const panel = billing.page.getByRole('dialog', { name: 'Notifications' });
+    await expect(panel.getByText(/Invoice INV-0102 of “Retail POS integration” \(.+\) is \d+ days overdue · 11\.662\.000 COP with IVA/)).toBeVisible();
+    await panel.getByRole('button', { name: 'Mark as read' }).click();
+    await expect(bell(billing.page)).toHaveAccessibleName('Notifications (none unread)');
+    await expect(panel.getByText('No notifications right now.')).toHaveCount(0); // sigue en la lista, ya leído
+    await expect(panel.getByText('Unread', { exact: true })).toHaveCount(0);
+    // Que billing lo lea NO lo marca para gerencia.
+    await expect(bell(manager.page)).toHaveAccessibleName('Notifications (1 unread)');
+    // Se cierra con Escape y devuelve el foco a la campana.
+    await billing.page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(bell(billing.page)).toBeFocused();
+  } finally { await billing.ctx.close(); await manager.ctx.close(); await lead.ctx.close(); }
 });
 
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {

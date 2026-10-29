@@ -1,0 +1,133 @@
+.wrap {
+  position: relative;
+}
+.trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: var(--on-navy);
+  cursor: pointer;
+}
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.12);
+}
+.badge {
+  margin-left: var(--sp-1);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--sp-2));
+  z-index: 20;
+  width: min(380px, calc(100vw - 2 * var(--sp-4)));
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+.list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+.unread {
+  background: var(--accent-soft);
+}
+.warning {
+  border-left-color: var(--warn);
+}
+.critical {
+  border-left-color: var(--bad);
+}
+.info {
+  border-left-color: var(--accent);
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.tag {
+  font-weight: 600;
+  color: var(--fg);
+}
+.text {
+  margin: 0;
+}
+.act {
+  justify-self: start;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+}
+.empty {
+  margin: 0;
+  color: var(--muted);
+}
+.error {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    position: static;
+  }
+  .panel {
+    left: var(--sp-4);
+    right: var(--sp-4);
+    top: 100%;
+    width: auto;
+  }
+}

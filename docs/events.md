@@ -119,6 +119,18 @@ Rules:
 - A refused action (403, 409) publishes nothing.
 - Messages that were already waiting in the queue when a consumer starts are processed like any other (regression test `consumer-backlog.e2e.ts`).
 
+## Notifications consumer
+
+`notifications` has its own queue `q.notifications` (dead-letter queue `q.notifications.dlq`) bound to three routing keys. It saves ONE notification per event (idempotent by `eventId`, in one transaction with the processed-event mark) and keeps only what the screen shows: the kind, the severity, who sees it and the few values needed to write the text. **No personal data is stored** (no emails, no client names).
+
+| Event | Routing key | Published by | Who sees it | Severity |
+|---|---|---|---|---|
+| `OverdueDetected` | `billing.invoice.overdue` | billing-receivables (built) | billing_analyst, manager | warning |
+| `ThresholdBreached` | `ops.threshold.breached` | operations-telemetry | manager | `ALERT` → critical, otherwise warning |
+| `OverAllocationDetected` | `capacity.overallocation.detected` | technical-capacity | manager, sales | warning |
+
+`ThresholdBreached` data: `deviceName`, `location`, `readingKind`, `status` (`ALERT`/`WARNING`), `value` (number), `unit`. `OverAllocationDetected` data: `engineerName`, `allocationPercent` (an integer over 100), `periodStart`, `periodEnd` (`YYYY-MM-DD`). Invalid messages (bad types, limits, size over 16 KB) go to the dead-letter queue and change nothing.
+
 ## Analytics consumer
 
 `analytics` has one queue, `q.analytics`, bound to the three routing keys above, with its own dead-letter queue `q.analytics.dlq`.

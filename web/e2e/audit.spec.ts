@@ -138,3 +138,27 @@ for (const lang of ['en', 'es'] as const) for (const theme of ['light', 'dark'] 
     expect(blocked, 'abrir el menú no escribe nada').toEqual([]);
   });
 }
+
+// La campana de avisos se abre desde la barra superior: con un aviso largo debe quedar entera dentro de la pantalla y sus botones deben poder tocarse.
+for (const lang of ['en', 'es'] as const) for (const theme of ['light', 'dark'] as const) {
+  test(`layout: notifications bell inside the screen [${lang}] [${theme}]`, async ({ page }) => {
+    // Un aviso de prueba con texto largo, escrito directo en la base de Notifications (la auditoría no escribe por la API).
+    const sql = `INSERT INTO notifications (event_id, kind, severity, audience_roles, params, correlation_id, occurred_at) VALUES (gen_random_uuid(), 'OverdueDetected', 'warning', ARRAY['manager'], '{\\"invoiceNumber\\":\\"INV-0999\\",\\"projectName\\":\\"Proyecto con un nombre larguísimo para probar el ajuste de línea\\",\\"milestoneName\\":\\"Hito con nombre también muy largo\\",\\"totalCop\\":1190000000,\\"daysOverdue\\":120}', 'audit-trace-0001', now() - interval '3 hours')`;
+    execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d notifications -Atc "${sql}"`, { cwd: root, stdio: 'ignore' });
+    try {
+      await openAs(page, 'manager', lang, theme);
+      await page.getByRole('button', { name: /^(Notifications|Avisos) \(/ }).click();
+      const dialog = page.getByRole('dialog');
+      await dialog.waitFor();
+      await expect(dialog.getByText(/INV-0999/)).toBeVisible();
+      const m = await page.evaluate(() => { const r = document.querySelector('[role=dialog]')!.getBoundingClientRect(); return { left: r.left, right: r.right, vw: window.innerWidth, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }; });
+      expect(m.left, 'el panel empieza dentro de la pantalla').toBeGreaterThanOrEqual(0);
+      expect(m.right, 'el panel termina dentro de la pantalla').toBeLessThanOrEqual(m.vw + 0.5);
+      expect(m.overflow, 'la página se desborda').toBe(false);
+      for (const name of [translate(lang, 'notif.markOne'), translate(lang, 'notif.markAll')]) { const b = await dialog.getByRole('button', { name, exact: true }).boundingBox(); expect(b!.height, `${name} es un objetivo táctil`).toBeGreaterThanOrEqual(36); }
+      expect(blocked, 'abrir la campana no escribe nada').toEqual([]);
+    } finally {
+      execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d notifications -Atc "DELETE FROM notifications WHERE correlation_id = 'audit-trace-0001'"`, { cwd: root, stdio: 'ignore' });
+    }
+  });
+}
