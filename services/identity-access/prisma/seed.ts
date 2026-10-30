@@ -7,6 +7,7 @@ const demo: { email: string; name: string; role: Role }[] = [
   { email: 'andres.mora@nexus.example', name: 'Andrés Mora', role: 'billing_analyst' },
   { email: 'camila.soto@nexus.example', name: 'Camila Soto', role: 'sales' },
   { email: 'diana.vega@nexus.example', name: 'Diana Vega', role: 'manager' },
+  { email: 'fernanda.gil@nexus.example', name: 'Fernanda Gil', role: 'finance' },
 ];
 
 async function main() {

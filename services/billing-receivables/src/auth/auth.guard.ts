@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, 
 import { Reflector } from '@nestjs/core';
 import { verify } from 'jsonwebtoken';
 
-export const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager'] as const;
+export const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance'] as const;
 export type Role = (typeof ROLES)[number];
 export interface AuthUser { id: string; email: string; role: Role }
 

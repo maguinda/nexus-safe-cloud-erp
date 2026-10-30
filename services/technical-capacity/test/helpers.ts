@@ -10,6 +10,7 @@ export const USERS = {
   billing: { id: randomUUID(), email: 'andres.mora@nexus.example', role: 'billing_analyst' },
   sales: { id: randomUUID(), email: 'camila.soto@nexus.example', role: 'sales' },
   manager: { id: randomUUID(), email: 'diana.vega@nexus.example', role: 'manager' },
+  finance: { id: randomUUID(), email: 'fernanda.gil@nexus.example', role: 'finance' },
 };
 
 /** Firma como lo haría identity-access; las opciones permiten fabricar tokens defectuosos a propósito. */
@@ -26,6 +27,7 @@ import { PrismaClient } from '@prisma/client';
 export const SEED_ENGINEERS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `11111111-1111-4111-8111-11111111110${n}`);
 /** Borra lo que crean las pruebas (los 6 ingenieros del seed se conservan) y el outbox. */
 export async function resetState(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe('TRUNCATE payroll_lines, payroll_runs'); // las corridas no se pueden borrar fila por fila (trigger): TRUNCATE no lo dispara
   await prisma.allocation.deleteMany({ where: { kind: 'maintenance' } });
   await prisma.outboxEvent.deleteMany();
   await prisma.engineer.deleteMany({ where: { id: { notIn: SEED_ENGINEERS } } });

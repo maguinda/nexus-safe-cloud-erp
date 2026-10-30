@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { PayrollNotFoundError, PayrollStateError } from '../infrastructure/prisma-payroll';
 import { MaintenanceAllocationError, AllocationNotFoundError, EngineerNotFoundError, OverAllocationError, ValidationError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (docs/openapi.yaml, schema Error). */
@@ -16,11 +17,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let error = 'Internal Server Error';
     let message = 'Unexpected error';
 
-    if (err instanceof EngineerNotFoundError || err instanceof AllocationNotFoundError) {
+    if (err instanceof EngineerNotFoundError || err instanceof AllocationNotFoundError || err instanceof PayrollNotFoundError) {
       statusCode = 404; error = 'Not Found'; message = err.message;
     } else if (err instanceof ValidationError) {
       statusCode = 400; error = 'Bad Request'; message = err.message;
-    } else if (err instanceof OverAllocationError || err instanceof MaintenanceAllocationError) {
+    } else if (err instanceof OverAllocationError || err instanceof MaintenanceAllocationError || err instanceof PayrollStateError) {
       statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof HttpException) {
       statusCode = err.getStatus();

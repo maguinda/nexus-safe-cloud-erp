@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -98,6 +98,10 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createOrder: (b: { supplierId: string; itemId: string; quantity: number; unitPriceCop?: number }) => request<{ id: string; number: string; unitPriceCop: number }>('POST', '/orders', b),
     setCatalog: (supplierId: string, itemId: string, b: { refPriceCop: number; leadDays: number }) => request<{ supplierId: string; itemId: string }>('PUT', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`, b),
     removeCatalog: (supplierId: string, itemId: string) => request<void>('DELETE', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`),
+    payrolls: () => request<PayrollRun[]>('GET', '/payroll'),
+    payroll: (id: string) => request<PayrollRun & { lines: PayrollLine[] }>('GET', `/payroll/${encodeURIComponent(id)}`),
+    generatePayroll: (period: string) => request<PayrollRun>('POST', '/payroll', { period }),
+    payPayroll: (id: string) => request<PayrollRun>('POST', `/payroll/${encodeURIComponent(id)}/pay`),
     quotes: () => request<Quote[]>('GET', '/quotes'),
     createQuote: (client: string, projectName: string) => request<Quote>('POST', '/quotes', { client, projectName }),
     saveQuote: (id: string, b: object) => request<Quote>('PUT', `/quotes/${encodeURIComponent(id)}`, b),

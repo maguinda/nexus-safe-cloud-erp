@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   project_lead
   billing_analyst
+  finance
   sales
   manager
 }

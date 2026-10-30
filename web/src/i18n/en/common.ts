@@ -16,6 +16,7 @@ export const common: Record<keyof typeof es, string> = {
   'header.signOut': 'Sign out',
   'role.project_lead': 'Project lead',
   'role.billing_analyst': 'Billing analyst',
+  'role.finance': 'Finance',
   'role.sales': 'Sales',
   'role.manager': 'Manager',
   'profile.open': 'Profile of {name}: {role}',
