@@ -21,5 +21,6 @@ import { team } from './team';
 import { profitability } from './profitability';
 import { audit } from './audit';
 import { cameras } from './cameras';
+import { configure } from './configure';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure };

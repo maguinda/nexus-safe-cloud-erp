@@ -1503,6 +1503,21 @@ test('Purchased equipment: buying and receiving a network device adds its units 
     await expect(page.getByText(/Switch de acceso 24 puertos \(PO-\d+-2\)/).first()).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 40_000 });
   await expect(page.getByText(/\(PO-\d+-3\)/)).toHaveCount(0);
+  // La gerencia completa uno de los dos: el formulario avisa sin enviar y, al guardar, sale de la lista de pendientes.
+  await page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
+  const pending = page.locator('[data-pending]');
+  await expect(pending).toHaveCount(2);
+  await pending.first().getByRole('button', { name: /^Complete the device/ }).click();
+  const cfg = page.getByRole('form', { name: /^Complete the device/ });
+  await cfg.getByRole('button', { name: 'Save device' }).click();
+  await expect(cfg.getByText(/Write 2 to 60 characters/)).toBeVisible(); await expect(cfg.getByText('Choose a criticality.')).toBeVisible();
+  await cfg.getByLabel(/What it is for/).fill('Switch de acceso piso 2'); await cfg.getByRole('button', { name: 'Alta' }).click(); await cfg.getByLabel(/IPs \(optional/).fill('10.0.2.999');
+  await cfg.getByRole('button', { name: 'Save device' }).click();
+  await expect(cfg.getByText(/different IPv4 addresses/)).toBeVisible();
+  await cfg.getByLabel(/IPs \(optional/).fill('10.0.2.5'); await cfg.getByRole('button', { name: 'Save device' }).click();
+  await expect(page.getByText(/completed\./)).toBeVisible();
+  await expect(pending).toHaveCount(1);
 });
 
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {

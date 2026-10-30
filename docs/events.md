@@ -209,7 +209,7 @@ The only person in the event is `registeredBy` (the staff email of the analyst, 
 ## Operations consumer (purchased equipment)
 
 - `operations` binds its own queue `q.operations.purchases` (dead-letter queue `q.operations.purchases.dlq`) to `procurement.equipment.purchased`. For each unit bought it inserts one row in `network_devices` named `<item> (<order>-<unit>)`, model = the item, category `Equipo comprado`, role `Pendiente de configurar`, criticality `Media`, serial `<order>-<unit>`, no IP.
-- **Reduced on purpose:** the purchase does not say the office, the IP, the criticality or what it connects to, so the row is a placeholder that a person completes later; it does not invent those values.
+- **Reduced on purpose:** the purchase does not say the office, the IP, the criticality or what it connects to, so the row is a placeholder; it does not invent those values. The manager completes it with `PATCH /network/devices/:id/configure` (role, criticality, IPs; only devices that came from a purchase, 404 for the rest). There is no site field in the inventory.
 - Idempotent by (order, unit) with a unique index: a repeated event adds nothing and is acknowledged as a duplicate. Ids are taken under a database lock, so purchases at the same time never collide. A purchase of more than 100 units of one item is rejected (dead-letter queue) for a person to decide. The name has no `#` because the inventory search does not accept it.
 
 ## Projects consumer (project team)

@@ -125,6 +125,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     networkSummary: () => request<NetworkSummary>('GET', '/network/summary'),
     networkDevices: (q: DevicesQuery = {}) => request<Page<NetworkDeviceItem>>('GET', `/network/devices${queryString(q)}`),
     networkLinks: (q: LinksQuery = {}) => request<Page<NetworkLinkItem>>('GET', `/network/links${queryString(q)}`),
+    configureDevice: (id: number, b: { role: string; criticality: string; ips: string }) => request<{ id: number }>('PATCH', `/network/devices/${id}/configure`, b),
     networkFacets: () => request<NetworkFacets>('GET', '/network/facets'),
     advisorBrief: (language: Lang, ai: boolean) => request<Advice>('POST', '/advisor/brief', { language, ai }),
     setLanguage: (language: Lang) => request<{ language: Lang }>('PATCH', '/me/language', { language }),

@@ -258,6 +258,10 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Cámaras: pantalla del gerente (grupo «Datos de Nexus») armada con los endpoints existentes (3 cámaras IP `WEBCAM_OF*` de IoT y los 9 equipos «CCTV / IoT» de la red). No hay video. Sin servicio nuevo.
 - Pruebas: operations 246 unit + e2e de compras (carrera de 30 rondas, 2 mutaciones fallan), funcional de comprar→recibir→inventario y de Cámaras en Chromium y WebKit.
 
+## Completar el equipo comprado (opción A del inventario, 2026-10-30, 🟡)
+- `PATCH /network/devices/:id/configure` (gerente): rol (no vale «pendiente»), criticidad e IP (hasta 4, IPv4 distintas). Una sola sentencia que solo toca filas con `source_order` (los 76 equipos del Excel no se editan por aquí). Web: panel «Equipos comprados por configurar» arriba de la pantalla Red (desaparece cuando no hay pendientes). Sin campo de sede (la tabla no lo tiene).
+- Pruebas: 17 unitarias + 10 e2e nuevos de operations (una mutación falla), 9 de web, el funcional de compras ahora completa un equipo, auditoría de diseño de Red con un nombre largo en 6 perfiles.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 
