@@ -17,9 +17,11 @@ export class PrismaInvoiceQueries implements InvoiceQueries {
       this.prisma.customer.findMany({ select: { key: true } }),
     ]);
     const keys = new Set(customers.map((c) => c.key));
+    const paidRows = await this.prisma.$queryRaw<{ n: string; paid: bigint }[]>`SELECT invoice_number AS n, SUM(amount_cop) AS paid FROM payments GROUP BY invoice_number`;
+    const paid = new Map(paidRows.map((p) => [p.n, Number(p.paid)]));
     return rows.map((r) => {
       const i = toDomain(r);
-      return { ...i, electronicStatus: electronicStatusOf(i, (r.electronic?.status ?? null) as any, !!i.clientName && keys.has(customerKey(i.clientName))) };
+      return { ...i, paidCop: paid.get(i.number) ?? 0, electronicStatus: electronicStatusOf(i, (r.electronic?.status ?? null) as any, !!i.clientName && keys.has(customerKey(i.clientName))) };
     });
   }
 }

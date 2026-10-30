@@ -11,7 +11,7 @@ import s from './DashboardView.module.css';
 
 const REFRESH_MS = 5000;
 /** Tipo de evento -> etiqueta de la app (se traduce); la frase del evento que guardó analytics es un dato y se muestra tal cual. */
-const KIND_KEY: Record<string, MsgKey> = { MilestoneApproved: 'dashboard.kind.MilestoneApproved', InvoiceDrafted: 'dashboard.kind.InvoiceDrafted', InvoiceIssued: 'dashboard.kind.InvoiceIssued' };
+const KIND_KEY: Record<string, MsgKey> = { MilestoneApproved: 'dashboard.kind.MilestoneApproved', InvoiceDrafted: 'dashboard.kind.InvoiceDrafted', InvoiceIssued: 'dashboard.kind.InvoiceIssued', PaymentReceived: 'dashboard.kind.PaymentReceived' };
 
 /** Tablero del gerente: se lee SOLO del servicio Analytics (modelos de lectura armados con eventos) y se actualiza solo. */
 export function DashboardView() {
@@ -66,6 +66,7 @@ export function DashboardView() {
       <div className={ui.kpis}>
         <KpiCard icon="clock" tone={tot.milestonesPending.count > 0 ? 'warn' : undefined} label={t('dashboard.kpi.pending')} value={tot.milestonesPending.count} sub={t('dashboard.copAmount', { amount: formatCop(tot.milestonesPending.cop) })} />
         <KpiCard icon="check" tone="ok" label={t('dashboard.kpi.approved')} value={tot.milestonesApproved} sub={t('dashboard.copAmount', { amount: formatCop(tot.approvedCop) })} />
+        <KpiCard icon="check" tone="ok" label={t('dashboard.kpi.collected')} value={tot.collected.paidInvoices} sub={t('dashboard.copWithIva', { amount: formatCop(tot.collected.totalCop) })} />
         <KpiCard icon="hourglass" tone={tot.waitingForInvoice.count > 0 ? 'warn' : undefined} label={t('dashboard.kpi.waiting')} value={tot.waitingForInvoice.count} sub={t('dashboard.copAmount', { amount: formatCop(tot.waitingForInvoice.cop) })} />
         <KpiCard icon="document" label={t('dashboard.kpi.draft')} value={tot.draft.count} sub={t('dashboard.copWithIva', { amount: formatCop(tot.draft.totalCop) })} />
         <KpiCard icon="hourglass" tone={tot.overdue.count > 0 ? 'bad' : undefined} label={t('dashboard.kpi.overdue')} value={tot.overdue.count} sub={t('dashboard.copWithIva', { amount: formatCop(tot.overdue.totalCop) })} />

@@ -14,7 +14,8 @@ export interface LoginResponse { accessToken: string; expiresIn: number; user: U
 export interface Project { id: string; name: string; client: string; milestonesApproved: number; milestonesTotal: number }
 export interface Milestone { id: string; projectId: string; name: string; amountCop: number; status: 'pending' | 'approved' }
 export interface ApproveResponse { milestone: Milestone; eventId: string }
-export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null; clientName: string | null; electronicStatus: EInvoiceListStatus }
+export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null; clientName: string | null; electronicStatus: EInvoiceListStatus; paidCop?: number; balanceCop?: number; paymentStatus?: 'unpaid' | 'partial' | 'paid' }
+export interface InvoicePayment { id: string; invoiceNumber: string; amountCop: number; method: 'transfer' | 'cash' | 'card' | 'other'; reference: string | null; paidAt: string }
 
 /** Estado del documento electrónico (SANDBOX, sin validez legal) que muestra la lista de facturas. No existe «accepted». */
 export type EInvoiceListStatus = 'not_issued' | 'not_applicable' | 'pending_customer_data' | 'ready' | 'generated' | 'sandbox_simulated';
@@ -54,12 +55,13 @@ export interface Dashboard {
   totals: {
     milestonesPending: { count: number; cop: number };
     overdue: { count: number; totalCop: number };
+    collected: { totalCop: number; paidInvoices: number };
     milestonesApproved: number; approvedCop: number;
     waitingForInvoice: { count: number; cop: number }; draft: { count: number; totalCop: number };
     issued: { count: number; subtotalCop: number; taxCop: number; totalCop: number };
   };
   projects: DashboardProject[];
-  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued' | 'OverdueDetected'; message: string }[];
+  recentActivity: { at: string; kind: 'MilestoneCreated' | 'MilestoneApproved' | 'InvoiceDrafted' | 'InvoiceIssued' | 'OverdueDetected' | 'PaymentReceived'; message: string }[];
 }
 
 export type DeviceState = 'normal' | 'warning' | 'alert' | 'no_data';

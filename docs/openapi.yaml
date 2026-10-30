@@ -915,6 +915,61 @@ paths:
         '400': { description: 'Invalid data (NIT, check digit, email, texts)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /invoices/{invoiceNumber}/payments:
+    get:
+      tags: [Invoices]
+      operationId: listPayments
+      summary: Payments of an invoice (roles project_lead, billing_analyst)
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      responses:
+        '200':
+          description: Payments, oldest first (the person who registered each one is not shown)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Payment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Invoices]
+      operationId: registerPayment
+      summary: Register a full or partial payment of an ISSUED invoice (role billing_analyst)
+      description: The invoice is locked and the paid total is read inside the lock, so two simultaneous payments can never add up above the invoice total. Publishes PaymentReceived in the same transaction.
+      parameters:
+        - $ref: '#/components/parameters/InvoiceNumber'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountCop, method]
+              properties:
+                amountCop: { type: integer, minimum: 1, example: 1000000 }
+                method: { type: string, enum: [transfer, cash, card, other] }
+                reference: { type: string, maxLength: 60, example: Bank transfer 8841 }
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Payment'
+                  - type: object
+                    properties:
+                      paidCop: { type: integer }
+                      balanceCop: { type: integer }
+                      paymentStatus: { type: string, enum: [unpaid, partial, paid] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The invoice is not issued, or the payment is higher than its balance
   /invoices/{invoiceNumber}/electronic:
     post:
       tags: [Electronic invoice (sandbox)]
@@ -1047,6 +1102,15 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        invoiceNumber: { type: string, example: INV-0103 }
+        amountCop: { type: integer, example: 1000000 }
+        method: { type: string, enum: [transfer, cash, card, other] }
+        reference: { type: string, nullable: true }
+        paidAt: { type: string, format: date-time }
     CapacityList:
       type: object
       required: [today, engineers]

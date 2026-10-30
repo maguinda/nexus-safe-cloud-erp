@@ -7,6 +7,7 @@ import { ListInvoicesUseCase, ReconcileInvoicesUseCase } from '../application/in
 import { AuthUser, Roles } from '../auth/auth.guard';
 import { EInvoiceNotReadyError } from '../domain/errors';
 import { Invoice } from '../domain/invoice';
+import { paymentStatusOf } from '../domain/payment';
 import { GENERATE_EINVOICE } from './einvoice.controller';
 import { InvoiceNumberPipe } from './invoice-number.pipe';
 
@@ -15,7 +16,7 @@ export const ISSUE_INVOICE = 'ISSUE_INVOICE';
 export const RECONCILE_INVOICES = 'RECONCILE_INVOICES';
 
 /** Solo los campos del contrato (docs/openapi.yaml). */
-const toDto = (i: Invoice, electronicStatus: string = 'not_issued') => ({ number: i.number, clientName: i.clientName, electronicStatus, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString(), dueDate: i.dueDate ? i.dueDate.toISOString() : null });
+const toDto = (i: Invoice, electronicStatus: string = 'not_issued', paidCop = 0) => ({ paidCop, balanceCop: i.totalCop - paidCop, paymentStatus: paymentStatusOf(i.totalCop, paidCop), number: i.number, clientName: i.clientName, electronicStatus, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt.toISOString(), dueDate: i.dueDate ? i.dueDate.toISOString() : null });
 
 @ApiTags('Invoices')
 @ApiBearerAuth()
@@ -42,7 +43,7 @@ export class InvoicesController {
   @ApiOperation({ summary: 'List invoices (roles project_lead and billing_analyst)' })
   @ApiResponse({ status: 403, description: 'Role not allowed (sales)' })
   async list() {
-    return (await this.listInvoices.execute()).map((i) => toDto(i, i.electronicStatus));
+    return (await this.listInvoices.execute()).map((i) => toDto(i, i.electronicStatus, i.paidCop));
   }
 
   @Patch(':invoiceNumber/issue')

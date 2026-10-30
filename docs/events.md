@@ -168,6 +168,27 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 
 `allocationPercent` is the **highest load** the engineer reaches (an integer over 100) and the period is the one of the new allocation. `EngineerAllocated` data: `allocationId`, `engineerName`, `projectName`, `percent`, `periodStart`, `periodEnd`.
 
+## PaymentReceived
+
+- Published by: `billing-receivables`, in the **same transaction** that stores the payment (transactional outbox, relay to `erp.events`). Routing key: `billing.payment.received`. Consumed by: `analytics` (the dashboard shows what was collected and stops counting a fully paid invoice as overdue).
+- One event per payment (the outbox aggregate is the payment id, because an invoice can have several payments). Payments are append-only: the database refuses UPDATE, DELETE and TRUNCATE.
+- Only an **issued** invoice receives payments, and the sum can never pass the invoice total: the invoice row is locked and the paid total is read inside the lock, so two payments at the same time cannot add up above it (409 naming the balance).
+- `paidCop` is the total paid AFTER this payment (it only goes up), so a consumer can merge with a maximum and gets the same result in any order or when the event is repeated. `paidInFull` is true when `balanceCop` is 0.
+- A fully paid invoice does not become overdue; one paid in part still does. If an `OverdueDetected` was already sent, it is not taken back: the consumer decides (analytics ignores overdue for invoices paid in full).
+
+```json
+{
+  "eventId": "6a1f0c52-2d3b-4c9e-8f10-1a2b3c4d5e6f",
+  "type": "PaymentReceived",
+  "occurredAt": "2026-11-25T14:00:00.000Z",
+  "correlationId": "req-1a2b3c4d",
+  "data": { "invoiceNumber": "INV-0103", "milestoneId": "m2", "projectName": "Branch network upgrade", "milestoneName": "Link redundancy design", "clientName": "Banco Andino (example)",
+            "totalCop": 22015000, "paymentId": "…uuid…", "paymentCop": 10000000, "paidCop": 10000000, "balanceCop": 12015000, "paidInFull": false, "method": "transfer", "paidAt": "2026-11-25T14:00:00.000Z" }
+}
+```
+
+No personal data: amounts and business names (the reference typed by the analyst and who registered the payment stay in billing's database).
+
 ## Notifications consumer
 
 `notifications` has its own queue `q.notifications` (dead-letter queue `q.notifications.dlq`) bound to three routing keys. It saves ONE notification per event (idempotent by `eventId`, in one transaction with the processed-event mark) and keeps only what the screen shows: the kind, the severity, who sees it and the few values needed to write the text. **No personal data is stored** (no emails, no client names).

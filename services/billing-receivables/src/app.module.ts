@@ -4,6 +4,9 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { GenerateElectronicInvoiceUseCase, GetElectronicInvoiceUseCase, ListCustomersUseCase, RegisterEInvoiceDeliveryUseCase, SubmitElectronicInvoiceUseCase, UpsertCustomerUseCase } from './application/einvoice.use-cases';
 import { HandleMilestoneApprovedUseCase } from './application/handle-milestone-approved.use-case';
+import { ListPaymentsUseCase, RegisterPaymentUseCase } from './application/payments.use-cases';
+import { PaymentsController, LIST_PAYMENTS, REGISTER_PAYMENT } from './http/payments.controller';
+import { PrismaPaymentQueries, PrismaPaymentUnitOfWork } from './infrastructure/prisma-payments';
 import { IssueInvoiceUseCase, ListInvoicesUseCase, ReconcileInvoicesUseCase } from './application/invoices.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
@@ -27,7 +30,7 @@ let overdue: OverdueScheduler | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [InvoicesController, ElectronicInvoiceController, CustomersController, HealthController],
+  controllers: [InvoicesController, PaymentsController, ElectronicInvoiceController, CustomersController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -41,6 +44,8 @@ let overdue: OverdueScheduler | undefined;
     { provide: DELIVER_EINVOICE, useFactory: () => new RegisterEInvoiceDeliveryUseCase(new PrismaEInvoiceRepository(prisma)) },
     { provide: LIST_CUSTOMERS, useFactory: () => new ListCustomersUseCase(new PrismaCustomerRepository(prisma)) },
     { provide: UPSERT_CUSTOMER, useFactory: () => new UpsertCustomerUseCase(new PrismaCustomerRepository(prisma)) },
+    { provide: REGISTER_PAYMENT, useFactory: () => new RegisterPaymentUseCase(new PrismaPaymentUnitOfWork(prisma)) },
+    { provide: LIST_PAYMENTS, useFactory: () => new ListPaymentsUseCase(new PrismaPaymentQueries(prisma)) },
     { provide: ISSUE_INVOICE, useFactory: () => new IssueInvoiceUseCase(new PrismaIssueUnitOfWork(prisma)) },
   ],
 })

@@ -17,9 +17,11 @@ interface InvoiceData { invoiceNumber: string; milestoneId: string; projectName:
 export interface InvoiceDraftedEvent extends Envelope { type: 'InvoiceDrafted'; data: InvoiceData & { approvedBy: string | null } }
 export interface InvoiceIssuedEvent extends Envelope { type: 'InvoiceIssued'; data: InvoiceData & { issuedBy: string } }
 export interface OverdueDetectedEvent extends Envelope { type: 'OverdueDetected'; data: InvoiceData & { dueDate: string; daysOverdue: number } }
-export type AnalyticsEvent = MilestoneCreatedEvent | MilestoneApprovedEvent | InvoiceDraftedEvent | InvoiceIssuedEvent | OverdueDetectedEvent;
+/** Un pago contra una factura. `paidCop` es lo pagado EN TOTAL después de este pago (sube y nunca baja), por eso fusionar con máximo no depende del orden ni de repeticiones. */
+export interface PaymentReceivedEvent extends Envelope { type: 'PaymentReceived'; data: { invoiceNumber: string; milestoneId: string; projectName: string; milestoneName: string; totalCop: number; paymentCop: number; paidCop: number; balanceCop: number; paidInFull: boolean; method: string } }
+export type AnalyticsEvent = MilestoneCreatedEvent | MilestoneApprovedEvent | InvoiceDraftedEvent | InvoiceIssuedEvent | OverdueDetectedEvent | PaymentReceivedEvent;
 
-export const ROUTING_KEYS = ['project.milestone.created', 'project.milestone.approved', 'billing.invoice.drafted', 'billing.invoice.issued', 'billing.invoice.overdue'] as const;
+export const ROUTING_KEYS = ['project.milestone.created', 'project.milestone.approved', 'billing.invoice.drafted', 'billing.invoice.issued', 'billing.invoice.overdue', 'billing.payment.received'] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -81,6 +83,17 @@ export function parseEvent(raw: unknown): AnalyticsEvent {
     }
     case 'InvoiceIssued':
       return { ...base, type: 'InvoiceIssued', data: { ...invoiceData(d), issuedBy: email(d.issuedBy, 'issuedBy') } };
+    case 'PaymentReceived': {
+      const totalCop = int(d.totalCop, 'totalCop', 1, INT32);
+      const paymentCop = int(d.paymentCop, 'paymentCop', 1, totalCop);
+      const paidCop = int(d.paidCop, 'paidCop', paymentCop, totalCop);
+      const balanceCop = int(d.balanceCop, 'balanceCop', 0, totalCop);
+      if (balanceCop !== totalCop - paidCop) throw new InvalidEventError('balanceCop must equal totalCop - paidCop');
+      if (typeof d.paidInFull !== 'boolean' || d.paidInFull !== (balanceCop === 0)) throw new InvalidEventError('paidInFull must match the balance');
+      if (typeof d.invoiceNumber !== 'string' || !INVOICE.test(d.invoiceNumber)) throw new InvalidEventError('invoiceNumber has an invalid format');
+      if (typeof d.method !== 'string' || !['transfer', 'cash', 'card', 'other'].includes(d.method)) throw new InvalidEventError('method is not valid');
+      return { ...base, type: 'PaymentReceived', data: { invoiceNumber: d.invoiceNumber, milestoneId: id(d.milestoneId, 'milestoneId'), projectName: text(d.projectName, 'projectName'), milestoneName: text(d.milestoneName, 'milestoneName'), totalCop, paymentCop, paidCop, balanceCop, paidInFull: d.paidInFull, method: d.method } };
+    }
     default:
       throw new InvalidEventError('unexpected type');
   }

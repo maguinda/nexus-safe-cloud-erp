@@ -13,7 +13,7 @@ const root = join(here, '..', '..');
 function dbFingerprint(): string {
   const q = (db: string, sql: string) => execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d ${db} -Atc "${sql}"`, { cwd: root, shell: '/bin/sh' }).toString().trim();
   const projects = q('projects', `select (select count(*) from milestones where status = 'approved') || '/' || (select count(*) from outbox_events)`);
-  const billing = q('billing', `select (select count(*) from invoices) || '/' || (select count(*) from processed_events)`);
+  const billing = q('billing', `select (select count(*) from invoices) || '/' || (select count(*) from processed_events) || '/' || (select count(*) from payments)`);
   const analytics = q('analytics', `select (select count(*) from milestone_facts) || '/' || (select count(*) from processed_events)`);
   const operations = q('operations', `select (select count(*) from iot_readings) || '/' || (select count(*) from network_devices)`);
   const procurement = q('procurement', `select (select count(*) from purchase_orders) || '/' || (select count(*) from suppliers) || '/' || (select sum(on_hand) from items) || '/' || (select count(*) from outbox_events)`);
@@ -62,6 +62,7 @@ const screensFor = (lang: Lang): { name: string; role: RoleKey | null; go: (p: P
     { name: 'capacity-sales', role: 'sales', go: async (p) => { await p.getByRole('button', { name: T('nav.capacity'), exact: true }).click(); await p.getByRole('heading', { name: 'Ana Torres' }).waitFor(); } },
     { name: 'procurement-manager', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.procurement'), exact: true }).click(); await p.getByRole('heading', { name: T('proc.new.order') }).waitFor(); await p.getByRole('button', { name: T('proc.adjustFor', { name: 'Sensor de temperatura TH-10' }) }).click(); await p.getByRole('form', { name: T('proc.adjustFor', { name: 'Sensor de temperatura TH-10' }) }).waitFor(); } },
     { name: 'procurement-lead', role: 'lead', go: async (p) => { await p.getByRole('button', { name: T('nav.procurement'), exact: true }).click(); await p.getByRole('heading', { name: T('proc.stock.title') }).waitFor(); } },
+    { name: 'payments-billing', role: 'billing', go: async (p) => { await p.getByRole('button', { name: T('nav.invoices') }).click(); await p.getByRole('heading', { name: T('pay.title'), exact: true }).waitFor(); await p.getByRole('button', { name: T('pay.registerFor', { n: 'INV-0102' }) }).click(); await p.getByRole('form', { name: T('pay.registerFor', { n: 'INV-0102' }) }).waitFor(); } },
     { name: 'forbidden', role: 'sales', go: async (p) => { await p.getByRole('button', { name: T('nav.invoices') }).click(); await p.getByText(T('invoices.denied.title')).waitFor(); } },
   ];
 };

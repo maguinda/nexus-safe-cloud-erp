@@ -23,13 +23,15 @@ export interface Fact {
   /** Cuándo se supo que la factura venció y cuántos días llevaba; null si no ha vencido. */
   overdueAt: Date | null;
   overdueDays: number | null;
+  /** Lo pagado en total (de PaymentReceived: el máximo visto, que sube y nunca baja). 0 si no hay pagos. */
+  paidCop: number;
 }
 
 /** Fila inicial con lo que trae cualquier evento (todos llevan nombres y monto); el resto se completa al fusionar. */
 export function emptyFact(e: AnalyticsEvent): Fact {
   return {
-    milestoneId: e.data.milestoneId, projectId: null, projectName: e.data.projectName, milestoneName: e.data.milestoneName, amountCop: e.data.amountCop,
-    createdAt: null, approvedBy: null, approvedAt: null, invoiceNumber: null, invoiceStatus: null, taxCop: null, totalCop: null, draftedAt: null, issuedAt: null, overdueAt: null, overdueDays: null,
+    milestoneId: e.data.milestoneId, projectId: null, projectName: e.data.projectName, milestoneName: e.data.milestoneName, amountCop: 'amountCop' in e.data ? e.data.amountCop : 0,
+    createdAt: null, approvedBy: null, approvedAt: null, invoiceNumber: null, invoiceStatus: null, taxCop: null, totalCop: null, draftedAt: null, issuedAt: null, overdueAt: null, overdueDays: null, paidCop: 0,
   };
 }
 
@@ -59,6 +61,10 @@ export function mergeEvent(prev: Fact | null, e: AnalyticsEvent): Fact {
       f.invoiceNumber = e.data.invoiceNumber; f.taxCop = e.data.taxCop; f.totalCop = e.data.totalCop;
       f.overdueAt = f.overdueAt ?? at; f.overdueDays = f.overdueDays ?? e.data.daysOverdue;
       break;
+    case 'PaymentReceived':
+      // Con máximo: repetido, tarde o antes que otros eventos da el mismo resultado.
+      f.invoiceNumber = e.data.invoiceNumber; f.totalCop = e.data.totalCop; f.paidCop = Math.max(f.paidCop, e.data.paidCop);
+      break;
     case 'InvoiceIssued':
       f.invoiceNumber = e.data.invoiceNumber; f.taxCop = e.data.taxCop; f.totalCop = e.data.totalCop; f.invoiceStatus = 'issued'; f.issuedAt = f.issuedAt ?? at;
       break;
@@ -74,6 +80,7 @@ export function describe(e: AnalyticsEvent): string {
     case 'MilestoneApproved': return `${e.data.approvedBy} approved “${e.data.milestoneName}” (${e.data.projectName}) · ${cop(e.data.amountCop)}`;
     case 'InvoiceDrafted': return `Draft invoice ${e.data.invoiceNumber} created for “${e.data.milestoneName}” · total ${cop(e.data.totalCop)}`;
     case 'OverdueDetected': return `Invoice ${e.data.invoiceNumber} is overdue by ${e.data.daysOverdue} day${e.data.daysOverdue === 1 ? '' : 's'} · total ${cop(e.data.totalCop)}`;
+    case 'PaymentReceived': return `Payment of ${cop(e.data.paymentCop)} for invoice ${e.data.invoiceNumber} · ${e.data.paidInFull ? 'paid in full' : `balance ${cop(e.data.balanceCop)}`}`;
     case 'InvoiceIssued': return `${e.data.issuedBy} issued invoice ${e.data.invoiceNumber} · total ${cop(e.data.totalCop)}`;
   }
 }

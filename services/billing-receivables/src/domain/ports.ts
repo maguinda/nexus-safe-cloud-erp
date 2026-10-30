@@ -4,8 +4,9 @@ import { EInvoiceStatus } from './einvoice/legal';
 import { EInvoiceListStatus } from './einvoice/status';
 import { Party } from './einvoice/document';
 import { Invoice } from './invoice';
+import { Payment } from './payment';
 
-export interface InvoiceListItem extends Invoice { electronicStatus: EInvoiceListStatus }
+export interface InvoiceListItem extends Invoice { electronicStatus: EInvoiceListStatus; paidCop: number }
 export interface InvoiceQueries {
   /** Más nuevas primero. */
   list(): Promise<InvoiceListItem[]>;
@@ -33,6 +34,21 @@ export interface IssueScope {
 }
 export interface IssueUnitOfWork {
   run<T>(work: (tx: IssueScope) => Promise<T>): Promise<T>;
+}
+
+/** Lo que registrar un pago hace dentro de UNA transacción: bloquea la factura, suma lo pagado DENTRO del bloqueo, guarda el pago y su evento. */
+export interface PaymentScope {
+  /** Bloquea la factura (FOR UPDATE) y devuelve con ella lo pagado hasta ahora (leído ya con el bloqueo puesto). null si no existe. */
+  lockInvoice(number: string): Promise<{ invoice: Invoice; paidCop: number } | null>;
+  insertPayment(p: Payment): Promise<void>;
+  addToOutbox(event: BillingEvent): Promise<void>;
+}
+export interface PaymentUnitOfWork {
+  run<T>(work: (tx: PaymentScope) => Promise<T>): Promise<T>;
+}
+export interface PaymentQueries {
+  /** Más reciente primero; null si la factura no existe. */
+  listForInvoice(number: string): Promise<Payment[] | null>;
 }
 
 /** Lo que el detector de facturas vencidas hace dentro de UNA transacción. */

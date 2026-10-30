@@ -96,6 +96,8 @@ class PrismaOverdueScope implements OverdueScope {
       FROM invoices i
       WHERE i.status = 'issued' AND i.due_date IS NOT NULL AND i.due_date::date < ${today}::date
         AND NOT EXISTS (SELECT 1 FROM outbox_events o WHERE o.aggregate_id = i.number AND o.type = 'OverdueDetected')
+        -- Una factura pagada del todo ya no está por cobrar: no vence.
+        AND COALESCE((SELECT SUM(p.amount_cop) FROM payments p WHERE p.invoice_number = i.number), 0) < i.total_cop
       ORDER BY i.due_date, i.number LIMIT ${limit} FOR UPDATE OF i SKIP LOCKED`;
     return rows.map(toDomain);
   }

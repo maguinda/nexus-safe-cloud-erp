@@ -1,0 +1,11 @@
+.stack { display: grid; gap: var(--sp-3); margin-top: var(--sp-4); }
+.card { display: grid; gap: var(--sp-2); min-width: 0; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow-wrap: anywhere; }
+.head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.list { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.row { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.nums { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); margin: 0; }
+.chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; background: var(--accent-soft); color: var(--accent-ink); }
+.chipOk { background: var(--ok-soft, var(--accent-soft)); color: var(--ok, var(--accent-ink)); }
+.chipWarn { background: var(--warn-soft); color: var(--warn); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.history { margin: 0; padding-left: var(--sp-4); }
