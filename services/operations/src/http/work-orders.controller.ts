@@ -16,13 +16,17 @@ class CreateWorkOrderDto {
   @ApiPropertyOptional({ enum: ['low', 'normal', 'high', 'critical'] }) @IsOptional() @IsString() @MaxLength(10) priority?: string;
   @ApiPropertyOptional({ example: '2026-11-10', description: 'Due date, not in the past' }) @IsOptional() @IsString() @MaxLength(12) dueDate?: string;
   @ApiPropertyOptional({ example: 'Laura Ríos', description: 'Name of the person responsible' }) @IsOptional() @IsString() @MaxLength(100) assignedTo?: string;
+  @ApiPropertyOptional({ description: 'Id of the person in Technical Capacity (chosen from its staff list); needs assignedTo' }) @IsOptional() @IsString() @MaxLength(40) assignedToId?: string;
   @ApiPropertyOptional({ example: 'ALERT 41.2 °C', description: 'The alert or finding the order comes from' }) @IsOptional() @IsString() @MaxLength(300) sourceNote?: string;
 }
 class StatusDto {
   @ApiProperty({ enum: ['in_progress', 'done', 'cancelled'] }) @IsString() @MaxLength(20) status!: string;
   @ApiPropertyOptional({ maxLength: 300 }) @IsOptional() @IsString() @MaxLength(400) note?: string;
 }
-class AssignDto { @ApiPropertyOptional({ nullable: true, description: 'Name of the person responsible; empty clears it' }) @IsOptional() @IsString() @MaxLength(100) assignedTo?: string | null }
+class AssignDto {
+  @ApiPropertyOptional({ nullable: true, description: 'Name of the person responsible; empty clears it' }) @IsOptional() @IsString() @MaxLength(100) assignedTo?: string | null;
+  @ApiPropertyOptional({ nullable: true, description: 'Id of the person in Technical Capacity' }) @IsOptional() @IsString() @MaxLength(40) assignedToId?: string | null;
+}
 
 /** Traduce los errores del servicio a respuestas HTTP con un mensaje claro. */
 function http(e: unknown): never {
@@ -73,6 +77,6 @@ export class WorkOrdersController {
   @Roles('manager')
   @ApiOperation({ summary: 'Set or clear the person responsible (a name) while the order is open (role manager)' })
   async assign(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: AssignDto, @Req() req: Request & { user: AuthUser }) {
-    try { return await this.svc.assign(id, dto.assignedTo, req.user.email); } catch (e) { return http(e); }
+    try { return await this.svc.assign(id, dto.assignedTo, req.user.email, dto.assignedToId); } catch (e) { return http(e); }
   }
 }

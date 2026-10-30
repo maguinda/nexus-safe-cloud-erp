@@ -14,7 +14,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface NewWorkOrder {
   type: WoType; priority: (typeof WO_PRIORITIES)[number]; targetKind: (typeof WO_TARGETS)[number]; targetRef: string; description: string;
-  sourceNote: string | null; dueDate: string | null; assignedTo: string | null;
+  sourceNote: string | null; dueDate: string | null; assignedTo: string | null; assignedToId: string | null;
 }
 
 function text(v: unknown, field: string, min: number, max: number): string {
@@ -43,7 +43,7 @@ export function validateNewWorkOrder(i: Record<string, unknown>, today: string):
   return {
     type: oneOf(i.type, WO_TYPES, 'type'), priority: empty(i.priority) ? 'normal' : oneOf(i.priority, WO_PRIORITIES, 'priority'), targetKind, targetRef: ref,
     description: text(i.description, 'description', 3, 300), sourceNote: empty(i.sourceNote) ? null : text(i.sourceNote, 'sourceNote', 1, 200), dueDate,
-    assignedTo: empty(i.assignedTo) ? null : text(i.assignedTo, 'assignedTo', 2, 80),
+    assignedTo: empty(i.assignedTo) ? null : text(i.assignedTo, 'assignedTo', 2, 80), assignedToId: validateAssigneeId(i.assignedToId, i.assignedTo),
   };
 }
 
@@ -53,6 +53,14 @@ export const isClosing = (to: WoStatus) => to === 'done' || to === 'cancelled';
 
 export function validateStatusChange(status: unknown, note: unknown): { status: WoStatus; note: string | null } {
   return { status: oneOf(status, WO_STATUSES, 'status'), note: empty(note) ? null : text(note, 'note', 1, 300) };
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** El id de la persona (de la lista de Capacidad): opcional, un UUID, y no vale sin el nombre. */
+export function validateAssigneeId(id: unknown, name: unknown): string | null {
+  if (empty(id)) return null;
+  if (typeof id !== 'string' || !UUID.test(id)) throw new InvalidWorkOrderError('assignedToId must be a UUID');
+  if (empty(name)) throw new InvalidWorkOrderError('assignedToId needs the name of the person (assignedTo)');
+  return id.toLowerCase();
 }
 export function validateAssignee(v: unknown): string | null { return empty(v) ? null : text(v, 'assignedTo', 2, 80); }
 
