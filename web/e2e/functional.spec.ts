@@ -1549,6 +1549,40 @@ test('Purchased equipment: buying and receiving a network device adds its units 
   await expect(f2.getByText('Another purchased device already has that serial number.')).toBeVisible();
 });
 
+test('Physical count: the manager opens it, writes what was counted (the form warns first), closes it and the difference is applied; others only read', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, lead] = [await open('manager'), await open('lead')];
+  const nav = (page: import('@playwright/test').Page) => page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click();
+  try {
+    await nav(manager.page); await nav(lead.page);
+    await expect(lead.page.getByRole('button', { name: 'Open count' })).toHaveCount(0);
+    await manager.page.getByRole('button', { name: 'Open count' }).click();
+    await expect(manager.page.getByText(/Count #\d+ opened\./)).toBeVisible();
+    await expect(manager.page.getByRole('button', { name: 'Open count' })).toHaveCount(0); // ya hay uno abierto
+    const row = manager.page.locator('[data-line="Sensor de temperatura TH-10"]');
+    await expect(row).toContainText('8');
+    await row.getByLabel('Counted for Sensor de temperatura TH-10', { exact: true }).fill('-3');
+    await row.getByRole('button', { name: 'Save what was counted for Sensor de temperatura TH-10' }).click();
+    await expect(row.getByText('Write a whole number from 0 to 1,000,000.')).toBeVisible();
+    await row.getByLabel('Counted for Sensor de temperatura TH-10', { exact: true }).fill('6');
+    await row.getByRole('button', { name: 'Save what was counted for Sensor de temperatura TH-10' }).click();
+    await expect(row).toContainText('-2');
+    await expect(manager.page.locator('[data-item="Sensor de temperatura TH-10"]')).toContainText('In stock: 8'); // contar no mueve el stock
+    await manager.page.getByRole('button', { name: 'Close and apply' }).click();
+    await expect(manager.page.getByText(/Count #\d+ closed: 1 adjustments applied\./)).toBeVisible();
+    await expect(manager.page.locator('[data-item="Sensor de temperatura TH-10"]')).toContainText('In stock: 6');
+    await expect(manager.page.locator('[data-movement="count"]').first()).toContainText('-2');
+    await expect(manager.page.locator('[data-past]').first()).toContainText('closed');
+    await manager.page.getByRole('button', { name: 'Open count' }).click(); // cancelar no toca el stock
+    await manager.page.getByRole('button', { name: 'Cancel count' }).click();
+    await expect(manager.page.getByText(/cancelled; the stock did not change\./)).toBeVisible();
+    await expect(manager.page.locator('[data-item="Sensor de temperatura TH-10"]')).toContainText('In stock: 6');
+  } finally { await manager.ctx.close(); await lead.ctx.close(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');

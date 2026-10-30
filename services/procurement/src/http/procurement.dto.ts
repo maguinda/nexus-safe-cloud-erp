@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDefined, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** La forma y los topes se validan aquí; las reglas de negocio las valida el dominio. */
 export class CreateSupplierDto {
@@ -18,6 +18,10 @@ export class CreateOrderDto {
   @ApiProperty({ minimum: 1, maximum: 100000 }) @IsInt() quantity!: number;
   @ApiProperty({ minimum: 1, maximum: 1000000000, description: 'Whole Colombian pesos per unit' }) @IsInt() unitPriceCop!: number;
 }
+export class CountedDto {
+  @ApiProperty({ example: 7, description: 'What was physically counted, whole number from 0 to 1.000.000' }) @IsDefined() counted!: number;
+}
+
 export class AdjustDto {
   @ApiProperty({ example: -2, description: 'Whole number other than 0, up to 100000 either way' }) @IsInt() delta!: number;
   @ApiProperty({ example: 'Stock count', maxLength: 120 }) @IsString() @MaxLength(200) reason!: string;

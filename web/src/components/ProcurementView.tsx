@@ -5,6 +5,7 @@ import { formatCop } from '../lib/format';
 import type { PurchaseOrder, RestockSuggestion, StockItem, Supplier } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
+import { StockCountPanel } from './StockCountPanel';
 import { StockHistory } from './StockHistory';
 import { AdjustForm, NewItemForm, NewOrderForm, NewSupplierForm } from './ProcurementForms';
 import s from './ProcurementView.module.css';
@@ -117,6 +118,7 @@ export function ProcurementView({ toast }: { toast: (m: string) => void }) {
           )}
         </>
       )}
+      {data && <StockCountPanel onChanged={() => void load()} toast={toast} />}
       {data && <StockHistory items={data.items} refreshKey={data.items.map((x) => x.onHand).join(',')} />}
     </section>
   );

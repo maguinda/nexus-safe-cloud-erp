@@ -14,6 +14,7 @@ export const history = {
   'hist.src.opening': 'Saldo inicial',
   'hist.src.purchase': 'Pedido recibido',
   'hist.src.adjustment': 'Ajuste manual',
+  'hist.src.count': 'Conteo físico',
   'hist.noActor': 'sistema',
   'hist.loadError': 'No se pudo cargar el historial: {reason}',
 } as const;

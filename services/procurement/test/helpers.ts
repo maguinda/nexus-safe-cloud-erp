@@ -28,6 +28,7 @@ export const SEED_ITEMS = ['33333333-3333-4333-8333-333333333301', '33333333-333
 export const SEED_STOCK: Record<string, number> = { [SEED_ITEMS[0]]: 8, [SEED_ITEMS[1]]: 3, [SEED_ITEMS[2]]: 2 };
 /** Deja la base como el seed: borra pedidos, avisos y outbox, lo creado por las pruebas y devuelve las existencias de los artículos del seed. */
 export async function resetState(prisma: PrismaClient) {
+  await prisma.stockCount.deleteMany();
   await prisma.outboxEvent.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.alertSuggestion.deleteMany();

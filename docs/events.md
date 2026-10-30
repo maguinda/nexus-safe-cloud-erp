@@ -212,6 +212,13 @@ The only person in the event is `registeredBy` (the staff email of the analyst, 
 - `GET /inventory/movements?itemId=&limit=` (roles manager, project_lead, billing_analyst). No event is published for it: `StockChanged` already tells the others. Invariant tested: for every item, the sum of its movements equals its stock.
 - An item created later starts at 0, so the movements of items created through the API add up from the first received order. Stock set directly in the database (the demo seed) is not a movement; the demo reset opens it again.
 
+## Physical count (procurement, no new event)
+
+- `POST /counts` opens a count: a snapshot of the expected stock of every item (items locked against writes in id order for the snapshot). **Only one count can be open** (partial unique index). `PATCH /counts/:id/lines/:itemId` writes what was counted (0 to 1.000.000) while the count is open. `POST /counts/:id/close` applies, for each counted item, **counted − expected** (the snapshot) on top of the CURRENT stock, so what came in or out after opening is kept. `POST /counts/:id/cancel` touches nothing.
+- Closing is **all or nothing**: if any item would end below zero, the whole close is refused (409 naming the item) and the count stays open to be corrected. Lines not counted and lines without difference leave no movement.
+- Each applied difference is one `stock_movements` row with source `count` (reason `Conteo físico #N`, the actor) and one `StockChanged` event (reason `adjustment`, the same note), in the same transaction. Lock order is always: count, then items by id; receive locks order then item and adjust locks the item, so there is no cycle.
+- Roles: manager opens, counts, closes and cancels; manager, project_lead and billing_analyst read.
+
 ## Operations consumer (purchased equipment)
 
 - `operations` binds its own queue `q.operations.purchases` (dead-letter queue `q.operations.purchases.dlq`) to `procurement.equipment.purchased`. For each unit bought it inserts one row in `network_devices` named `<item> (<order>-<unit>)`, model = the item, category `Equipo comprado`, role `Pendiente de configurar`, criticality `Media`, serial `<order>-<unit>`, no IP.

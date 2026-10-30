@@ -586,6 +586,66 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /counts:
+    get:
+      tags: [Procurement]
+      operationId: listStockCounts
+      summary: Physical counts, newest first (last 20) (roles manager, project_lead, billing_analyst)
+      responses:
+        '200': { description: Counts with lines, counted and differences }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Procurement]
+      operationId: openStockCount
+      summary: Open a physical count (snapshot of the expected stock). Only one can be open (role manager)
+      responses:
+        '201': { description: Opened }
+        '409': { description: There is already an open count }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /counts/{id}:
+    get:
+      tags: [Procurement]
+      operationId: getStockCount
+      summary: One count with its lines (expected, counted, variance, applied delta)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200': { description: The count }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /counts/{id}/lines/{itemId}:
+    patch:
+      tags: [Procurement]
+      operationId: setCounted
+      summary: Write what was counted for an item while the count is open (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [counted], properties: { counted: { type: integer, minimum: 0, maximum: 1000000 } } }
+      responses:
+        '200': { description: The line }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The count is not open }
+  /counts/{id}/close:
+    post:
+      tags: [Procurement]
+      operationId: closeStockCount
+      summary: Close the count and apply counted − expected as adjustments. All or nothing (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200': { description: Closed, with the adjustments applied }
+        '409': { description: Not open, or an item would end below zero }
+  /counts/{id}/cancel:
+    post:
+      tags: [Procurement]
+      operationId: cancelStockCount
+      summary: Cancel an open count without touching the stock (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200': { description: Cancelled }
+        '409': { description: The count is not open }
   /inventory/suggestions:
     get:
       tags: [Procurement]

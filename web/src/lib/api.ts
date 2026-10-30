@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -83,6 +83,12 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
     suppliers: () => request<Supplier[]>('GET', '/suppliers'),
     createSupplier: (b: { name: string; kind: string; terms: string }) => request<Supplier>('POST', '/suppliers', b),
+    stockCounts: () => request<StockCount[]>('GET', '/counts'),
+    stockCount: (id: string) => request<{ count: StockCount; lines: StockCountLine[] }>('GET', `/counts/${encodeURIComponent(id)}`),
+    openStockCount: () => request<StockCount>('POST', '/counts'),
+    setCounted: (id: string, itemId: string, counted: number) => request<StockCountLine>('PATCH', `/counts/${encodeURIComponent(id)}/lines/${encodeURIComponent(itemId)}`, { counted }),
+    closeStockCount: (id: string) => request<{ count: StockCount; adjustments: { itemName: string; delta: number; onHandAfter: number }[] }>('POST', `/counts/${encodeURIComponent(id)}/close`),
+    cancelStockCount: (id: string) => request<StockCount>('POST', `/counts/${encodeURIComponent(id)}/cancel`),
     stockMovements: (itemId?: string) => request<StockMovement[]>('GET', itemId ? `/inventory/movements?itemId=${encodeURIComponent(itemId)}&limit=100` : '/inventory/movements?limit=100'),
     inventory: () => request<StockItem[]>('GET', '/inventory'),
     suggestions: () => request<RestockSuggestion[]>('GET', '/inventory/suggestions'),
