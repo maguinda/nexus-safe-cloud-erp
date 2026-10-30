@@ -13,6 +13,11 @@ on:
       - '.github/workflows/stack-e2e.yml'
   workflow_dispatch:
 
+# Si llega otro commit al mismo PR, se cancela la corrida anterior (ahorra minutos de Actions: el cupo gratis es de 2.000 al mes).
+concurrency:
+  group: stack-e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
