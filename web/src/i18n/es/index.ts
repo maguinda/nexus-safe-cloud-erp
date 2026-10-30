@@ -25,6 +25,7 @@ import { configure } from './configure';
 import { history } from './history';
 import { count } from './count';
 import { workorders } from './workorders';
+import { quotes } from './quotes';
 
 /** El español es la fuente de las claves: el inglés tiene que tener exactamente las mismas (si falta una, no compila). */
-export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders } as const;
+export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders, ...quotes } as const;

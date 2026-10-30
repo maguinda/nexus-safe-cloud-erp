@@ -230,6 +230,20 @@ The only person in the event is `registeredBy` (the staff email of the analyst, 
 - `POST /installs/:id/retire` (manager) takes an installed unit out of service: `destination: storage` (the stock goes up by one, movement `return`, `StockChanged` reason `return`) or `retired` (out of service, the stock does not change). Published in the same transaction: `EquipmentRetired` (`procurement.equipment.retired`, data `installNumber`, `itemId`, `itemName`, `destination`). The install row is locked first and the item second, and the status is read again inside the lock: returning the same unit twice returns it once (409 the second time). `GET /installs` lists the units with their status; Procurement shows «installed from here» per equipment item.
 - `operations` consumes it and removes the network device of that installation (`source_order` = `INS-0001`). If the device had links or monitoring it is **not deleted**: its role becomes «Retirado de servicio». The 76 devices of the teacher’s Excel are never touched. Idempotent by the install number.
 
+## QuoteApproved (projects → billing)
+
+Sales builds a **quote** in `projects` (`/quotes`): milestones, and in each milestone cost lines of three kinds — `materials`, `supplies`, `labor` (quantity × unit cost). Price of a milestone = cost + margin (default 25 %, whole percent 0 to 100), rounded to the peso (half up); the price of the quote is the **sum of the milestone prices**, so what is billed by milestones adds up exactly to the contract. Totals are never stored: they are computed from the lines. Caps: milestone price ≤ 1.000 millones, quote price ≤ 2.000 millones (the contract is a 32-bit integer).
+
+States: `draft` → `pending` (sales sends it; it needs a milestone and a line in each) → `approved` (manager) or `rejected` (manager, with a reason of 3 to 300 characters; sales fixes it, it goes back to `draft`). Every change locks the quote row (`FOR UPDATE`) and rereads the state inside the lock.
+
+**Approving** (`POST /quotes/:id/approve`, manager) writes in ONE transaction: the project (`p-xxxxxxxx`), one milestone per quote milestone at its price, a `MilestoneCreated` event for each, and **`QuoteApproved`** (`project.quote.approved`, outbox, aggregate = quote id):
+
+`data`: `quoteId`, `quoteNumber` (COT-0001), `clientName`, `projectId`, `projectName`, `amountCop` (the PRICE), `costCop`, `marginPct`, `approvedBy`.
+
+`billing-receivables` consumes it on its queue `q.billing` (second binding) and creates the **contract** (`contracts.quote_ref` = the quote number, UNIQUE; amount = price; linked by `project_id`; validity 365 days from the approval, because the quote has no dates). Idempotent by event id and by quote number. An invalid event goes to `q.billing.dlq`.
+
+Reference salaries per position (`technical-capacity`, `GET /position-rates`, manager adjusts) give the cost per working day (monthly salary / 22) to price labor before knowing who will go to the project; `GET /quote-catalog` (procurement) gives the lowest reference price of each item some supplier sells. Projects does not check those prices against the other services: sales may negotiate them.
+
 ## Supplier catalog and equipment installation (procurement)
 
 - **Catalog:** `supplier_items` says what each supplier sells, with a reference price and a delivery time in days (`PUT/DELETE /suppliers/:id/catalog/:itemId`, manager). `GET /suppliers` returns each supplier with its `catalog` and, for suppliers by tender, `tenderRef` and `validUntil` (only a tender supplier may carry them: CHECK). **An order only accepts what the supplier sells** (409 `That supplier does not sell that item`); without `unitPriceCop` the order takes the supplier's reference price.

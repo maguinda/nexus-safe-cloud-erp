@@ -25,3 +25,4 @@ export { configure } from './configure';
 export { history } from './history';
 export { count } from './count';
 export { workorders } from './workorders';
+export { quotes } from './quotes';

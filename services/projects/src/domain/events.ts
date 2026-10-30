@@ -59,3 +59,20 @@ export function milestoneApproved(m: Milestone, projectName: string, clientName:
     },
   };
 }
+
+/**
+ * Gerencia aprobó una cotización: nacieron el proyecto y sus hitos (aquí) y Billing crea el contrato. El monto es el PRECIO de la cotización (costo + margen).
+ * Lleva el costo y el margen para que Analytics pueda comparar lo cotizado con lo real. Contrato en docs/events.md.
+ */
+export interface QuoteApprovedEvent {
+  eventId: string;
+  type: 'QuoteApproved';
+  occurredAt: string;
+  correlationId: string;
+  data: { quoteId: string; quoteNumber: string; clientName: string; projectId: string; projectName: string; amountCop: number; costCop: number; marginPct: number; approvedBy: string };
+}
+export const QUOTE_APPROVED_ROUTING_KEY = 'project.quote.approved';
+
+export function quoteApproved(d: QuoteApprovedEvent['data'], correlationId: string, now: Date): QuoteApprovedEvent {
+  return { eventId: randomUUID(), type: 'QuoteApproved', occurredAt: now.toISOString(), correlationId, data: d };
+}

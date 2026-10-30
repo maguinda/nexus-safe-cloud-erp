@@ -72,3 +72,55 @@ model RemovedAllocation {
 
   @@map("removed_allocations")
 }
+
+/// Cotización de ventas: proyecto con hitos y costos. Los totales NO se guardan: se calculan siempre de las líneas.
+model Quote {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number       Int      @unique @default(autoincrement())
+  client       String
+  projectName  String   @map("project_name")
+  /// draft, pending (esperando a gerencia), approved o rejected.
+  status       String   @default("draft")
+  marginPct    Int      @default(25) @map("margin_pct")
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  submittedAt  DateTime? @map("submitted_at") @db.Timestamptz(6)
+  decidedBy    String?  @map("decided_by")
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?  @map("decision_note")
+  /// El proyecto que nació al aprobar.
+  projectId    String?  @map("project_id")
+  milestones   QuoteMilestone[]
+
+  @@index([createdBy])
+  @@map("quotes")
+}
+
+model QuoteMilestone {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId  String @map("quote_id") @db.Uuid
+  position Int
+  name     String
+  quote    Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  lines    QuoteLine[]
+
+  @@unique([quoteId, position])
+  @@map("quote_milestones")
+}
+
+model QuoteLine {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  milestoneId String @map("milestone_id") @db.Uuid
+  position    Int
+  /// materials, supplies o labor.
+  category    String
+  description String
+  quantity    Int
+  unitCostCop Int    @map("unit_cost_cop")
+  /// De dónde salió el precio: un artículo del catálogo o un cargo (informativo; Projects no lo verifica contra otro servicio).
+  ref         String?
+  milestone   QuoteMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@unique([milestoneId, position])
+  @@map("quote_lines")
+}

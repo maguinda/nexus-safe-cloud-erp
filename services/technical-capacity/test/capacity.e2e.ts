@@ -202,4 +202,24 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
     const e = (await call('get', '/engineers', as(USERS.manager))).body.engineers.find((x: any) => x.id === id);
     expect(e.allocations).toEqual([]);
   });
+
+  it('reference salaries per position: the seven estimates from the market search, readable by sales, manager and project lead (not billing); only the manager adjusts them; the daily cost is salary / 22', async () => {
+    const list = (u: any) => call('get', '/position-rates', as(u));
+    for (const u of [USERS.sales, USERS.lead, USERS.manager]) expect((await list(u)).status).toBe(200);
+    expect((await list(USERS.billing)).status).toBe(403); expect((await call('get', '/position-rates')).status).toBe(401);
+    const r = (await list(USERS.sales)).body as any[];
+    expect(r.map((x) => x.position)).toEqual(['software_engineer', 'cloud_devops_engineer', 'security_engineer', 'network_engineer', 'tech_lead', 'field_technician', 'support_technician']);
+    expect(r.find((x) => x.position === 'network_engineer')).toMatchObject({ kind: 'engineer', monthlySalaryCop: 5_000_000, dailyCostCop: 227_273 });
+    expect(r.find((x) => x.position === 'field_technician')).toMatchObject({ kind: 'technician', monthlySalaryCop: 2_400_000, dailyCostCop: 109_091 });
+    for (const x of r) { expect(x.note.length).toBeGreaterThan(10); expect(x.monthlySalaryCop).toBeGreaterThan(1_750_905); } // ninguno por debajo del mínimo legal
+    for (const u of [USERS.lead, USERS.sales, USERS.billing]) expect((await call('patch', '/position-rates/tech_lead', as(u), { monthlySalaryCop: 1 })).status).toBe(403);
+    expect((await call('patch', '/position-rates/tech_lead', as(USERS.manager), { monthlySalaryCop: 11_000_000, note: 'Ajustado por gerencia' })).status).toBe(204);
+    expect((await list(USERS.sales)).body.find((x: any) => x.position === 'tech_lead')).toMatchObject({ monthlySalaryCop: 11_000_000, dailyCostCop: 500_000, note: 'Ajustado por gerencia', updatedBy: USERS.manager.email });
+    for (const bad of [{}, { monthlySalaryCop: 0 }, { monthlySalaryCop: 1.5 }, { monthlySalaryCop: '9' }, { monthlySalaryCop: 200_000_001 }, { monthlySalaryCop: 5, note: 'x' }, { monthlySalaryCop: 5, note: '<b>nota</b>' }]) expect((await call('patch', '/position-rates/tech_lead', as(USERS.manager), bad)).status).toBe(400);
+    for (const bad of ['ceo', 'toString', '__proto__']) expect((await call('patch', `/position-rates/${bad}`, as(USERS.manager), { monthlySalaryCop: 5_000_000 })).status).toBe(404);
+    expect((await list(USERS.sales)).body.find((x: any) => x.position === 'tech_lead').monthlySalaryCop).toBe(11_000_000);
+    await prisma.$executeRawUnsafe(`UPDATE position_rates SET monthly_salary_cop = 10000000, note = 'Estimado oct-2026 (restaurado por la prueba)' WHERE position = 'tech_lead'`);
+    await expect(prisma.$executeRawUnsafe(`UPDATE position_rates SET monthly_salary_cop = 0 WHERE position = 'tech_lead'`)).rejects.toThrow();
+    await expect(prisma.$executeRawUnsafe(`INSERT INTO position_rates (position, monthly_salary_cop, note) VALUES ('ceo', 5000000, 'inventado')`)).rejects.toThrow();
+  });
 });

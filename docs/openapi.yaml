@@ -49,6 +49,8 @@ servers:
   - url: http://localhost:8080
     description: Local gateway (docker compose)
 tags:
+  - name: Quotes
+    description: Sales quotes with costs and margin (service projects, port 4102). Approving one creates the project and, through QuoteApproved, the contract
   - name: Auth
     description: Owned by identity-access
   - name: Users
@@ -437,6 +439,95 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /quotes:
+    get:
+      tags: [Quotes]
+      operationId: listQuotes
+      summary: Quotes with computed cost, price and profit (sales see their own; manager and project_lead see all)
+      responses: { '200': { description: The quotes }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [Quotes]
+      operationId: createQuote
+      summary: Start a quote (draft, margin 25 %) (roles sales, manager)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [client, projectName], additionalProperties: false, properties: { client: { type: string, minLength: 2, maxLength: 120 }, projectName: { type: string, minLength: 2, maxLength: 120 } } } } } }
+      responses: { '201': { description: Created }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /quotes/{id}:
+    get:
+      tags: [Quotes]
+      operationId: getQuote
+      summary: One quote with its milestones and cost lines
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: The quote }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      tags: [Quotes]
+      operationId: saveQuote
+      summary: Replace the whole content of a draft or rejected quote (roles sales (own), manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client, projectName]
+              properties:
+                client: { type: string }
+                projectName: { type: string }
+                marginPct: { type: integer, minimum: 0, maximum: 100, default: 25 }
+                milestones:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      lines:
+                        type: array
+                        maxItems: 40
+                        items: { type: object, properties: { category: { type: string, enum: [materials, supplies, labor] }, description: { type: string }, quantity: { type: integer, minimum: 1, maximum: 100000 }, unitCostCop: { type: integer, minimum: 1, maximum: 1000000000 }, ref: { type: string } } }
+      responses: { '200': { description: Saved }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: The quote is pending or approved } }
+  /quotes/{id}/submit:
+    post:
+      tags: [Quotes]
+      operationId: submitQuote
+      summary: Send a draft for approval (needs a milestone and a cost line in each)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: Pending }, '409': { description: Not a draft, or incomplete } }
+  /quotes/{id}/approve:
+    post:
+      tags: [Quotes]
+      operationId: approveQuote
+      summary: Approve a pending quote - the project, its milestones and (through QuoteApproved) the contract are born (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: Approved }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { description: Not pending } }
+  /quotes/{id}/reject:
+    post:
+      tags: [Quotes]
+      operationId: rejectQuote
+      summary: Reject a pending quote with a reason of 3 to 300 characters (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [note], properties: { note: { type: string, minLength: 3, maxLength: 300 } } } } } }
+      responses: { '200': { description: Rejected }, '409': { description: Not pending } }
+  /position-rates:
+    get:
+      tags: [Capacity]
+      operationId: listPositionRates
+      summary: Reference monthly salary per position and the cost per working day (roles sales, manager, project_lead)
+      responses: { '200': { description: The seven positions } }
+  /position-rates/{position}:
+    patch:
+      tags: [Capacity]
+      operationId: setPositionRate
+      summary: Adjust the reference salary of a position (role manager)
+      parameters: [ { name: position, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [monthlySalaryCop], properties: { monthlySalaryCop: { type: integer, minimum: 1, maximum: 200000000 }, note: { type: string } } } } } }
+      responses: { '204': { description: Saved }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /quote-catalog:
+    get:
+      tags: [Procurement]
+      operationId: quoteCatalog
+      summary: Items some supplier sells, with the lowest reference price (roles sales, manager, project_lead)
+      responses: { '200': { description: The catalog } }
   /work-orders:
     get:
       tags: [Work orders]

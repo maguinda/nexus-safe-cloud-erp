@@ -60,3 +60,14 @@ model OutboxEvent {
   @@index([publishedAt])
   @@map("outbox_events")
 }
+
+/// Tarifa de referencia por cargo: sueldo mensual estimado del mercado. El costo por día hábil se calcula (sueldo ÷ 22).
+model PositionRate {
+  position         String   @id
+  monthlySalaryCop Int      @map("monthly_salary_cop")
+  note             String
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?  @map("updated_by")
+
+  @@map("position_rates")
+}

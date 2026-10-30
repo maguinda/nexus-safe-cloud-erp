@@ -100,4 +100,50 @@ describe('MilestoneApproved consumer (e2e, real PostgreSQL and RabbitMQ)', () =>
     expect(numbers[49]).toBe('INV-0152');
     expect(await dlqCount()).toBe(0);
   }, 40_000);
+
+  describe('QuoteApproved: the approved quote becomes the contract of its project', () => {
+    const QKEY = 'project.quote.approved';
+    const qe = (n: number, over: any = {}, data: any = {}) => ({
+      eventId: randomUUID(), type: 'QuoteApproved', occurredAt: '2026-11-02T15:00:00.000Z', correlationId: `corr-${String(n).padStart(8, '0')}`,
+      data: { quoteId: randomUUID(), quoteNumber: `COT-${String(n).padStart(4, '0')}`, clientName: 'Acme S.A.S.', projectId: `p-q${n}`, projectName: `Red sede ${n}`, amountCop: 12_500_000, approvedBy: 'diana.vega@nexus.example', ...data }, ...over,
+    });
+    const pub = (body: unknown, raw = false) => ch.publish(EXCHANGE, QKEY, raw ? (body as Buffer) : Buffer.from(JSON.stringify(body)), { persistent: true, contentType: 'application/json' });
+    const contracts = () => prisma.contract.findMany({ where: { quoteRef: { not: null } }, orderBy: { quoteRef: 'asc' } });
+
+    it('creates the contract with the quote price, the project id, the approver and 365 days from the approval', async () => {
+      pub(qe(7));
+      expect(await waitUntil(async () => (await contracts()).length === 1)).toBe(true);
+      const c = (await contracts())[0];
+      expect(c).toMatchObject({ clientName: 'Acme S.A.S.', projectName: 'Red sede 7', projectId: 'p-q7', quoteRef: 'COT-0007', amountCop: 12_500_000, status: 'active', createdBy: 'diana.vega@nexus.example' });
+      expect(c.startDate.toISOString().slice(0, 10)).toBe('2026-11-02'); expect(c.endDate.toISOString().slice(0, 10)).toBe('2027-11-02');
+    });
+
+    it('is idempotent: the same event 6 times, and the same quote with another event id, make one contract', async () => {
+      const e = qe(8); for (let i = 0; i < 6; i++) pub(e);
+      pub(qe(8, {}, { quoteId: e.data.quoteId, quoteNumber: 'COT-0008' }));
+      pub(qe(9)); // un evento distinto detrás: cuando llega, los anteriores ya se procesaron
+      expect(await waitUntil(async () => (await contracts()).length === 2)).toBe(true);
+      await new Promise((r) => setTimeout(r, 1500));
+      expect((await contracts()).map((c) => c.quoteRef)).toEqual(['COT-0008', 'COT-0009']);
+      expect(await dlqCount()).toBe(0);
+    });
+
+    it('invalid events go to the dead-letter queue and create nothing; the consumer keeps living', async () => {
+      const dead = await dlqCount();
+      const bad = [qe(10, { type: 'Other' }), qe(11, {}, { amountCop: 0 }), qe(12, {}, { amountCop: 2_147_483_648 }), qe(13, {}, { amountCop: 1.5 }), qe(14, {}, { quoteNumber: 'x' }), qe(15, {}, { projectId: 'a b' }),
+        qe(16, {}, { clientName: '' }), qe(17, {}, { clientName: '<b>x</b>' }), qe(18, {}, { approvedBy: 'no-email' }), qe(19, { eventId: 'nope' }), qe(20, {}, { quoteId: 'zz' }), qe(21, { occurredAt: 'ayer' })];
+      for (const b of bad) pub(b);
+      pub(Buffer.from('{no json'), true);
+      expect(await waitUntil(async () => (await dlqCount()) === dead + bad.length + 1)).toBe(true);
+      expect(await contracts()).toHaveLength(0);
+      pub(qe(22)); expect(await waitUntil(async () => (await contracts()).length === 1)).toBe(true);
+    });
+
+    it('CONCURRENCY: 30 different approved quotes at once → 30 contracts, none lost or doubled', async () => {
+      for (let i = 1; i <= 30; i++) pub(qe(100 + i));
+      expect(await waitUntil(async () => (await contracts()).length === 30, 30_000)).toBe(true);
+      await new Promise((r) => setTimeout(r, 1000));
+      expect(await prisma.contract.count({ where: { quoteRef: { not: null } } })).toBe(30); expect(await dlqCount()).toBe(0);
+    }, 60_000);
+  });
 });
