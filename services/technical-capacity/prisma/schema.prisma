@@ -38,6 +38,10 @@ model Allocation {
   endDate       DateTime @map("end_date") @db.Date
   /// Se aceptó pasando de 100 % a propósito (decisión de gerencia).
   overAllocated Boolean  @default(false) @map("over_allocated")
+  /// project (proyecto: hitos, instalaciones nuevas) o maintenance (una orden de trabajo: preventivo, correctivo, inspección).
+  kind          String   @default("project")
+  /// La orden de trabajo (id en Operations) de la que nace una asignación de mantenimiento; única.
+  workOrderId   String?  @unique @map("work_order_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   engineer      Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
 

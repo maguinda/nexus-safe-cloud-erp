@@ -6,7 +6,7 @@ import glob, re, sys
 
 conf = open('infra/gateway/nginx.conf', encoding='utf8').read()
 declared = set(re.findall(r'location\s+(?:\^~\s+|=\s+)?/([A-Za-z0-9_-]*)', conf))
-SKIP = {'', 'health', 'docs', 'docs-json'}  # salud y documentación no pasan por el gateway
+SKIP = {'', 'health', 'docs', 'docs-json', 'maintenance'}  # salud, documentación y rutas de servicio a servicio (maintenance: Operations → Capacidad) no pasan por el gateway
 missing = {}
 for f in glob.glob('services/*/src/http/*.controller.ts'):
     src = open(f, encoding='utf8').read()

@@ -4,8 +4,10 @@ import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { loadNetwork } from '../prisma/network-load';
 import { bearer, token, USERS } from './helpers';
+import { CapacityStub } from './capacity-stub';
 
 process.env.RATE_LIMIT = '100000';
+const stub = new CapacityStub();
 
 describe('work orders from the monitoring screens (e2e, real PostgreSQL)', () => {
   let app: INestApplication;
@@ -20,14 +22,15 @@ describe('work orders from the monitoring screens (e2e, real PostgreSQL)', () =>
   const dayPlus = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 
   beforeAll(async () => {
+    process.env.CAPACITY_URL = await stub.start();
     const { createApp } = require('../src/app.factory'); app = await createApp(); await app.init();
     if ((await prisma.networkDevice.count({ where: { sourceOrder: null } })) < 76) await loadNetwork(prisma);
     const s = await prisma.iotDevice.findFirstOrThrow({ orderBy: { id: 'asc' } });
     sensorId = s.id; sensorName = s.name;
     const d = await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: null }, orderBy: { id: 'asc' } }); deviceId = d.id; deviceName = d.name;
   });
-  beforeEach(wipe);
-  afterAll(async () => { await wipe(); await app.close(); await prisma.$disconnect(); });
+  beforeEach(async () => { stub.reset(); await wipe(); });
+  afterAll(async () => { await wipe(); await app.close(); await stub.stop(); await prisma.$disconnect(); });
 
   it('roles: only the manager creates, changes and assigns (401/403); the manager and the project lead read; sales and billing do not', async () => {
     const o = (await create()).body;
@@ -93,7 +96,7 @@ describe('work orders from the monitoring screens (e2e, real PostgreSQL)', () =>
     const done = await s('done', 'Se cambió la fuente'); expect(done.body).toMatchObject({ status: 'done', closedBy: M.email }); expect(done.body.closedAt).toBeTruthy();
     for (const n of ['in_progress', 'done', 'cancelled', 'open']) expect((await s(n)).status).toBe(409);
     const ev = await prisma.outboxEvent.findMany({ where: { type: 'WorkOrderClosed' } }); expect(ev).toHaveLength(1);
-    expect(ev[0]).toMatchObject({ routingKey: 'ops.workorder.closed' }); expect((ev[0].payload as any).data).toEqual({ orderNumber: o.number, orderType: 'corrective', outcome: 'done', targetName: sensorName });
+    expect(ev[0]).toMatchObject({ routingKey: 'ops.workorder.closed' }); expect((ev[0].payload as any).data).toEqual({ orderId: o.id, orderNumber: o.number, orderType: 'corrective', outcome: 'done', targetName: sensorName });
     const g = (await call('get', `/work-orders/${o.id}`, M)).body;
     expect(g.log.map((l: any) => [l.from, l.to, l.actor, l.note])).toEqual([[null, 'open', M.email, null], ['open', 'in_progress', M.email, 'Técnico en camino'], ['in_progress', 'done', M.email, 'Se cambió la fuente']]);
   });
@@ -146,15 +149,138 @@ describe('work orders from the monitoring screens (e2e, real PostgreSQL)', () =>
 
   it('the responsible can be chosen from the staff list: the id travels with the name, it needs the name, it must be a UUID, and reassigning or clearing keeps both in step', async () => {
     const id1 = randomUUID(), id2 = randomUUID();
-    const a = await create({ assignedTo: 'Hugo Salazar', assignedToId: id1.toUpperCase() }); expect(a.status).toBe(201);
+    const CAP = { capacityPercent: 30, capacityStart: dayPlus(1), capacityEnd: dayPlus(5) };
+    const a = await create({ assignedTo: 'Hugo Salazar', assignedToId: id1.toUpperCase(), ...CAP }); expect(a.status).toBe(201);
     expect(a.body).toMatchObject({ assignedTo: 'Hugo Salazar', assignedToId: id1 }); // el id se guarda en minúsculas
     expect((await call('get', '/work-orders', M)).body.find((x: any) => x.id === a.body.id)).toMatchObject({ assignedToId: id1 });
-    for (const bad of [{ assignedToId: 'zz', assignedTo: 'Ana Gil' }, { assignedToId: id1 }, { assignedToId: id1, assignedTo: '' }, { assignedToId: 5, assignedTo: 'Ana Gil' }, { assignedToId: "x'; DROP TABLE work_orders", assignedTo: 'Ana Gil' }]) expect((await create(bad)).status).toBe(400);
+    for (const bad of [{ assignedToId: 'zz', assignedTo: 'Ana Gil' }, { assignedToId: id1 }, { assignedToId: id1, assignedTo: '' }, { assignedToId: 5, assignedTo: 'Ana Gil' }, { assignedToId: "x'; DROP TABLE work_orders", assignedTo: 'Ana Gil' }].map((b) => ({ ...CAP, ...b }))) expect((await create(bad)).status).toBe(400);
     const patch = (b: object) => call('patch', `/work-orders/${a.body.id}/assign`, M, b);
-    expect((await patch({ assignedTo: 'Nelly Ortiz', assignedToId: id2 })).body).toMatchObject({ assignedTo: 'Nelly Ortiz', assignedToId: id2 });
+    expect((await patch({ assignedTo: 'Nelly Ortiz', assignedToId: id2, ...CAP })).body).toMatchObject({ assignedTo: 'Nelly Ortiz', assignedToId: id2 });
     expect((await patch({ assignedTo: 'Ana Gil' })).body).toMatchObject({ assignedTo: 'Ana Gil', assignedToId: null }); // un nombre escrito sin id borra el id viejo
-    expect((await patch({ assignedToId: id1 })).status).toBe(400);
+    expect((await patch({ assignedToId: id1, ...CAP })).status).toBe(400);
     expect((await patch({ assignedTo: '' })).body).toMatchObject({ assignedTo: null, assignedToId: null });
     await expect(prisma.$executeRawUnsafe(`UPDATE work_orders SET assigned_to = NULL, assigned_to_id = '${id1}' WHERE id = '${a.body.id}'`)).rejects.toThrow(); // CHECK en la base
+  });
+
+  describe('a work order with a responsible person SPENDS capacity', () => {
+    const person = randomUUID();
+    const withCap = (o: object = {}) => ({ assignedTo: 'Hugo Salazar', assignedToId: person, capacityPercent: 30, capacityStart: dayPlus(1), capacityEnd: dayPlus(5), ...o });
+    const rowOf = (id: string) => prisma.workOrder.findUniqueOrThrow({ where: { id } });
+    const events = (type: string) => prisma.outboxEvent.count({ where: { type } });
+
+    it('creating reserves in Technical Capacity with the forwarded token, the order id and a label; the order is reserved and WorkOrderCreated is published only after the reservation', async () => {
+      const r = await create(withCap()); expect(r.status).toBe(201);
+      expect(r.body).toMatchObject({ capacityState: 'reserved', capacityPercent: 30, capacityStart: dayPlus(1), capacityEnd: dayPlus(5) });
+      expect(stub.calls).toHaveLength(1); const c = stub.calls[0];
+      expect(c).toMatchObject({ method: 'PUT', orderId: r.body.id, body: { engineerId: person, percent: 30, startDate: dayPlus(1), endDate: dayPlus(5), allowOverallocation: false } });
+      expect(c.auth).toBe(as(M)); expect(c.correlation).toBeTruthy(); expect(c.body.label).toBe(`${r.body.number} · ${sensorName}`.slice(0, 80));
+      expect(await events('WorkOrderCreated')).toBe(1);
+    });
+
+    it('capacityPercent and the dates are REQUIRED with a person from the list, and refused without one; bad values are 400 and nothing is called', async () => {
+      const bads = [{ capacityPercent: undefined }, { capacityStart: undefined }, { capacityEnd: undefined }, { capacityPercent: 0 }, { capacityPercent: 101 }, { capacityPercent: 1.5 }, { capacityPercent: '30' },
+        { capacityStart: '2026-02-30' }, { capacityStart: 'mañana' }, { capacityEnd: dayPlus(0) }, { capacityEnd: '2101-01-01' }, { capacityStart: '1999-01-01', capacityEnd: '2100-12-31' }, { allowOverallocation: 'si' }];
+      for (const b of bads) expect((await create(withCap(b))).status).toBe(400);
+      expect((await create({ assignedTo: 'Ana Gil', capacityPercent: 30 })).status).toBe(400); // sin id de la lista no hay reserva
+      expect((await create({ capacityStart: dayPlus(1) })).status).toBe(400);
+      expect(stub.calls).toHaveLength(0); expect(await prisma.workOrder.count()).toBe(0);
+    });
+
+    it('a name without id keeps working as before: no reservation, no call', async () => {
+      const r = await create({ assignedTo: 'Ana Gil' }); expect(r.status).toBe(201); expect(r.body).toMatchObject({ capacityState: 'none', capacityPercent: null });
+      expect(stub.calls).toHaveLength(0);
+    });
+
+    it('Technical Capacity refuses (over 100 %): 409 with ITS message, and nothing is left — no order, no event, no number reused as an open order', async () => {
+      stub.mode = 'conflict';
+      const r = await create(withCap()); expect(r.status).toBe(409); expect(r.body.message).toMatch(/110%/);
+      expect(await prisma.workOrder.count()).toBe(0); expect(await events('WorkOrderCreated')).toBe(0);
+      stub.mode = 'ok'; expect((await create(withCap())).status).toBe(201); // el equipo y el tipo quedaron libres: se puede crear la orden de verdad
+    });
+
+    it('unknown person (404) and invalid data (400) from Capacity are passed on; nothing is left', async () => {
+      stub.mode = 'notfound'; expect((await create(withCap())).status).toBe(404);
+      stub.mode = 'invalid'; expect((await create(withCap())).status).toBe(400);
+      expect(await prisma.workOrder.count()).toBe(0);
+    });
+
+    it('Technical Capacity is down: 502, the order is deleted and a release is attempted in case it saved without answering', async () => {
+      stub.mode = 'down'; const r = await create(withCap()); expect(r.status).toBe(502);
+      expect(await prisma.workOrder.count()).toBe(0); expect(await events('WorkOrderCreated')).toBe(0);
+      expect(stub.calls.map((c) => c.method)).toEqual(['PUT', 'DELETE']); // un 5xx no dice si guardó: se libera por si acaso
+    });
+
+    it('Technical Capacity is slow (past the timeout): 502 and the order is deleted', async () => {
+      stub.delayMs = 9500; const r = await create(withCap()); expect(r.status).toBe(502); expect(await prisma.workOrder.count()).toBe(0);
+      expect(stub.calls.map((c) => c.method)).toEqual(['PUT', 'DELETE']); // sin respuesta no se sabe si guardó: se libera por si acaso
+    }, 40_000);
+
+    it('reassigning MOVES the reservation (same order id); a refusal leaves the order exactly as it was', async () => {
+      const a = (await create(withCap())).body; const other = randomUUID();
+      const moved = await call('patch', `/work-orders/${a.id}/assign`, M, withCap({ assignedTo: 'Nelly Ortiz', assignedToId: other, capacityPercent: 50 }));
+      expect(moved.status).toBe(200); expect(moved.body).toMatchObject({ assignedTo: 'Nelly Ortiz', assignedToId: other, capacityPercent: 50, capacityState: 'reserved' });
+      expect(stub.reserved.get(a.id)).toMatchObject({ engineerId: other, percent: 50 });
+      stub.mode = 'conflict';
+      const refused = await call('patch', `/work-orders/${a.id}/assign`, M, withCap({ assignedTo: 'Hugo Salazar', assignedToId: person, capacityPercent: 90 })); expect(refused.status).toBe(409);
+      expect(await rowOf(a.id)).toMatchObject({ assignedTo: 'Nelly Ortiz', assignedToId: other, capacityPercent: 50, capacityState: 'reserved' });
+    });
+
+    it('a refusal because Capacity did not answer restores the order and puts the old reservation back', async () => {
+      const a = (await create(withCap())).body; stub.calls = [];
+      stub.mode = 'down'; const r = await call('patch', `/work-orders/${a.id}/assign`, M, withCap({ assignedToId: randomUUID(), assignedTo: 'Nelly Ortiz' })); expect(r.status).toBe(502);
+      expect(await rowOf(a.id)).toMatchObject({ assignedToId: person, capacityState: 'reserved', capacityPercent: 30 });
+      stub.mode = 'ok';
+      expect((await call('patch', `/work-orders/${a.id}/assign`, M, { assignedTo: '' })).body).toMatchObject({ assignedToId: null, capacityState: 'none', capacityPercent: null });
+    });
+
+    it('clearing the responsible (or typing a name without id) releases the reservation first; if Capacity cannot release, nothing changes', async () => {
+      const a = (await create(withCap())).body; stub.calls = [];
+      stub.mode = 'down'; expect((await call('patch', `/work-orders/${a.id}/assign`, M, { assignedTo: '' })).status).toBe(502);
+      expect(await rowOf(a.id)).toMatchObject({ assignedToId: person, capacityState: 'reserved' });
+      stub.mode = 'ok'; const r = await call('patch', `/work-orders/${a.id}/assign`, M, { assignedTo: 'Ana Gil' });
+      expect(r.body).toMatchObject({ assignedTo: 'Ana Gil', assignedToId: null, capacityState: 'none', capacityStart: null }); expect(stub.reserved.has(a.id)).toBe(false);
+    });
+
+    it('closing or cancelling publishes WorkOrderClosed with the order id (Capacity frees the reservation from it); a pending order cannot be closed or reassigned', async () => {
+      const a = (await create(withCap())).body, b = (await create(withCap({ targetRef: deviceId, targetKind: 'device' }))).body;
+      expect((await call('patch', `/work-orders/${a.id}/status`, M, { status: 'done' })).status).toBe(200);
+      expect((await call('patch', `/work-orders/${b.id}/status`, M, { status: 'cancelled', note: 'ya no hace falta' })).status).toBe(200);
+      const ev = await prisma.outboxEvent.findMany({ where: { type: 'WorkOrderClosed' } });
+      expect(ev.map((e) => (e.payload as any).data.orderId).sort()).toEqual([a.id, b.id].sort());
+      const c = (await create(withCap({ type: 'preventive' }))).body;
+      await prisma.$executeRawUnsafe(`UPDATE work_orders SET capacity_state = 'pending' WHERE id = '${c.id}'`);
+      expect((await call('patch', `/work-orders/${c.id}/status`, M, { status: 'done' })).status).toBe(409);
+      expect((await call('patch', `/work-orders/${c.id}/assign`, M, withCap())).status).toBe(409);
+    });
+
+    it('the database refuses reserved capacity without a person, without percent or dates, or with the end before the start', async () => {
+      const a = (await create(withCap())).body;
+      for (const sql of [`UPDATE work_orders SET assigned_to_id = NULL, assigned_to = NULL WHERE id = '${a.id}'`, `UPDATE work_orders SET capacity_percent = NULL WHERE id = '${a.id}'`, `UPDATE work_orders SET capacity_percent = 101 WHERE id = '${a.id}'`,
+        `UPDATE work_orders SET capacity_end = capacity_start - 1 WHERE id = '${a.id}'`, `UPDATE work_orders SET capacity_state = 'maybe' WHERE id = '${a.id}'`, `UPDATE work_orders SET capacity_state = 'none' WHERE id = '${a.id}'`]) await expect(prisma.$executeRawUnsafe(sql)).rejects.toThrow();
+    });
+
+    it('CONCURRENCY: 8 simultaneous reassignments of the same order → every answer is coherent and the order ends with ONE person and a reservation that matches it', async () => {
+      for (let r = 0; r < 20; r++) {
+        await wipe(); stub.reset();
+        const a = (await create(withCap())).body; const people = Array.from({ length: 4 }, () => randomUUID());
+        const res = await Promise.all(Array.from({ length: 8 }, (_, k) => call('patch', `/work-orders/${a.id}/assign`, M, withCap({ assignedToId: people[k % 4], assignedTo: `Persona ${k % 4}`, capacityPercent: 10 + k }))));
+        for (const x of res) expect([200, 409]).toContain(x.status);
+        const row = await rowOf(a.id);
+        expect(row.capacityState).toBe('reserved'); expect(stub.reserved.get(a.id)?.engineerId).toBe(row.assignedToId); expect(stub.reserved.get(a.id)?.percent).toBe(row.capacityPercent);
+      }
+    }, 120_000);
+
+    it('CONCURRENCY: closing and reassigning at the same time never leaves a closed order with a reservation that Capacity will not free', async () => {
+      for (let r = 0; r < 20; r++) {
+        await wipe(); stub.reset();
+        const a = (await create(withCap())).body;
+        const res = await Promise.all([call('patch', `/work-orders/${a.id}/status`, M, { status: 'done' }), call('patch', `/work-orders/${a.id}/assign`, M, withCap({ assignedToId: randomUUID(), assignedTo: 'Otra persona' }))]);
+        for (const x of res) expect([200, 409]).toContain(x.status);
+        const row = await rowOf(a.id);
+        // Si la orden quedó cerrada, el aviso de cierre (que libera) existe una sola vez; si no, sigue abierta con su reserva.
+        expect(await events('WorkOrderClosed')).toBe(row.status === 'done' ? 1 : 0);
+        if (row.status === 'done') expect(row.capacityState).toBe('reserved'); // el cierre lo libera por el aviso, con los datos de la reserva a la vista
+      }
+    }, 120_000);
   });
 });

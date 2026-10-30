@@ -5,6 +5,7 @@ import request from 'supertest';
 import { bearer, OTHER_KEYS, resetState, SEED_ENGINEERS, token, unsigned, USERS } from './helpers';
 
 process.env.RELAY_ENABLED = 'false'; // el relé se prueba aparte; aquí se mira el outbox
+process.env.CONSUMER_ENABLED = 'false'; // sin RabbitMQ en esta prueba
 process.env.RATE_LIMIT = '100000';
 
 describe('capacity: authentication, roles, the 100% rule and events (e2e, real PostgreSQL)', () => {

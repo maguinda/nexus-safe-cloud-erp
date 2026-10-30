@@ -410,3 +410,13 @@
   overflow-wrap: anywhere;
 }
 .fieldWide { grid-column: 1 / -1; }
+
+/* Casilla con su texto en una línea que baja de línea sin salirse (objetivo táctil de 32 px como mínimo). */
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-height: 32px;
+  overflow-wrap: anywhere;
+}
+.checkRow input { flex: 0 0 32px; width: 32px; height: 32px; margin: 0; }

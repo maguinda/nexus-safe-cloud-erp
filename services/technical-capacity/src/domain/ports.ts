@@ -2,7 +2,7 @@ import { Allocation } from './allocation';
 import { CapacityEvent } from './events';
 import { Engineer } from './engineer';
 
-export interface AllocationView { id: string; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
+export interface AllocationView { id: string; kind: 'project' | 'maintenance'; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
 export interface EngineerView extends Engineer {
   loadToday: number; freeToday: number; peakNext30: number; minFreeNext30: number; allocations: AllocationView[];
 }

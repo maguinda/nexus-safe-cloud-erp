@@ -4,6 +4,8 @@ import { errorText } from '../i18n/server';
 import { formatInstant } from '../lib/format';
 import type { WorkOrder, WorkOrderLogLine } from '../lib/types';
 import { StaffPicker, type StaffChoice } from './StaffPicker';
+import { CapacityFields } from './CapacityFields';
+import { checkCapacity, defaultCapacity, type CapForm } from '../lib/workorders';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import s from './WorkOrdersView.module.css';
@@ -24,6 +26,9 @@ export function WorkOrdersView({ toast }: { toast: (m: string) => void }) {
   const [log, setLog] = useState<WorkOrderLogLine[] | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [who, setWho] = useState<StaffChoice | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const [cap, setCap] = useState<CapForm>(() => defaultCapacity(today));
+  const [capError, setCapError] = useState('');
   const inflight = useRef(false);
 
   const load = useCallback(async () => {
@@ -67,18 +72,19 @@ export function WorkOrdersView({ toast }: { toast: (m: string) => void }) {
                 <p><strong>{o.targetName}</strong> — {o.description}</p>
                 {o.sourceNote && <p className={ui.muted}>{t('wo.origin', { note: o.sourceNote })}</p>}
                 <p className={ui.muted}>
-                  {o.assignedTo ? t('wo.col.assigned', { name: o.assignedTo }) : t('wo.noAssigned')}{o.dueDate ? ` · ${t('wo.col.due', { date: o.dueDate })}` : ''} · {t('wo.by', { who: o.createdBy ?? '—', date: day(o.createdAt) })}
+                  {o.assignedTo ? t('wo.col.assigned', { name: o.assignedTo }) : t('wo.noAssigned')}{o.capacityState !== 'none' && o.capacityPercent ? ` · ${t('wo.cap.line', { percent: o.capacityPercent, from: o.capacityStart ?? '', to: o.capacityEnd ?? '' })}` : ''}{o.dueDate ? ` · ${t('wo.col.due', { date: o.dueDate })}` : ''} · {t('wo.by', { who: o.createdBy ?? '—', date: day(o.createdAt) })}
                 </p>
                 <div className={s.actions}>
                   {isManager && o.status === 'open' && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('wo.startFor', { n: o.number })} onClick={() => void status(o, 'in_progress')}>{t('wo.start')}</button>}
                   {isManager && active && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('wo.markDoneFor', { n: o.number })} onClick={() => void status(o, 'done')}>{t('wo.markDone')}</button>}
                   {isManager && active && <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('wo.cancelOrderFor', { n: o.number })} onClick={() => void status(o, 'cancelled')}>{t('wo.cancelOrder')}</button>}
-                  {isManager && active && assigning !== o.id && <button type="button" className={ui.btnGhost} aria-label={t('wo.assignFor', { n: o.number })} onClick={() => { setAssigning(o.id); setWho(o.assignedToId && o.assignedTo ? { id: o.assignedToId, name: o.assignedTo } : null); }}>{t('wo.assign')}</button>}
+                  {isManager && active && assigning !== o.id && <button type="button" className={ui.btnGhost} aria-label={t('wo.assignFor', { n: o.number })} onClick={() => { setAssigning(o.id); setCapError(''); setWho(o.assignedToId && o.assignedTo ? { id: o.assignedToId, name: o.assignedTo } : null); setCap(o.capacityState !== 'none' && o.capacityStart && o.capacityEnd ? { percent: String(o.capacityPercent), start: o.capacityStart, end: o.capacityEnd, allowOver: false } : defaultCapacity(today, o.dueDate ?? undefined)); }}>{t('wo.assign')}</button>}
                   <button type="button" className={ui.btnGhost} aria-expanded={open === o.id} aria-label={t('wo.historyFor', { n: o.number })} onClick={() => void history(o)}>{open === o.id ? t('wo.hide') : t('wo.history')}</button>
                 </div>
                 {assigning === o.id && (
-                  <form className={s.assign} noValidate onSubmit={(e) => { e.preventDefault(); void act(`${o.id}:assign`, async () => { const r = await api.assignWorkOrder(o.id, who?.name ?? '', who?.id); setAssigning(null); return t('wo.changed', { n: r.number, status: r.assignedTo ?? t('wo.noAssigned') }); }); }}>
-                    <StaffPicker label={t('wo.assignField', { n: o.number })} value={who} onChange={setWho} />
+                  <form className={s.assign} noValidate onSubmit={(e) => { e.preventDefault(); const c = who ? checkCapacity(t, cap) : null; setCapError(c?.error ?? ''); if (c && !c.value) return; void act(`${o.id}:assign`, async () => { const r = await api.assignWorkOrder(o.id, who?.name ?? '', who?.id, c?.value); setAssigning(null); return t('wo.changed', { n: r.number, status: r.assignedTo ?? t('wo.noAssigned') }); }); }}>
+                    <StaffPicker label={t('wo.assignField', { n: o.number })} value={who} onChange={(v) => { setWho(v); if (v && !who) setCap(defaultCapacity(today, o.dueDate ?? undefined)); }} />
+                    {who && <CapacityFields value={cap} onChange={setCap} error={capError} today={today} />}
                     <button type="submit" className={ui.btn} disabled={!!busy}>{t('wo.assignSave')}</button>
                     <button type="button" className={ui.btnGhost} onClick={() => setAssigning(null)}>{t('wo.cancel')}</button>
                   </form>

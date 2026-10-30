@@ -1687,7 +1687,16 @@ test('Work orders: from an alert in Sensors and from a device in Network the man
     await expect(dlg.getByRole('button', { name: 'Corrective maintenance' })).toHaveAttribute('aria-pressed', 'true'); // una alerta sugiere el correctivo
     await dlg.getByLabel('What has to be done').fill('x'); await dlg.getByRole('button', { name: 'Create order' }).click(); // el formulario avisa sin enviar
     await expect(dlg.getByText(/Write 3 to 300 characters/)).toBeVisible();
-    await dlg.getByLabel('What has to be done').fill('Revisar el sensor y cambiar la fuente si hace falta'); await dlg.getByRole('button', { name: 'High', exact: true }).click(); await dlg.getByRole('button', { name: 'Hugo Salazar · Technician' }).click(); await dlg.getByRole('button', { name: 'Julián Pardo · Engineer' }).click(); // elegir y volver a elegir: la última persona queda
+    await dlg.getByLabel('What has to be done').fill('Revisar el sensor y cambiar la fuente si hace falta'); await dlg.getByRole('button', { name: 'High', exact: true }).click(); await dlg.getByRole('button', { name: 'Julián Pardo · Engineer' }).click();
+    // Julián ya está al 80 % en un proyecto: la orden (25 % por omisión) lo pasaría de 100 % y Capacidad la rechaza; no queda ninguna orden.
+    await expect(dlg.getByText('Capacity this order takes')).toBeVisible();
+    await dlg.getByRole('button', { name: 'Create order' }).click();
+    await expect(dlg.getByText(/Julián Pardo would be at 10\d% \(the limit is 100%\)/)).toBeVisible();
+    // Un porcentaje o una fecha mala avisan sin enviar.
+    await dlg.getByRole('button', { name: 'Hugo Salazar · Technician' }).click();
+    await dlg.getByLabel('Share of the day (1 to 100)').fill('0'); await dlg.getByRole('button', { name: 'Create order' }).click();
+    await expect(dlg.getByText('The percent must be a whole number from 1 to 100.')).toBeVisible();
+    await dlg.getByLabel('Share of the day (1 to 100)').fill('25');
     await dlg.getByRole('button', { name: 'Create order' }).click();
     await expect(manager.page.getByText(/Order OT-\d+ created\./)).toBeVisible();
     await expect(manager.page.getByRole('dialog')).toHaveCount(0);
@@ -1701,23 +1710,36 @@ test('Work orders: from an alert in Sensors and from a device in Network the man
     await nav(manager.page, 'Network');
     await manager.page.getByRole('button', { name: /^Create a work order for / }).first().click();
     const dlg3 = manager.page.getByRole('dialog');
-    await dlg3.getByRole('button', { name: 'Inspection' }).click(); await dlg3.getByLabel('What has to be done').fill('Inspección de puertos y ventilación'); await dlg3.getByRole('button', { name: 'Create order' }).click();
+    await dlg3.getByRole('button', { name: 'Inspection' }).click(); await dlg3.getByLabel('What has to be done').fill('Inspección de puertos y ventilación');
+    // Hugo ya tiene 25 % de la primera orden: otra al 90 % lo pasaría de 100 %. Gerencia puede aceptarlo a propósito.
+    await dlg3.getByRole('button', { name: 'Hugo Salazar · Technician' }).click(); await dlg3.getByLabel('Share of the day (1 to 100)').fill('90');
+    await dlg3.getByRole('button', { name: 'Create order' }).click();
+    await expect(dlg3.getByText(/Hugo Salazar would be at 115% \(the limit is 100%\)/)).toBeVisible();
+    await dlg3.getByLabel('Allow going over 100% on purpose (it will be announced)').check(); await dlg3.getByRole('button', { name: 'Create order' }).click();
     await expect(manager.page.getByText(/Order OT-\d+ created\./)).toBeVisible();
     // 3) El seguimiento: dos órdenes abiertas; se inicia una, se cierra, se cancela la otra.
     await nav(manager.page, 'Work orders');
     const cards = manager.page.locator('[data-order]');
     await expect(cards).toHaveCount(2);
     const corrective = cards.filter({ hasText: 'Corrective maintenance' }), inspection = cards.filter({ hasText: 'Inspection' });
-    await expect(corrective).toContainText('Julián Pardo'); await expect(corrective).toContainText('High');
+    await expect(corrective).toContainText('Hugo Salazar'); await expect(corrective).toContainText('High'); await expect(corrective).toContainText(/takes 25% from \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}/);
     // En Capacidad técnica la persona muestra sus órdenes abiertas.
     await nav(manager.page, 'Capacity');
-    await expect(manager.page.locator('[data-orders="Julián Pardo"]')).toContainText(/OT-\d{4}/); await expect(manager.page.locator('[data-orders="Hugo Salazar"]')).toContainText('none');
+    await expect(manager.page.locator('[data-orders="Hugo Salazar"]')).toContainText(/OT-\d{4}, OT-\d{4}|OT-\d{4}/); await expect(manager.page.locator('[data-orders="Julián Pardo"]')).toContainText('none');
+    // La orden GASTA capacidad: Hugo ya no está libre (25 % + 90 % = 115 % hoy) y las dos aparecen como Mantenimiento.
+    const hugo = manager.page.locator('[data-engineer="Hugo Salazar"]');
+    await expect(hugo).toContainText(/Load today 115%/); await expect(hugo.locator('[data-kind="maintenance"]')).toHaveCount(2);
+    await expect(hugo.getByRole('button', { name: /^Remove/ })).toHaveCount(0); // se libera cerrando la orden, no a mano
     await nav(manager.page, 'Work orders');
     await corrective.getByRole('button', { name: /^Start order/ }).click(); await expect(corrective).toContainText('In progress');
     await corrective.getByRole('button', { name: /^Mark order .* as done/ }).click();
     await expect(manager.page.getByText(/Order OT-\d+: Done\./)).toBeVisible();
     await expect(cards).toHaveCount(1); // cerrada: sale de «Open and in progress»
     await inspection.getByRole('button', { name: /^Cancel order/ }).click(); await expect(cards).toHaveCount(0);
+    // Al cerrar y cancelar, Capacidad libera la reserva por el aviso (sin hacer nada más).
+    await expect(async () => { await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Capacity'); await expect(manager.page.locator('[data-engineer="Hugo Salazar"]')).toContainText(/Load today 0%/, { timeout: 1500 }); }).toPass({ timeout: 40_000 });
+    await expect(manager.page.locator('[data-engineer="Hugo Salazar"] [data-kind="maintenance"]')).toHaveCount(0);
+    await nav(manager.page, 'Work orders');
     await manager.page.getByRole('button', { name: 'All', exact: true }).click(); await expect(cards).toHaveCount(2);
     await corrective.getByRole('button', { name: /^See the history of order/ }).click();
     await expect(corrective.getByText(/Open|In progress|Done/).first()).toBeVisible();

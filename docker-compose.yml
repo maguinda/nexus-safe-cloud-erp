@@ -175,7 +175,7 @@ services:
       TLS_CERT_PATH: /run/secrets/tls_capacity_cert
       TLS_KEY_PATH: /run/secrets/tls_capacity_key
       TLS_CA_PATH: /run/secrets/tls_ca
-      TLS_ALLOWED_CLIENTS: gateway,capacity
+      TLS_ALLOWED_CLIENTS: gateway,capacity,operations
     secrets: [jwt_public, tls_ca, tls_capacity_cert, tls_capacity_key]
 
   operations:
@@ -187,6 +187,7 @@ services:
     environment:
       DATABASE_URL: postgresql://operations:${DB_OPERATIONS_PASSWORD}@postgres:5432/operations
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      CAPACITY_URL: https://capacity:4106 # las órdenes de trabajo reservan capacidad (mTLS; el certificado de operations está en TLS_ALLOWED_CLIENTS de capacity)
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
       JWT_ISSUER: identity-access
       JWT_AUDIENCE: erp-api

@@ -26,6 +26,7 @@ import { PrismaClient } from '@prisma/client';
 export const SEED_ENGINEERS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `11111111-1111-4111-8111-11111111110${n}`);
 /** Borra lo que crean las pruebas (los 6 ingenieros del seed se conservan) y el outbox. */
 export async function resetState(prisma: PrismaClient) {
+  await prisma.allocation.deleteMany({ where: { kind: 'maintenance' } });
   await prisma.outboxEvent.deleteMany();
   await prisma.engineer.deleteMany({ where: { id: { notIn: SEED_ENGINEERS } } });
   await prisma.allocation.deleteMany({ where: { engineerId: { notIn: SEED_ENGINEERS } } });

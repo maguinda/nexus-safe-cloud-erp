@@ -7,6 +7,7 @@ import { join, resolve } from 'path';
 import { INestApplication } from '@nestjs/common';
 import { enforceAllowedClients, httpsOptions, loadTlsConfig } from '../src/tls';
 
+process.env.CONSUMER_ENABLED = 'false';
 process.env.RELAY_ENABLED = 'false'; // estas pruebas no necesitan RabbitMQ
 // mTLS de verdad: se levanta la app con TLS y se intenta entrar con distintos "carnés".
 const gen = (dir: string) => execFileSync('sh', [resolve('../../infra/certs/gen-certs.sh')], { env: { ...process.env, CERT_DIR: dir }, stdio: 'ignore' });

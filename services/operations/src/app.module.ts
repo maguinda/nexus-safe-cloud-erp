@@ -21,6 +21,7 @@ import { retentionCutoff } from './domain/retention';
 import { ConfigureController, CONFIGURE_PRISMA } from './http/configure.controller';
 import { WorkOrdersController, WORK_ORDERS } from './http/work-orders.controller';
 import { WorkOrdersService } from './infrastructure/prisma-work-orders';
+import { capacityClientFromEnv } from './infrastructure/capacity-client';
 import { PurchasesConsumer } from './infrastructure/purchases-consumer';
 import { purchaseEventHandler } from './infrastructure/prisma-purchase-store';
 import { OutboxRelay } from './infrastructure/outbox-relay';
@@ -64,7 +65,7 @@ let retention: RetentionScheduler | undefined;
     { provide: INGEST_READINGS, useFactory: () => new IngestReadingsUseCase(new PrismaReadingIngest(prisma)) },
     { provide: EXPLORE_READINGS, useFactory: () => new ExploreReadingsUseCase(new PrismaTelemetryExplorer(prisma)) },
     { provide: CONFIGURE_PRISMA, useValue: prisma },
-    { provide: WORK_ORDERS, useFactory: () => new WorkOrdersService(prisma) },
+    { provide: WORK_ORDERS, useFactory: () => new WorkOrdersService(prisma, capacityClientFromEnv()) },
     { provide: EXPLORE_NETWORK, useFactory: () => new ExploreNetworkUseCase(new PrismaNetworkExplorer(prisma)) },
   ],
 })
