@@ -1370,7 +1370,8 @@ test('Project team: an allocation made in Capacity reaches the project through t
   try {
     await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
     await expect(lead.page.getByRole('heading', { name: 'Project team' })).toBeVisible();
-    await expect(lead.page.getByText('No engineers are allocated to this project yet in Technical Capacity.')).toBeVisible();
+    // La demo trae asignaciones sembradas; la nueva (5 %, dentro de 200 días) todavía no está.
+    await expect(lead.page.locator('tr', { hasText: 'Ana Torres' }).filter({ hasText: iso(200) })).toHaveCount(0);
     await lead.page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click();
     await lead.page.getByRole('button', { name: 'Allocate Ana Torres' }).click();
     const form = lead.page.getByRole('form', { name: 'Allocate Ana Torres' });
@@ -1388,6 +1389,49 @@ test('Project team: an allocation made in Capacity reaches the project through t
     await expect(sales.page.getByRole('heading', { name: /^Milestones/ })).toBeVisible();
     await expect(sales.page.getByRole('heading', { name: 'Project team' })).toHaveCount(0);
   } finally { await lead.ctx.close(); await sales.ctx.close(); }
+});
+
+test('Profitability: the manager sees revenue minus labor cost and edits the daily cost; an allocation without cost is flagged; the lead never sees costs', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'lead' | 'billing') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, lead, billing] = [await open('manager'), await open('lead'), await open('billing')];
+  const iso = (offset: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  try {
+    await nav(manager.page, 'Profitability');
+    const row = manager.page.locator('[data-project="Branch network upgrade"]');
+    await expect(row).toBeVisible(); await expect(row).toContainText('12.000.000'); // la factura INV-0101 emitida, sin IVA
+    await expect(manager.page.locator('[data-total]')).toBeVisible();
+    await expect(manager.page.getByText(/without a daily cost/)).toHaveCount(0);
+    // El costo se escribe en Capacidad técnica; el formulario avisa antes de enviar.
+    await nav(manager.page, 'Capacity');
+    const ana = manager.page.locator('[data-engineer="Ana Torres"]');
+    await expect(ana).toContainText('450.000 COP per day');
+    await ana.getByRole('button', { name: 'Change the daily cost of Ana Torres' }).click();
+    const form = manager.page.getByRole('form', { name: 'Change the daily cost of Ana Torres' });
+    await form.getByLabel(/Daily cost in pesos/).fill('1.5'); await form.getByRole('button', { name: 'Save cost' }).click();
+    await expect(form.getByText(/Write whole pesos from 1 to 50.000.000/)).toBeVisible();
+    await form.getByLabel(/Daily cost in pesos/).fill(''); await form.getByRole('button', { name: 'Save cost' }).click();
+    await expect(manager.page.getByText('Daily cost of Ana Torres saved.')).toBeVisible();
+    await expect(ana).toContainText('no cost yet');
+    // Una asignación nueva a un ingeniero sin costo llega por evento y la rentabilidad lo avisa.
+    await nav(lead.page, 'Capacity');
+    await expect(lead.page.getByText(/Daily cost/)).toHaveCount(0);
+    await lead.page.getByRole('button', { name: 'Allocate Ana Torres' }).click();
+    const af = lead.page.getByRole('form', { name: 'Allocate Ana Torres' });
+    await af.getByLabel('The project').fill('Branch network upgrade'); await af.getByLabel('Percent (1 to 100)').fill('5');
+    await af.getByLabel('From (YYYY-MM-DD)').fill(iso(220)); await af.getByLabel('To (YYYY-MM-DD)').fill(iso(225));
+    await af.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(lead.page.getByText('Ana Torres allocated to “Branch network upgrade” at 5%.')).toBeVisible();
+    await expect(async () => {
+      await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Profitability');
+      await expect(manager.page.getByText(/1 without a daily cost/).first()).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout: 30_000 });
+    // Facturación no tiene esta pantalla y el líder no recibe el costo.
+    await expect(billing.page.getByRole('navigation').getByRole('button', { name: 'Profitability' })).toHaveCount(0);
+  } finally { await manager.ctx.close(); await lead.ctx.close(); await billing.ctx.close(); }
 });
 
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
@@ -1464,7 +1508,7 @@ test('Projects: every project shows its progress, and the board view splits the 
   await expect(pendingCol.getByRole('button', { name: 'Approve milestone' })).toBeVisible();
   await expect(approvedCol.getByText('API contract')).toBeVisible();
   await expect(approvedCol.getByText('Done')).toBeVisible();
-  await expect(page.getByRole('table').nth(1)).toHaveCount(0); // en el tablero no se pinta la tabla de hitos
+  await expect(page.getByRole('columnheader', { name: 'Milestone', exact: true })).toHaveCount(0); // en el tablero no se pinta la tabla de hitos (la del equipo sí sigue ahí)
   await page.getByRole('button', { name: 'List', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'Pilot in 3 stores' })).toBeVisible();
 });
@@ -1507,12 +1551,12 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
 test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
-  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts']);
+  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts', 'Profitability']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(7);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(8);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1550,7 +1594,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(7);
+  expect(edges.length).toBe(8);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

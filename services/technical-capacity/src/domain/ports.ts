@@ -19,8 +19,8 @@ export interface TransactionScope {
   /** Las asignaciones del ingeniero que se cruzan con [from, to]; se llama DENTRO del bloqueo. */
   allocationsOverlapping(engineerId: string, from: number, to: number): Promise<Allocation[]>;
   insertAllocation(a: Allocation, overAllocated: boolean): Promise<void>;
-  /** true si existía y se borró. */
-  deleteAllocation(id: string): Promise<boolean>;
+  /** El nombre del proyecto de la asignación borrada; null si no existía. */
+  deleteAllocation(id: string): Promise<{ projectName: string } | null>;
   addToOutbox(event: CapacityEvent, aggregateId: string): Promise<void>;
 }
 export interface UnitOfWork {
@@ -29,4 +29,6 @@ export interface UnitOfWork {
 
 export interface EngineerCommands {
   insertEngineer(e: Engineer): Promise<void>;
+  /** false si el ingeniero no existe. */
+  setDailyCost(id: string, cost: number | null): Promise<boolean>;
 }

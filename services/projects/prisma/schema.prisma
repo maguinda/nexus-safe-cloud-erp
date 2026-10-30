@@ -64,3 +64,11 @@ model ProjectTeamMember {
   @@index([projectName])
   @@map("project_team")
 }
+
+/// Asignaciones anunciadas como quitadas (AllocationRemoved): evitan que una asignación reaparezca si los avisos llegan en desorden.
+model RemovedAllocation {
+  allocationId String   @id @map("allocation_id") @db.Uuid
+  removedAt    DateTime @default(now()) @map("removed_at") @db.Timestamptz(6)
+
+  @@map("removed_allocations")
+}

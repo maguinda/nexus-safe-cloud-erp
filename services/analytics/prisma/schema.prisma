@@ -62,3 +62,25 @@ model ProcessedEvent {
 
   @@map("processed_events")
 }
+
+/// Asignaciones (eventos de Technical Capacity) para calcular la rentabilidad por proyecto.
+model AllocationFact {
+  allocationId String   @id @map("allocation_id") @db.Uuid
+  projectName  String   @map("project_name")
+  engineerName String   @map("engineer_name")
+  percent      Int
+  periodStart  DateTime @map("period_start") @db.Date
+  periodEnd    DateTime @map("period_end") @db.Date
+  dailyCostCop Int?     @map("daily_cost_cop")
+  occurredAt   DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([projectName])
+  @@map("allocation_facts")
+}
+
+model RemovedAllocationMark {
+  allocationId String   @id @map("allocation_id") @db.Uuid
+  removedAt    DateTime @default(now()) @map("removed_at") @db.Timestamptz(6)
+
+  @@map("removed_allocation_marks")
+}

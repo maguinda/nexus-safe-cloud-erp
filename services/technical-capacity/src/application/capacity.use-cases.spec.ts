@@ -6,7 +6,7 @@ import { CapacityEvent } from '../domain/events';
 import { TransactionScope, UnitOfWork } from '../domain/ports';
 import { AllocateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase } from './capacity.use-cases';
 
-const ana: Engineer = { id: 'e1', name: 'Ana Torres', role: 'Network engineer', skills: [], certifications: [] };
+const ana: Engineer = { id: 'e1', name: 'Ana Torres', role: 'Network engineer', skills: [], certifications: [], dailyCostCop: 450_000 };
 class FakeUow implements UnitOfWork {
   allocs: Allocation[] = []; outbox: CapacityEvent[] = []; failAfterInsert = false;
   async run<T>(work: (tx: TransactionScope) => Promise<T>): Promise<T> {
@@ -16,7 +16,7 @@ class FakeUow implements UnitOfWork {
         lockEngineer: async (id) => (id === 'e1' ? ana : null),
         allocationsOverlapping: async (id, from, to) => this.allocs.filter((x) => x.engineerId === id && x.start <= to && x.end >= from),
         insertAllocation: async (x) => { this.allocs.push(x); if (this.failAfterInsert) throw new Error('db down'); },
-        deleteAllocation: async (id) => { const n = this.allocs.length; this.allocs = this.allocs.filter((x) => x.id !== id); return this.allocs.length < n; },
+        deleteAllocation: async (id) => { const g = this.allocs.find((x) => x.id === id); this.allocs = this.allocs.filter((x) => x.id !== id); return g ? { projectName: g.projectName } : null; },
         addToOutbox: async (e) => { this.outbox.push(e); },
       });
     } catch (e) { this.allocs = a0; this.outbox = o0; throw e; }
@@ -60,7 +60,7 @@ describe('AllocateEngineerUseCase', () => {
   });
   it('the events carry no personal data beyond the business name of the engineer', async () => {
     const uow = new FakeUow(); await new AllocateEngineerUseCase(uow, () => NOW).execute('e1', input(50), 'trace-0001-abcd');
-    expect(Object.keys(uow.outbox[0].data).sort()).toEqual(['allocationId', 'engineerName', 'percent', 'periodEnd', 'periodStart', 'projectName']);
+    expect(Object.keys(uow.outbox[0].data).sort()).toEqual(['allocationId', 'dailyCostCop', 'engineerName', 'percent', 'periodEnd', 'periodStart', 'projectName']);
   });
   it('unknown engineer → not found; invalid input is refused before touching the database', async () => {
     const uow = new FakeUow(); const uc = new AllocateEngineerUseCase(uow, () => NOW);
@@ -79,9 +79,17 @@ describe('AllocateEngineerUseCase', () => {
 describe('DeleteAllocationUseCase', () => {
   it('deletes, and an unknown id is not found', async () => {
     const uow = new FakeUow(); const r = await new AllocateEngineerUseCase(uow, () => NOW).execute('e1', input(50), 'trace-0001-abcd');
-    await new DeleteAllocationUseCase(uow).execute(r.id);
+    await new DeleteAllocationUseCase(uow, () => NOW).execute(r.id, 'trace-0001-abcd');
     expect(uow.allocs).toHaveLength(0);
+    expect(uow.outbox.map((e) => e.type)).toEqual(['EngineerAllocated', 'AllocationRemoved']);
+    expect(uow.outbox[1]).toMatchObject({ type: 'AllocationRemoved', data: { allocationId: r.id, projectName: 'Branch network upgrade' } });
     await expect(new DeleteAllocationUseCase(uow).execute(r.id)).rejects.toBeInstanceOf(AllocationNotFoundError);
+    expect(uow.outbox).toHaveLength(2); // borrar algo que no existe no anuncia nada
+  });
+  it('the allocation event carries the daily cost in force at that moment (null when there is none)', async () => {
+    const uow = new FakeUow(); const uc = new AllocateEngineerUseCase(uow, () => NOW);
+    await uc.execute('e1', input(50), 'trace-0001-abcd');
+    expect((uow.outbox[0] as any).data.dailyCostCop).toBe(450_000);
   });
 });
 
@@ -100,4 +108,17 @@ describe('ListCapacityUseCase', () => {
     expect(out.today).toBe('2026-11-01');
     expect(out.engineers[0]).toMatchObject({ name: 'Ana Torres', loadToday: 60, freeToday: 40, peakNext30: 60, allocations: [{ id: 'a1', startDate: '2026-10-20', endDate: '2026-11-20' }] });
   });
+});
+
+describe('SetDailyCostUseCase and the engineer cost rules', () => {
+  const { SetDailyCostUseCase } = require('./capacity.use-cases');
+  const { dailyCost } = require('../domain/engineer');
+  it('writes, clears and refuses an unknown engineer', async () => {
+    const calls: any[] = []; const cmds: any = { setDailyCost: async (id: string, c: number | null) => { calls.push([id, c]); return id === 'e1'; } };
+    await new SetDailyCostUseCase(cmds).execute('e1', 500_000); await new SetDailyCostUseCase(cmds).execute('e1', null);
+    expect(calls).toEqual([['e1', 500_000], ['e1', null]]);
+    await expect(new SetDailyCostUseCase(cmds).execute('zz', 5)).rejects.toBeInstanceOf(EngineerNotFoundError);
+  });
+  it.each([0, -1, 1.5, '300', NaN, 50_000_001, {}, []])('refuses the cost %p', (v) => { expect(() => dailyCost(v)).toThrow(ValidationError); });
+  it('accepts 1, the maximum, and empty means no cost', () => { expect(dailyCost(1)).toBe(1); expect(dailyCost(50_000_000)).toBe(50_000_000); expect(dailyCost(undefined)).toBeNull(); expect(dailyCost(null)).toBeNull(); });
 });

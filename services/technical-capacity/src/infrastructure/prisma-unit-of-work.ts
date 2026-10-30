@@ -20,8 +20,8 @@ class PrismaTransactionScope implements TransactionScope {
 
   async lockEngineer(id: string): Promise<Engineer | null> {
     // FOR UPDATE: otra asignación al MISMO ingeniero espera aquí y, al continuar, ya ve la carga que dejó la primera.
-    const rows = await this.tx.$queryRaw<{ id: string; name: string; role: string; skills: string[]; certifications: string[] }[]>`
-      SELECT id, name, role, skills, certifications FROM engineers WHERE id = ${id}::uuid FOR UPDATE`;
+    const rows = await this.tx.$queryRaw<{ id: string; name: string; role: string; skills: string[]; certifications: string[]; dailyCostCop: number | null }[]>`
+      SELECT id, name, role, skills, certifications, daily_cost_cop AS "dailyCostCop" FROM engineers WHERE id = ${id}::uuid FOR UPDATE`;
     return rows[0] ?? null;
   }
 
@@ -36,9 +36,9 @@ class PrismaTransactionScope implements TransactionScope {
     await this.tx.allocation.create({ data: { id: a.id, engineerId: a.engineerId, projectName: a.projectName, percent: a.percent, startDate: dayDate(a.start), endDate: dayDate(a.end), overAllocated } });
   }
 
-  async deleteAllocation(id: string): Promise<boolean> {
-    const n = await this.tx.$executeRaw`DELETE FROM allocations WHERE id = ${id}::uuid`;
-    return n === 1;
+  async deleteAllocation(id: string): Promise<{ projectName: string } | null> {
+    const rows = await this.tx.$queryRaw<{ project_name: string }[]>`DELETE FROM allocations WHERE id = ${id}::uuid RETURNING project_name`;
+    return rows[0] ? { projectName: rows[0].project_name } : null;
   }
 
   async addToOutbox(event: CapacityEvent, aggregateId: string): Promise<void> {

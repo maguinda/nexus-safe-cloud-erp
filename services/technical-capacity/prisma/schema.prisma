@@ -14,6 +14,8 @@ model Engineer {
   role           String
   skills         String[]
   certifications String[]
+  /// Costo diario en pesos (lo escribe gerencia); null = sin costo todavía.
+  dailyCostCop   Int?         @map("daily_cost_cop")
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   allocations    Allocation[]
 

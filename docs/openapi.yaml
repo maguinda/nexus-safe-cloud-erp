@@ -416,6 +416,27 @@ paths:
               schema: { $ref: '#/components/schemas/Reconciliation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /engineers/{id}/cost:
+    patch:
+      tags: [Capacity]
+      operationId: setEngineerDailyCost
+      summary: Write or clear the daily cost of an engineer (role manager). It applies to allocations made after the change.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dailyCostCop: { type: integer, nullable: true, minimum: 1, maximum: 50000000 }
+      responses:
+        '204': { description: Saved }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /engineers:
     get:
       tags: [Capacity]
@@ -661,6 +682,35 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: It does not exist OR it is not for my role (the answer is the same, so other roles' notifications cannot be probed) }
+  /profitability:
+    get:
+      tags: [Profitability]
+      operationId: getProfitability
+      summary: Profitability per project = issued invoices without VAT minus labor cost (allocation % x working days so far x daily cost) (role manager)
+      responses:
+        '200':
+          description: Projects with revenue, labor cost, margin and how many allocations have no cost yet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asOf: { type: string, format: date-time }
+                  projects:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        projectName: { type: string }
+                        revenueCop: { type: integer }
+                        laborCostCop: { type: integer }
+                        marginCop: { type: integer }
+                        marginPct: { type: number, nullable: true }
+                        allocations: { type: integer }
+                        uncostedAllocations: { type: integer }
+                  totals: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /dashboard:
     get:
       tags: [Dashboard]

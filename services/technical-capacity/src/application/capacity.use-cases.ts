@@ -1,8 +1,8 @@
 import { Allocation, newAllocation } from '../domain/allocation';
 import { dayString, todayNumber } from '../domain/dates';
-import { newEngineer } from '../domain/engineer';
+import { dailyCost, newEngineer } from '../domain/engineer';
 import { AllocationNotFoundError, EngineerNotFoundError, OverAllocationError } from '../domain/errors';
-import { engineerAllocated, overAllocationDetected } from '../domain/events';
+import { allocationRemoved, engineerAllocated, overAllocationDetected } from '../domain/events';
 import { peakLoad, summarize } from '../domain/load';
 import { CapacityQueries, EngineerCommands, EngineerView, UnitOfWork } from '../domain/ports';
 
@@ -10,10 +10,18 @@ const MAX_LISTED = 100;
 
 export class CreateEngineerUseCase {
   constructor(private readonly commands: EngineerCommands) {}
-  async execute(input: { name: unknown; role: unknown; skills?: unknown; certifications?: unknown }) {
-    const e = newEngineer(input.name, input.role, input.skills, input.certifications);
+  async execute(input: { name: unknown; role: unknown; skills?: unknown; certifications?: unknown; dailyCostCop?: unknown }) {
+    const e = newEngineer(input.name, input.role, input.skills, input.certifications, input.dailyCostCop);
     await this.commands.insertEngineer(e);
     return e;
+  }
+}
+
+/** Gerencia escribe el costo diario. Solo cuenta para las asignaciones que se hagan DESPUÉS (cada asignación guarda el costo vigente al crearla). */
+export class SetDailyCostUseCase {
+  constructor(private readonly commands: EngineerCommands) {}
+  async execute(id: string, cost: unknown): Promise<void> {
+    if (!(await this.commands.setDailyCost(id, dailyCost(cost)))) throw new EngineerNotFoundError();
   }
 }
 
@@ -47,9 +55,14 @@ export class AllocateEngineerUseCase {
 }
 
 export class DeleteAllocationUseCase {
-  constructor(private readonly uow: UnitOfWork) {}
-  execute(id: string): Promise<void> {
-    return this.uow.run(async (tx) => { if (!(await tx.deleteAllocation(id))) throw new AllocationNotFoundError(); });
+  constructor(private readonly uow: UnitOfWork, private readonly clock: () => Date = () => new Date()) {}
+  /** Borra y ANUNCIA en la misma transacción (outbox): el equipo del proyecto y los costos olvidan la asignación. */
+  execute(id: string, correlationId = 'no-correlation'): Promise<void> {
+    return this.uow.run(async (tx) => {
+      const gone = await tx.deleteAllocation(id);
+      if (!gone) throw new AllocationNotFoundError();
+      await tx.addToOutbox(allocationRemoved(id, gone.projectName, correlationId, this.clock()), id);
+    });
   }
 }
 

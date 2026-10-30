@@ -226,4 +226,53 @@ describe('analytics consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
     expect(await waitUntil(async () => (await dlq()) === 2)).toBe(true);
     expect(await fact('t53')).toBeNull(); expect(await fact('t54')).toBeNull();
   });
+
+  describe('profitability from the capacity events', () => {
+    const PROJ = 'Profitability test project';
+    const alloc = (data: any = {}) => env('EngineerAllocated', { allocationId: randomUUID(), engineerName: 'Ana Torres', projectName: PROJ, percent: 100, periodStart: '2026-10-05', periodEnd: '2026-10-09', dailyCostCop: 400_000, ...data });
+    const removed = (allocationId: string) => env('AllocationRemoved', { allocationId, projectName: PROJ });
+    const prof = (who: any = USERS.manager) => request(app.getHttpServer()).get('/profitability').set('Authorization', bearer(token(who)));
+    const rowOf = async (name = PROJ) => (await prof()).body.projects.find((p: any) => p.projectName === name);
+
+    it('only the manager reads it: 401 without token, 403 for the other roles', async () => {
+      expect((await request(app.getHttpServer()).get('/profitability')).status).toBe(401);
+      for (const u of [USERS.lead, USERS.billing, USERS.sales]) expect((await prof(u)).status).toBe(403);
+      expect((await prof()).status).toBe(200);
+    });
+
+    it('revenue from issued invoices minus the cost of the allocation (real routing keys); a removal takes the cost out; repeats change nothing', async () => {
+      toQueue(approved(61, { projectName: PROJ })); toQueue(drafted(61, { invoiceNumber: 'INV-6101', projectName: PROJ })); toQueue(issued(61, { invoiceNumber: 'INV-6101', projectName: PROJ }));
+      const a = alloc(); const key = (k: string, e: object) => ch.publish(EXCHANGE, k, Buffer.from(JSON.stringify(e)), { persistent: true });
+      key('capacity.engineer.allocated', a); key('capacity.engineer.allocated', a);
+      expect(await waitUntil(async () => (await rowOf())?.allocations === 1 && (await rowOf())?.revenueCop === 1_000_000)).toBe(true);
+      const dead = await dlq();
+      expect(await rowOf()).toMatchObject({ revenueCop: 1_000_000, laborCostCop: 2_000_000, marginCop: -1_000_000, marginPct: -100, allocations: 1, uncostedAllocations: 0 }); // 100% x 5 días hábiles x 400.000
+      key('capacity.allocation.removed', removed(a.data.allocationId)); key('capacity.allocation.removed', removed(a.data.allocationId));
+      expect(await waitUntil(async () => (await rowOf())?.allocations === 0)).toBe(true);
+      expect(await rowOf()).toMatchObject({ laborCostCop: 0, marginCop: 1_000_000, marginPct: 100 });
+      await new Promise((r) => setTimeout(r, 800));
+      expect(await dlq()).toBe(dead); // los repetidos se confirman como duplicados
+    });
+
+    it('an allocation without cost is flagged as uncosted; invalid capacity events go to the dead-letter queue and store nothing', async () => {
+      toQueue(alloc({ dailyCostCop: null }));
+      expect(await waitUntil(async () => (await rowOf())?.uncostedAllocations === 1)).toBe(true);
+      expect(await rowOf()).toMatchObject({ laborCostCop: 0, allocations: 1 });
+      const before = await dlq();
+      toQueue(alloc({ percent: 500 })); toQueue(alloc({ dailyCostCop: -3 })); toQueue(removed('no-es-uuid'));
+      expect(await waitUntil(async () => (await dlq()) === before + 3)).toBe(true);
+      expect(await prisma.allocationFact.count()).toBe(1);
+    });
+
+    it('a removal that arrives before the allocation is remembered; and 40 rounds of allocation and removal at once never leave the removed one', async () => {
+      const { allocationEventHandler } = require('../src/infrastructure/prisma-allocation-store'); const h = allocationEventHandler(prisma);
+      const a = alloc(); await h(removed(a.data.allocationId)); await h(a);
+      expect(await prisma.allocationFact.count({ where: { allocationId: a.data.allocationId } })).toBe(0);
+      for (let r = 0; r < 40; r++) {
+        const x = alloc(); const jobs = [() => h(x), () => h(removed(x.data.allocationId)), () => h(x)]; if (r % 2) jobs.reverse();
+        await Promise.all(jobs.map((j) => j()));
+        expect(await prisma.allocationFact.count({ where: { allocationId: x.data.allocationId } })).toBe(0);
+      }
+    }, 60_000);
+  });
 });

@@ -242,6 +242,12 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Projects ahora CONSUME `EngineerAllocated` (cola `q.projects.team`, tabla `project_team`, idempotente por la clave de la asignación) y expone `GET /projects/:id/team` (líder, facturación, gerencia; ventas 403). Web: panel «Equipo del proyecto» bajo los hitos (se refresca solo cada 10 s). `setup-env` de projects fuerza `CONSUMER_ENABLED=false` (lección del jest colgado). `reset-demo.sh` borra `project_team`.
 - Pruebas: 17 unitarias del evento + 5 e2e con RabbitMQ real (repetido no va a muertos, inválidos sí; 2 mutaciones fallan), projects 72 unit + 95 e2e, 1 funcional en Chromium y WebKit.
 
+## Rentabilidad por proyecto FR-PRJ-04 (2026-10-30, 🟡)
+- Capacity: `engineers.daily_cost_cop` (gerencia lo escribe: `POST /engineers` opcional y `PATCH /engineers/:id/cost`; los demás roles NO lo reciben), el evento `EngineerAllocated` lleva el costo vigente al asignar (foto: cambiarlo después no reescribe asignaciones viejas) y borrar una asignación publica `AllocationRemoved` (nuevo).
+- Projects y Analytics consumen los dos eventos con candado por asignación y marca de quitada (el orden de llegada no importa). Analytics: tablas `allocation_facts` y `removed_allocation_marks`, `GET /profitability` (solo gerencia): ingresos = facturas emitidas sin IVA; costo = % × días hábiles (lun-vie) transcurridos × costo diario; las asignaciones sin costo se cuentan y la pantalla avisa que el margen se ve mejor de lo que es. Web: «Rentabilidad» (grupo Negocio) y «Costo diario» en cada tarjeta de Capacidad (solo gerencia). Gateway: `/profitability`.
+- Demo: `reset-demo.sh` pone costos de demostración (inventados) a los 6 ingenieros y copia las asignaciones sembradas a `project_team` y `allocation_facts` (no publicaron eventos). Límite honesto: los costos son de demostración; el cálculo cuenta días hábiles sin festivos.
+- Pruebas: capacity 86 unit + 30 e2e, projects 79 unit + 8 e2e (carrera 40 rondas; 2 mutaciones), analytics 119 unit + 25 e2e (2 mutaciones), web 682, funcional Chromium+WebKit.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

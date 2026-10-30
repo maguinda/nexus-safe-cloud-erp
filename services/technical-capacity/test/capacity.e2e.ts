@@ -11,7 +11,7 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
   let app: INestApplication;
   const prisma = new PrismaClient();
   const as = (u: any) => bearer(token(u));
-  const call = (m: 'get' | 'post' | 'delete', p: string, auth?: string, body?: object) => { let r = (request(app.getHttpServer()) as any)[m](p); if (auth) r = r.set('Authorization', auth); return body ? r.send(body) : r; };
+  const call = (m: 'get' | 'post' | 'delete' | 'patch', p: string, auth?: string, body?: object) => { let r = (request(app.getHttpServer()) as any)[m](p); if (auth) r = r.set('Authorization', auth); return body ? r.send(body) : r; };
   const newEngineer = async (name = 'Test Engineer') => (await call('post', '/engineers', as(USERS.manager), { name, role: 'Tester', skills: ['Jest'], certifications: [] })).body.id as string;
   const alloc = (id: string, percent: number, s: string, e: string, who: any = USERS.lead, extra: object = {}) => call('post', `/engineers/${id}/allocations`, as(who), { projectName: 'Branch network upgrade', percent, startDate: s, endDate: e, ...extra });
   const outbox = () => prisma.outboxEvent.findMany({ orderBy: { createdAt: 'asc' } });
@@ -50,6 +50,38 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
     expect(ana).toMatchObject({ skills: ['Cisco', 'SD-WAN', 'Terraform'], certifications: ['CCNP'] });
     expect(ana.loadToday).toBeGreaterThanOrEqual(60); expect(ana.freeToday).toBe(100 - ana.loadToday);
     expect(Object.keys(ana).sort()).toEqual(['allocations', 'certifications', 'freeToday', 'id', 'loadToday', 'minFreeNext30', 'name', 'peakNext30', 'role', 'skills']);
+  });
+
+  it('the daily cost: only the manager writes it and sees it; it travels in the allocation event as the value in force at that moment', async () => {
+    const mk = await call('post', '/engineers', as(USERS.manager), { name: 'Costed Engineer', role: 'Tester', dailyCostCop: 450000 });
+    expect(mk.status).toBe(201); const id = mk.body.id as string;
+    const list = async (u: any) => (await call('get', '/engineers', as(u))).body.engineers.find((x: any) => x.id === id);
+    expect((await list(USERS.manager)).dailyCostCop).toBe(450000);
+    for (const u of [USERS.lead, USERS.sales]) expect(await list(u)).not.toHaveProperty('dailyCostCop');
+    await alloc(id, 50, '2026-11-02', '2026-11-30');
+    expect((await call('patch', `/engineers/${id}/cost`, as(USERS.lead), { dailyCostCop: 1 })).status).toBe(403);
+    expect((await call('patch', `/engineers/${id}/cost`, as(USERS.sales), { dailyCostCop: 1 })).status).toBe(403);
+    expect((await call('patch', `/engineers/${id}/cost`, as(USERS.manager), { dailyCostCop: 600000 })).status).toBe(204);
+    await alloc(id, 10, '2026-12-01', '2026-12-10');
+    const ev = (await outbox()).filter((e) => e.type === 'EngineerAllocated').map((e: any) => e.payload.data.dailyCostCop);
+    expect(ev).toEqual([450000, 600000]); // la primera asignación conserva el costo que había
+    expect((await call('patch', `/engineers/${id}/cost`, as(USERS.manager), { dailyCostCop: null })).status).toBe(204);
+    expect((await list(USERS.manager)).dailyCostCop).toBeNull();
+    for (const bad of [0, -5, 1.5, '300', 50_000_001]) expect((await call('patch', `/engineers/${id}/cost`, as(USERS.manager), { dailyCostCop: bad })).status).toBe(400);
+    expect((await call('patch', `/engineers/${randomUUID()}/cost`, as(USERS.manager), { dailyCostCop: 5 })).status).toBe(404);
+    expect((await call('post', '/engineers', as(USERS.manager), { name: 'Bad Cost', role: 'Tester', dailyCostCop: -1 })).status).toBe(400);
+    await expect(prisma.$executeRawUnsafe(`UPDATE engineers SET daily_cost_cop = 0 WHERE id = '${id}'`)).rejects.toThrow(); // CHECK en la base
+  });
+
+  it('deleting an allocation publishes AllocationRemoved in the same transaction; deleting what does not exist publishes nothing', async () => {
+    const id = await newEngineer();
+    const a = await alloc(id, 30, '2026-11-02', '2026-11-30');
+    expect((await call('delete', `/allocations/${a.body.id}`, as(USERS.lead))).status).toBe(204);
+    const ev = (await outbox()).filter((e) => e.type === 'AllocationRemoved');
+    expect(ev).toHaveLength(1); expect(ev[0]).toMatchObject({ aggregateId: a.body.id, routingKey: 'capacity.allocation.removed' });
+    expect((ev[0].payload as any).data).toEqual({ allocationId: a.body.id, projectName: 'Branch network upgrade' });
+    expect((await call('delete', `/allocations/${a.body.id}`, as(USERS.lead))).status).toBe(404);
+    expect((await outbox()).filter((e) => e.type === 'AllocationRemoved')).toHaveLength(1);
   });
 
   it('creates an engineer and shows them with no load; rejects strange input with 400', async () => {

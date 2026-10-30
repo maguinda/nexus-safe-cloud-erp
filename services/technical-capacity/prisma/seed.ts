@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
 // Datos de DEMOSTRACIÓN inventados. Ids fijos para que el seed sea idempotente. Fechas relativas a hoy (UTC).
+// Costo diario de DEMOSTRACIÓN (inventado) en pesos; en producción lo escribe gerencia.
+const DEMO_COST = [450_000, 520_000, 600_000, 380_000, 360_000, 480_000];
 const engineers = [
   { id: '11111111-1111-4111-8111-111111111101', name: 'Ana Torres', role: 'Network engineer', skills: ['Cisco', 'SD-WAN', 'Terraform'], certifications: ['CCNP'] },
   { id: '11111111-1111-4111-8111-111111111102', name: 'Julián Pardo', role: 'Cloud engineer', skills: ['AWS', 'Kubernetes', 'Terraform'], certifications: ['AWS Solutions Architect'] },
@@ -21,7 +23,7 @@ const allocations: [number, string, number, number, number][] = [
 
 async function main() {
   const prisma = new PrismaClient();
-  for (const e of engineers) await prisma.engineer.upsert({ where: { id: e.id }, update: {}, create: e });
+  for (const [i, e] of engineers.entries()) await prisma.engineer.upsert({ where: { id: e.id }, update: {}, create: { ...e, dailyCostCop: DEMO_COST[i] } });
   if ((await prisma.allocation.count()) === 0) {
     for (const [i, projectName, percent, s, e] of allocations) await prisma.allocation.create({ data: { engineerId: engineers[i].id, projectName, percent, startDate: day(s), endDate: day(e) } });
   }

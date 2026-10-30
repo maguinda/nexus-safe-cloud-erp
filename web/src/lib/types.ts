@@ -15,6 +15,8 @@ export interface Project { id: string; name: string; client: string; milestonesA
 export interface Milestone { id: string; projectId: string; name: string; amountCop: number; status: 'pending' | 'approved' }
 export interface ApproveResponse { milestone: Milestone; eventId: string }
 export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null; clientName: string | null; electronicStatus: EInvoiceListStatus; paidCop?: number; balanceCop?: number; paymentStatus?: 'unpaid' | 'partial' | 'paid' }
+export interface ProfitabilityRow { projectName: string; revenueCop: number; laborCostCop: number; marginCop: number; marginPct: number | null; allocations: number; uncostedAllocations: number }
+export interface Profitability { asOf: string; projects: ProfitabilityRow[]; totals: { revenueCop: number; laborCostCop: number; marginCop: number; uncostedAllocations: number } }
 export interface TeamMember { engineerName: string; percent: number; periodStart: string; periodEnd: string }
 export interface Contract { id: string; clientName: string; projectName: string; amountCop: number; startDate: string; endDate: string; status: 'active' | 'closed' | 'cancelled'; createdAt: string; billedCop: number; paidCop: number }
 export interface InvoicePayment { id: string; invoiceNumber: string; amountCop: number; method: 'transfer' | 'cash' | 'card' | 'other'; reference: string | null; paidAt: string }
@@ -31,7 +33,7 @@ export type CustomerInput = Omit<Customer, 'dv'>;
 
 export interface CapacityAllocation { id: string; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
 export interface CapacityEngineer {
-  id: string; name: string; role: string; skills: string[]; certifications: string[];
+  id: string; name: string; role: string; skills: string[]; certifications: string[]; dailyCostCop?: number | null;
   loadToday: number; freeToday: number; peakNext30: number; minFreeNext30: number; allocations: CapacityAllocation[];
 }
 export interface CapacityResponse { today: string; engineers: CapacityEngineer[] }

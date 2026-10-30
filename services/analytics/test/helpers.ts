@@ -28,4 +28,6 @@ export async function resetState(prisma: PrismaClient) {
   await prisma.milestoneFact.deleteMany({ where: { milestoneId: { notIn: ['m1', 'm4'] } } });
   await prisma.processedEvent.deleteMany();
   await prisma.activityEntry.deleteMany();
+  await prisma.allocationFact.deleteMany();
+  await prisma.removedAllocationMark.deleteMany();
 }
