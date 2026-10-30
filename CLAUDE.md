@@ -272,6 +272,15 @@ Fase 1, telemetría en tiempo real: **hecha** (ruta de ingesta con clave de serv
 - **Fase 3, Notifications (🟡): HECHA** (2026-10-29): campana por rol con facturas vencidas, alertas de sensores y sobreasignación. Único canal: la campana (sin correo ni chat); sin preferencias por persona ni retención de avisos.
 - **Fase 4, Technical Capacity y Procurement & Inventory (🟡): HECHAS** (2026-10-29/30): ya hay los 8 servicios del diseño. Quedan: Technical Capacity no escucha `MilestoneApproved` ni `ProjectClosed` (falta decidir la regla de negocio: hoy las asignaciones se hacen a mano); Procurement: un artículo por pedido y sin recepciones parciales.
 
+### 2b. Actualización del 2026-10-30 noche (PR #105 a #110, sin CI)
+Esto reemplaza lo dicho arriba sobre `EquipmentPurchased`, pagos, contratos, rentabilidad, auditoría y cámaras: **ya están hechos** (ver sus secciones). Siguen abiertos:
+- Compras→inventario es **reducido**: el equipo entra «pendiente de configurar» (sin sede, IP ni criticidad); falta una acción para completarlo.
+- Los eventos de asignaciones, compras y alertas **no traen quién** (auditoría); el costo diario es una foto al asignar; la rentabilidad cuenta días hábiles sin festivos y usa costos de demostración.
+- Contratos no limitan la facturación; pagos sin anulación ni conciliación bancaria.
+- NFR-PERF-02 no se construyó. Lo que NO se puede construir aquí: HPA/EKS, Kinesis, prueba de carga de NFR-PERF-01, celulares reales, validez legal de la factura electrónica.
+- La prueba de navegador «Session» falla de forma intermitente en WebKit (~2 de 10, ya ocurría antes de este lote).
+- El 2026-11-01: volver a correr los workflows de #99 a #110 (mezclados sin CI).
+
 ### 3. Datos y telemetría
 - **No hay sensores físicos:** los datos del Excel vienen de una simulación (Packet Tracer) y solo el simulador envía. Lo que se puede decir sin sobrevender: el ERP expone una ruta protegida con clave de servicio y un simulador reproduce el Excel en vivo; la arquitectura objetivo prevé Kinesis y el servicio Operations & Telemetry.
 - **Inventario de red:** la captura de paquetes y las demás hojas de «Data para Proveedor ERP» no están cargadas; no hay pantalla para «subir un archivo» ni ingesta en tiempo real del inventario (la ingesta es solo de lecturas de sensores).
