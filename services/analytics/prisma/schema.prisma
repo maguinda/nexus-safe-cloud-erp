@@ -8,8 +8,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// NOTA (2026-10-29): las tablas iot_devices, iot_readings y network_* siguen existiendo en esta base (migraciones 0002 a 0004) pero YA NO las lee ni las escribe
-// nadie: pasaron al servicio operations. Se quedan una temporada como copia de seguridad (expandir/contraer); un PR posterior las elimina.
+// NOTA (2026-10-29): la telemetría y el inventario de red viven en el servicio operations; la migración 0007 eliminó sus tablas de esta base.
 enum InvoiceStatus {
   draft
   issued
