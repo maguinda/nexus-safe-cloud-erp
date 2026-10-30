@@ -18,6 +18,8 @@ import { DeleteOldReadingsUseCase } from './application/delete-old-readings.use-
 import { PrismaReadingRetention } from './infrastructure/prisma-reading-retention';
 import { RetentionScheduler } from './infrastructure/retention-scheduler';
 import { retentionCutoff } from './domain/retention';
+import { PurchasesConsumer } from './infrastructure/purchases-consumer';
+import { purchaseEventHandler } from './infrastructure/prisma-purchase-store';
 import { OutboxRelay } from './infrastructure/outbox-relay';
 import { AnthropicAdviceWriter } from './infrastructure/anthropic-advice-writer';
 import { PrismaNetworkExplorer } from './infrastructure/prisma-network-explorer';
@@ -29,6 +31,7 @@ import { PrismaTrendsQueries } from './infrastructure/prisma-trends-queries';
 
 const prisma = new PrismaClient();
 const cfg = () => loadConfig();
+let purchases: PurchasesConsumer | undefined;
 let relay: OutboxRelay | undefined;
 let retention: RetentionScheduler | undefined;
 
@@ -67,6 +70,10 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
       relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs });
       relay.start();
     }
+    if (c.consumerEnabled) {
+      purchases = new PurchasesConsumer(purchaseEventHandler(prisma), c.rabbitUrl);
+      purchases.start();
+    }
     // Falla al arrancar si el plazo es peligroso (menos de 30 días): mejor que borrar de más.
     retentionCutoff(new Date(), c.retentionDays);
     if (c.retentionDays > 0 && process.env.RETENTION_ENABLED !== 'false') {
@@ -80,6 +87,8 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
     relay = undefined;
     await retention?.stop();
     retention = undefined;
+    await purchases?.stop();
+    purchases = undefined;
     await prisma.$disconnect();
   }
 }

@@ -20,3 +20,4 @@ export { contracts } from './contracts';
 export { team } from './team';
 export { profitability } from './profitability';
 export { audit } from './audit';
+export { cameras } from './cameras';
