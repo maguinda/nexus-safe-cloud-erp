@@ -915,6 +915,69 @@ paths:
         '400': { description: 'Invalid data (NIT, check digit, email, texts)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /contracts:
+    get:
+      tags: [Contracts]
+      operationId: listContracts
+      summary: Contracts with what was billed (issued invoices without VAT) and paid on the same project (roles manager, billing_analyst, project_lead)
+      responses:
+        '200':
+          description: Newest first, up to 200
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Contract' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Contracts]
+      operationId: createContract
+      summary: Create a contract (roles manager, billing_analyst)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientName, projectName, amountCop, startDate, endDate]
+              properties:
+                clientName: { type: string, minLength: 2, maxLength: 120 }
+                projectName: { type: string, minLength: 2, maxLength: 120 }
+                amountCop: { type: integer, minimum: 1 }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date, description: Not before startDate }
+      responses:
+        '201':
+          description: Created (status active)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /contracts/{id}/status:
+    patch:
+      tags: [Contracts]
+      operationId: setContractStatus
+      summary: Close or cancel an ACTIVE contract (roles manager, billing_analyst); decided in one statement, so two changes at once cannot both win
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [closed, cancelled] }
+      responses:
+        '200': { description: Changed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The contract is not active }
   /invoices/{invoiceNumber}/payments:
     get:
       tags: [Invoices]
@@ -1102,6 +1165,19 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    Contract:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        clientName: { type: string }
+        projectName: { type: string }
+        amountCop: { type: integer }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        status: { type: string, enum: [active, closed, cancelled] }
+        createdAt: { type: string, format: date-time }
+        billedCop: { type: integer, description: Issued invoices of the same project, without VAT }
+        paidCop: { type: integer }
     Payment:
       type: object
       properties:

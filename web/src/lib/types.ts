@@ -15,6 +15,7 @@ export interface Project { id: string; name: string; client: string; milestonesA
 export interface Milestone { id: string; projectId: string; name: string; amountCop: number; status: 'pending' | 'approved' }
 export interface ApproveResponse { milestone: Milestone; eventId: string }
 export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null; clientName: string | null; electronicStatus: EInvoiceListStatus; paidCop?: number; balanceCop?: number; paymentStatus?: 'unpaid' | 'partial' | 'paid' }
+export interface Contract { id: string; clientName: string; projectName: string; amountCop: number; startDate: string; endDate: string; status: 'active' | 'closed' | 'cancelled'; createdAt: string; billedCop: number; paidCop: number }
 export interface InvoicePayment { id: string; invoiceNumber: string; amountCop: number; method: 'transfer' | 'cash' | 'card' | 'other'; reference: string | null; paidAt: string }
 
 /** Estado del documento electrónico (SANDBOX, sin validez legal) que muestra la lista de facturas. No existe «accepted». */

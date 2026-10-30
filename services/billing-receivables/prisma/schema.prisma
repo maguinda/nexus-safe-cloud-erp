@@ -157,3 +157,18 @@ model EInvoiceDelivery {
   @@index([einvoiceId])
   @@map("einvoice_deliveries")
 }
+
+model Contract {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientName  String   @map("client_name")
+  projectName String   @map("project_name")
+  amountCop   Int      @map("amount_cop")
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   String   @map("created_by")
+
+  @@index([projectName])
+  @@map("contracts")
+}

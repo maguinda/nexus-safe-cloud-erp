@@ -2,6 +2,7 @@ import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
+import { ContractsController, PRISMA } from './http/contracts.controller';
 import { GenerateElectronicInvoiceUseCase, GetElectronicInvoiceUseCase, ListCustomersUseCase, RegisterEInvoiceDeliveryUseCase, SubmitElectronicInvoiceUseCase, UpsertCustomerUseCase } from './application/einvoice.use-cases';
 import { HandleMilestoneApprovedUseCase } from './application/handle-milestone-approved.use-case';
 import { ListPaymentsUseCase, RegisterPaymentUseCase } from './application/payments.use-cases';
@@ -30,12 +31,13 @@ let overdue: OverdueScheduler | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [InvoicesController, PaymentsController, ElectronicInvoiceController, CustomersController, HealthController],
+  controllers: [InvoicesController, PaymentsController, ContractsController, ElectronicInvoiceController, CustomersController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
+    { provide: PRISMA, useValue: prisma },
     { provide: RECONCILE_INVOICES, useFactory: () => new ReconcileInvoicesUseCase(new PrismaInvoiceQueries(prisma)) },
     { provide: LIST_INVOICES, useFactory: () => new ListInvoicesUseCase(new PrismaInvoiceQueries(prisma)) },
     { provide: GENERATE_EINVOICE, useFactory: () => new GenerateElectronicInvoiceUseCase(new PrismaEInvoiceUnitOfWork(prisma), cfg().einvoice) },

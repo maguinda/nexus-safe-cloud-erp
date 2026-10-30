@@ -40,6 +40,7 @@ export async function wipePayments(prisma: PrismaClient) {
 
 export async function resetState(prisma: PrismaClient) {
   await wipePayments(prisma);
+  await prisma.contract.deleteMany();
   await wipeEInvoices(prisma);
   await prisma.customer.deleteMany();
   await prisma.$executeRaw`UPDATE einvoice_numbering SET next_number = range_from, range_to = 1999, valid_from = '2026-01-01T05:00:00Z', valid_to = '2028-01-01T04:59:59Z' WHERE id = 1`;

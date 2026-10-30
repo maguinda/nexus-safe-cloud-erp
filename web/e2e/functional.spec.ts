@@ -1326,6 +1326,40 @@ test('Payments: the billing analyst registers a partial and then the final payme
   } finally { await billing.ctx.close(); await manager.ctx.close(); await lead.ctx.close(); }
 });
 
+test('Contracts: manager creates one (the form warns first), billing closes it, the lead only reads and sales cannot see it', async ({ browser }) => {
+  test.setTimeout(120_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'billing' | 'manager' | 'lead' | 'sales') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, billing, lead, sales] = [await open('manager'), await open('billing'), await open('lead'), await open('sales')];
+  try {
+    await manager.page.getByRole('navigation').getByRole('button', { name: 'Contracts' }).click();
+    await expect(manager.page.getByText('There are no contracts yet.')).toBeVisible();
+    await manager.page.getByRole('button', { name: 'New contract' }).click();
+    const form = manager.page.getByRole('form', { name: 'New contract' });
+    await form.getByRole('button', { name: 'Save contract' }).click();
+    await expect(form.getByText('Write 2 to 120 characters, without < > or control characters.').first()).toBeVisible();
+    await expect(form.getByText('The amount must be a whole number of pesos greater than 0 (no dots or commas).')).toBeVisible();
+    await form.getByLabel('Client').fill('Retail Norte (example)'); await form.getByLabel('Project').fill('Contract demo project');
+    await form.getByLabel(/Amount in pesos/).fill('50000000'); await form.getByLabel('Start').fill('2026-11-10'); await form.getByLabel('End').fill('2026-11-01');
+    await form.getByRole('button', { name: 'Save contract' }).click();
+    await expect(form.getByText('The end cannot be before the start.')).toBeVisible();
+    await form.getByLabel('End').fill('2027-05-10'); await form.getByRole('button', { name: 'Save contract' }).click();
+    await expect(manager.page.getByText('Contract of Retail Norte (example) saved.')).toBeVisible();
+    const row = manager.page.locator('[data-contract="Contract demo project"]');
+    await expect(row).toContainText('Active'); await expect(row).toContainText('2026-11-10 → 2027-05-10');
+    // Facturación lo cierra; el líder solo lee; ventas no ve la opción.
+    await billing.page.getByRole('navigation').getByRole('button', { name: 'Contracts' }).click();
+    const brow = billing.page.locator('[data-contract="Contract demo project"]');
+    await brow.getByRole('button', { name: /Close the contract of Retail Norte/ }).click();
+    await expect(brow).toContainText('Closed'); await expect(brow.getByRole('button')).toHaveCount(0);
+    await lead.page.getByRole('navigation').getByRole('button', { name: 'Contracts' }).click();
+    await expect(lead.page.locator('[data-contract="Contract demo project"]')).toBeVisible();
+    await expect(lead.page.getByRole('button', { name: 'New contract' })).toHaveCount(0);
+    await expect(sales.page.getByRole('navigation').getByRole('button', { name: 'Contracts' })).toHaveCount(0);
+  } finally { await manager.ctx.close(); await billing.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');
@@ -1436,17 +1470,19 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
   await page.getByRole('button', { name: 'Invoices', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
   const h = await page.evaluate(() => Math.round(document.querySelector('nav[aria-label]')!.getBoundingClientRect().height));
-  expect(h, 'alto del menú en teléfono').toBeLessThanOrEqual(80);
+  // Con 5 opciones (Contratos se sumó) el menú pasa a dos filas, como prevé el CSS; el tope sigue siendo «una barra compacta», no media pantalla (667 px).
+  expect(h, 'alto del menú en teléfono').toBeLessThanOrEqual(110);
 });
 
 test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
+  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(6);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(7);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1484,7 +1520,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(6);
+  expect(edges.length).toBe(7);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

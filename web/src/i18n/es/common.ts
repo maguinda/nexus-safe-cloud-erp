@@ -9,6 +9,7 @@ export const common = {
   'nav.projects': 'Proyectos',
   'nav.invoices': 'Facturas',
   'nav.group.data': 'Datos de Nexus',
+  'nav.group.business': 'Negocio',
   'nav.group.admin': 'Administración',
   'header.tokenExpires': 'el token vence en {time}',
   'header.signOut': 'Cerrar sesión',

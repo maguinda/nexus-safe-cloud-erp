@@ -234,6 +234,10 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Analytics: `milestone_facts.paid_cop` (máximo visto, no depende del orden), KPI «Cobrado» y las pagadas salen de las vencidas. Web: panel «Pagos» en Facturas. `reset-demo.sh` borra pagos y `paid_cop`.
 - Pruebas: 22 unitarias + 19 e2e en billing (concurrencia 30 rondas; 3 mutaciones: sin FOR UPDATE, `>=` en el saldo y sin excluir pagadas del vencimiento, las tres hacen fallar la prueba), analytics 89 unitarias + 58 e2e, web 660 unitarias, 1 funcional en Chromium y WebKit, auditoría en 6 perfiles.
 
+## Contratos FR-BIL-01 (2026-10-30, 🟡)
+- Billing: tabla `contracts` (cliente, proyecto, monto, vigencia, estado vigente/cerrado/cancelado; CHECK en la base), `POST/GET /contracts` y `PATCH /contracts/:id/status`. Crean y cierran gerencia y facturación; lee también el líder; ventas no. Facturado y cobrado salen de las facturas del MISMO proyecto (enlace por valor). El cambio de estado es un solo `UPDATE ... WHERE status='active'`: dos cambios a la vez, uno solo gana. Gateway: ruta `/contracts`. Web: pantalla «Contratos» (grupo «Negocio» para gerencia).
+- Pruebas: 18 unitarias + 14 e2e (30 rondas cerrar/cancelar; 2 mutaciones hacen fallar la prueba), web 673 unitarias, 1 funcional en Chromium y WebKit.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 
