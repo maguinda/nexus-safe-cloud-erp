@@ -10,6 +10,7 @@ export const common: Record<keyof typeof es, string> = {
   'nav.projects': 'Projects',
   'nav.invoices': 'Invoices',
   'nav.group.data': 'Nexus data',
+  'nav.group.business': 'Business',
   'nav.group.admin': 'Administration',
   'header.tokenExpires': 'token expires in {time}',
   'header.signOut': 'Sign out',

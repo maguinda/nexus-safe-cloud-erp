@@ -39,3 +39,10 @@ export class PaymentNotAllowedError extends Error {
 export class OverpaymentError extends Error {
   constructor(public readonly balanceCop: number) { super(`The payment is higher than the balance of the invoice (${balanceCop} COP)`); this.name = 'OverpaymentError'; }
 }
+
+/** Contrato con datos no válidos (400). */
+export class InvalidContractError extends Error {}
+/** El contrato ya no está vigente: no admite ese cambio de estado (409). */
+export class ContractStateError extends Error {}
+/** El contrato no existe (404). */
+export class ContractNotFoundError extends Error {}
