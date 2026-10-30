@@ -1,3 +1,4 @@
+import { PendingDevices } from './PendingDevices';
 import { useState } from 'react';
 import { formatNumber } from '../charts';
 import { useGoExplorer } from '../hooks/useGoExplorer';
@@ -49,6 +50,8 @@ export function NetworkView() {
         <p className={s.sub}>{t('netview.source')}</p>
       </div>
       {cause !== null && <p className={s.warn} role="status">{t('netview.stale', { error: errorText(cause, t, 'netview.loadError') })}</p>}
+
+      <PendingDevices onChanged={reload} />
 
       <InsightCards insights={summary.insights} t={t} onAction={(i: Insight) => goExplorer((x) => applyInsight(x, i))} />
       <NetKpis summary={summary} rows={rows} lang={lang} t={t} onDetail={(target) => goExplorer((x) => applyAction(x, KPI_ACTIONS[target]))} />

@@ -18,6 +18,7 @@ import { DeleteOldReadingsUseCase } from './application/delete-old-readings.use-
 import { PrismaReadingRetention } from './infrastructure/prisma-reading-retention';
 import { RetentionScheduler } from './infrastructure/retention-scheduler';
 import { retentionCutoff } from './domain/retention';
+import { ConfigureController, CONFIGURE_PRISMA } from './http/configure.controller';
 import { PurchasesConsumer } from './infrastructure/purchases-consumer';
 import { purchaseEventHandler } from './infrastructure/prisma-purchase-store';
 import { OutboxRelay } from './infrastructure/outbox-relay';
@@ -37,7 +38,7 @@ let retention: RetentionScheduler | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [TelemetryController, NetworkController, AdvisorController, HealthController],
+  controllers: [TelemetryController, NetworkController, ConfigureController, AdvisorController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -60,6 +61,7 @@ let retention: RetentionScheduler | undefined;
     ServiceKeyGuard,
     { provide: INGEST_READINGS, useFactory: () => new IngestReadingsUseCase(new PrismaReadingIngest(prisma)) },
     { provide: EXPLORE_READINGS, useFactory: () => new ExploreReadingsUseCase(new PrismaTelemetryExplorer(prisma)) },
+    { provide: CONFIGURE_PRISMA, useValue: prisma },
     { provide: EXPLORE_NETWORK, useFactory: () => new ExploreNetworkUseCase(new PrismaNetworkExplorer(prisma)) },
   ],
 })

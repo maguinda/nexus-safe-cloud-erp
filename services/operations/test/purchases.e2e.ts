@@ -74,3 +74,49 @@ describe('purchased equipment enters the network inventory (e2e, real PostgreSQL
     await expect(prisma.$executeRawUnsafe(`INSERT INTO network_devices (id, name, pt_type, model, category, role, criticality, serial, source_order, source_unit) VALUES (99002,'y','p','m','c','r','Media','s','mala',1)`)).rejects.toThrow();
   });
 });
+
+describe('completing a purchased device (e2e, real PostgreSQL)', () => {
+  let app: INestApplication;
+  const prisma = new PrismaClient();
+  const body = { role: 'Switch de acceso piso 2', criticality: 'Alta', ips: '10.0.2.5' };
+  const patch = (id: number, u: any, b: object = body) => request(app.getHttpServer()).patch(`/network/devices/${id}/configure`).set('Authorization', bearer(token(u))).send(b);
+  let boughtId = 0; let excelId = 0;
+
+  beforeAll(async () => {
+    const { createApp } = require('../src/app.factory'); app = await createApp(); await app.init();
+    if ((await prisma.networkDevice.count({ where: { sourceOrder: null } })) < 76) await loadNetwork(prisma);
+    excelId = (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: null } })).id;
+  });
+  beforeEach(async () => {
+    await prisma.networkDevice.deleteMany({ where: { sourceOrder: { not: null } } });
+    await purchaseEventHandler(prisma)({ type: 'EquipmentPurchased', data: { orderNumber: 'PO-0555', itemName: 'Switch Acceso 24p', quantity: 1 } });
+    boughtId = (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'PO-0555' } })).id;
+  });
+  afterAll(async () => { await prisma.networkDevice.deleteMany({ where: { sourceOrder: { not: null } } }); await app.close(); await prisma.$disconnect(); });
+
+  it('only the manager completes it: 401 without token, 403 for other roles', async () => {
+    expect((await request(app.getHttpServer()).patch(`/network/devices/${boughtId}/configure`).send(body)).status).toBe(401);
+    for (const u of [USERS.lead, USERS.billing, USERS.sales]) expect((await patch(boughtId, u)).status).toBe(403);
+    expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).role).toBe('Pendiente de configurar');
+  });
+
+  it('the manager sets role, criticality and IPs; the device stops being pending; the name and model stay', async () => {
+    const r = await patch(boughtId, USERS.manager); expect(r.status).toBe(200);
+    expect(await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).toMatchObject({ role: 'Switch de acceso piso 2', criticality: 'Alta', ips: '10.0.2.5', name: 'Switch Acceso 24p (PO-0555-1)', model: 'Switch Acceso 24p', sourceOrder: 'PO-0555' });
+    expect((await patch(boughtId, USERS.manager, { ...body, ips: '' })).status).toBe(200);
+    expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).ips).toBeNull();
+  });
+
+  it('a device from the teacher\'s Excel or an unknown id cannot be edited here (404) and stays untouched', async () => {
+    const before = await prisma.networkDevice.findUniqueOrThrow({ where: { id: excelId } });
+    expect((await patch(excelId, USERS.manager)).status).toBe(404);
+    expect((await patch(999999, USERS.manager)).status).toBe(404);
+    expect(await prisma.networkDevice.findUniqueOrThrow({ where: { id: excelId } })).toEqual(before);
+  });
+
+  it.each<[string, object]>([['role pending', { role: 'Pendiente de configurar' }], ['bad criticality', { criticality: 'Baja' }], ['bad ip', { ips: '10.0.0.300' }], ['markup role', { role: '<script>' }], ['no role', { role: undefined }], ['extra field', { extra: 1 }]])('400 and nothing changes: %s', async (_n, over) => {
+    const r = await patch(boughtId, USERS.manager, { ...body, ...over }); expect(r.status).toBe(400);
+    expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).role).toBe('Pendiente de configurar');
+  });
+  it('a bad id is 400', async () => { expect((await request(app.getHttpServer()).patch('/network/devices/abc/configure').set('Authorization', bearer(token(USERS.manager))).send(body)).status).toBe(400); });
+});

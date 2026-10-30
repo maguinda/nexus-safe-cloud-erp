@@ -1,0 +1,20 @@
+/** Completar un equipo comprado (pendiente de configurar). */
+export const configure = {
+  'cfg.title': 'Equipos comprados por configurar',
+  'cfg.intro': 'Estos equipos entraron al inventario desde una compra recibida. Completa para qué sirve cada uno, qué tan crítico es y sus IP (opcional).',
+  'cfg.done': 'Equipo {name} completado.',
+  'cfg.failed': 'No se pudo guardar: {reason}',
+  'cfg.open': 'Completar',
+  'cfg.openFor': 'Completar el equipo {name}',
+  'cfg.field.role': 'Para qué sirve (rol)',
+  'cfg.field.criticality': 'Criticidad',
+  'cfg.field.ips': 'IP (opcional, hasta 4, separadas por coma)',
+  'cfg.save': 'Guardar equipo',
+  'cfg.saving': 'Guardando…',
+  'cfg.cancel': 'Cancelar',
+  'cfg.note': 'No hay un campo de sede: el inventario de red no lo tiene.',
+  'cfg.v.role': 'Escribe de 2 a 60 caracteres (letras, números, espacios y . _ ( ) / & -).',
+  'cfg.v.rolePending': 'Di para qué sirve el equipo; «pendiente» no vale.',
+  'cfg.v.criticality': 'Elige una criticidad.',
+  'cfg.v.ips': 'Escribe de 1 a 4 direcciones IPv4 distintas, por ejemplo 10.0.2.5.',
+} as const;
