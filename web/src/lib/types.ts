@@ -20,6 +20,8 @@ export interface ProfitabilityRow { projectName: string; revenueCop: number; lab
 export interface Profitability { asOf: string; projects: ProfitabilityRow[]; totals: { revenueCop: number; laborCostCop: number; marginCop: number; uncostedAllocations: number } }
 export interface TeamMember { engineerName: string; percent: number; periodStart: string; periodEnd: string }
 export interface PurchasedDevice { id: number; name: string; model: string; role: string; criticality: string; ips: string | null; serial: string; order: string; unit: number; warrantyUntil: string | null; assignedTo: string | null }
+export interface WorkOrder { id: string; number: string; type: 'inspection' | 'preventive' | 'corrective'; status: 'open' | 'in_progress' | 'done' | 'cancelled'; priority: 'low' | 'normal' | 'high' | 'critical'; targetKind: 'sensor' | 'device'; targetRef: string; targetName: string; description: string; sourceNote: string | null; dueDate: string | null; assignedTo: string | null; createdBy: string | null; createdAt: string; closedBy: string | null; closedAt: string | null }
+export interface WorkOrderLogLine { from: string | null; to: string; actor: string | null; note: string | null; at: string }
 export interface Contract { id: string; clientName: string; projectName: string; projectId: string | null; amountCop: number; startDate: string; endDate: string; status: 'active' | 'closed' | 'cancelled'; createdAt: string; billedCop: number; paidCop: number }
 export interface InvoicePayment { id: string; invoiceNumber: string; amountCop: number; method: 'transfer' | 'cash' | 'card' | 'other'; reference: string | null; paidAt: string }
 

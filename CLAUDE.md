@@ -285,6 +285,12 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Honestidad: las filas de compra anteriores (PO-…) quedan como activos instalados; el catálogo de demostración (precios inventados) se siembra en la migración, el seed y `reset-demo.sh`; no hay verificación de que el precio de un pedido sea el de referencia (se puede cambiar a mano).
 - Pruebas: procurement 21 e2e nuevos (carrera de 12 instalaciones sobre 2 unidades ×20 rondas, instalar/ajustar/recibir/contar a la vez ×15; 3 mutaciones fallan), operations 291 unitarias, web 712, funcionales nuevos en Chromium y WebKit, diseño en 6 perfiles.
 
+## Órdenes de trabajo desde las alertas (2026-10-31, 🟡)
+- Operations: `work_orders` (OT-0001…; inspección, preventivo o correctivo; abierta → en curso → hecha o cancelada) y `work_order_log` (historial). Una sola orden ABIERTA por equipo y tipo (índice único parcial: 409 con el número de la que ya existe); el nombre del equipo se lee de la base, no del cliente; cambiar de estado bloquea la fila y la relee dentro del bloqueo. Eventos `WorkOrderCreated` y `WorkOrderClosed` por el outbox; Notifications los muestra en la campana del gerente (migración que amplía los tipos) y la Auditoría los registra sola. Gateway: `/work-orders`.
+- Web: botón «Crear orden de trabajo» en cada lectura con aviso de Sensores (sugiere correctivo) y en cada equipo de Red (sugiere inspección); cuadro de diálogo con tipo, prioridad, descripción, fecha límite y responsable; pantalla «Órdenes de trabajo» (gerente: crea, inicia, cierra, cancela, asigna; líder: solo lee).
+- Límites: «responsable» es un nombre libre; no hay fecha de vencimiento que genere avisos ni órdenes programadas (el preventivo se crea a mano); no se enlaza una orden con una compra de repuestos.
+- Pruebas: 21 unitarias y 22 e2e de operations (20 rondas de 8 clics a la vez, 30 rondas de cerrar/cancelar/iniciar; 2 mutaciones fallan), notifications con los 2 tipos nuevos, web 724, funcional en Chromium y WebKit, diseño en 6 perfiles.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

@@ -24,3 +24,4 @@ export { cameras } from './cameras';
 export { configure } from './configure';
 export { history } from './history';
 export { count } from './count';
+export { workorders } from './workorders';

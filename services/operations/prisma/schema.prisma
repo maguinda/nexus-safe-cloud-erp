@@ -131,3 +131,39 @@ model OutboxEvent {
   @@index([publishedAt])
   @@map("outbox_events")
 }
+
+/// Orden de trabajo (inspección, mantenimiento preventivo o correctivo) sobre un sensor o un equipo de red.
+model WorkOrder {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number      Int       @unique @default(autoincrement())
+  type        String
+  status      String    @default("open")
+  priority    String    @default("normal")
+  targetKind  String    @map("target_kind")
+  targetRef   String    @map("target_ref")
+  targetName  String    @map("target_name")
+  description String
+  sourceNote  String?   @map("source_note")
+  dueDate     DateTime? @map("due_date") @db.Date
+  assignedTo  String?   @map("assigned_to")
+  createdBy   String?   @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  closedBy    String?   @map("closed_by")
+  closedAt    DateTime? @map("closed_at") @db.Timestamptz(6)
+  log         WorkOrderLog[]
+
+  @@map("work_orders")
+}
+
+model WorkOrderLog {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId    String    @map("order_id") @db.Uuid
+  fromStatus String?   @map("from_status")
+  toStatus   String    @map("to_status")
+  actor      String?
+  note       String?
+  at         DateTime  @default(now()) @db.Timestamptz(6)
+  order      WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("work_order_log")
+}

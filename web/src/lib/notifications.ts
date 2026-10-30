@@ -4,7 +4,7 @@ import type { NotificationItem } from './types';
 
 type T = (key: MsgKey, vars?: Record<string, string | number>) => string;
 
-const KINDS = ['OverdueDetected', 'ThresholdBreached', 'OverAllocationDetected'] as const;
+const KINDS = ['OverdueDetected', 'ThresholdBreached', 'OverAllocationDetected', 'WorkOrderCreated', 'WorkOrderClosed'] as const;
 
 const str = (v: unknown): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
 
@@ -18,6 +18,10 @@ export function notificationText(n: NotificationItem, t: T, lang: Lang): string 
       return t('notif.ThresholdBreached', { deviceName: str(p.deviceName), location: str(p.location), readingKind: str(p.readingKind), value: str(p.value), unit: str(p.unit), status: str(p.status) });
     case 'OverAllocationDetected':
       return t('notif.OverAllocationDetected', { engineerName: str(p.engineerName), percent: Number(p.allocationPercent) || 0, from: dayOf(str(p.periodStart), lang), to: dayOf(str(p.periodEnd), lang) });
+    case 'WorkOrderCreated':
+      return t('notif.WorkOrderCreated', { orderNumber: str(p.orderNumber), type: t(`wo.type.${str(p.orderType)}` as MsgKey), targetName: str(p.targetName), priority: t(`wo.priority.${str(p.priority)}` as MsgKey) });
+    case 'WorkOrderClosed':
+      return t('notif.WorkOrderClosed', { orderNumber: str(p.orderNumber), type: t(`wo.type.${str(p.orderType)}` as MsgKey), targetName: str(p.targetName), outcome: t(`wo.status.${str(p.outcome)}` as MsgKey) });
     default:
       return t('notif.unknown');
   }

@@ -1,4 +1,6 @@
 import { PendingDevices } from './PendingDevices';
+import { WorkOrderDialog } from './WorkOrderDialog';
+import type { WoTarget } from './WorkOrderDialog';
 import { useState } from 'react';
 import { formatNumber } from '../charts';
 import { useGoExplorer } from '../hooks/useGoExplorer';
@@ -32,6 +34,8 @@ export function NetworkView() {
   const { api, t, lang } = useSession();
   const { summary, facets, links, linksError, cause, reload } = useNetworkData(api);
   const [explorer, setExplorer] = useState<ExplorerState>(initialExplorer);
+  const [woTarget, setWoTarget] = useState<WoTarget | null>(null);
+  const [woMsg, setWoMsg] = useState('');
   const { ref: explorerRef, go: goExplorer } = useGoExplorer<ExplorerState>(setExplorer);
 
   if (!summary) {
@@ -51,6 +55,7 @@ export function NetworkView() {
       </div>
       {cause !== null && <p className={s.warn} role="status">{t('netview.stale', { error: errorText(cause, t, 'netview.loadError') })}</p>}
 
+      {woMsg && <p role="status" className={ui.muted}>{woMsg}</p>}
       <PendingDevices onChanged={reload} />
 
       <InsightCards insights={summary.insights} t={t} onAction={(i: Insight) => goExplorer((x) => applyInsight(x, i))} />
@@ -61,7 +66,8 @@ export function NetworkView() {
         <NetCharts summary={summary} links={links} linksError={linksError} lang={lang} t={t} />
       </div>
 
-      <Explorer ref={explorerRef} api={api} state={explorer} setState={setExplorer} facets={facets} totals={{ devices: summary.totals.devices, links: summary.totals.links }} lang={lang} t={t} />
+      <Explorer ref={explorerRef} api={api} state={explorer} setState={setExplorer} facets={facets} totals={{ devices: summary.totals.devices, links: summary.totals.links }} lang={lang} t={t} onWorkOrder={(d) => setWoTarget({ kind: 'device', ref: d.id, name: d.name, suggest: 'inspection' })} />
+      {woTarget && <WorkOrderDialog target={woTarget} onClose={() => setWoTarget(null)} onCreated={(o) => { setWoTarget(null); setWoMsg(t('wo.created', { n: o.number })); }} />}
     </section>
   );
 }

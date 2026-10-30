@@ -1,0 +1,4 @@
+.backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: var(--sp-3); background: rgba(0, 0, 0, 0.45); overflow-y: auto; }
+.dialog { width: min(34rem, 100%); max-height: calc(100dvh - 2 * var(--sp-3)); overflow-y: auto; box-sizing: border-box; padding: var(--sp-4); border-radius: var(--radius); background: var(--surface); color: var(--text); border: 1px solid var(--line); overflow-wrap: anywhere; }
+.area { width: 100%; box-sizing: border-box; min-height: 5rem; font: inherit; }
+.form { display: grid; gap: var(--sp-3); min-width: 0; }

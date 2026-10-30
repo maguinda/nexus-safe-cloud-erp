@@ -52,6 +52,17 @@ describe('notifications consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
       ['OverAllocationDetected', 'warning', ['manager', 'sales']], ['ThresholdBreached', 'critical', ['manager']]]);
   });
 
+  it('work order events arrive by their routing keys: a creation (warning for critical) and a closing (info), both for management only; a repeat adds nothing', async () => {
+    const created = env('WorkOrderCreated', { orderNumber: 'OT-0007', orderType: 'corrective', priority: 'critical', targetKind: 'sensor', targetName: 'Sensor oficina 2', dueDate: null });
+    const closed = env('WorkOrderClosed', { orderNumber: 'OT-0007', orderType: 'corrective', outcome: 'done', targetName: 'Sensor oficina 2' });
+    ch.publish(EXCHANGE, 'ops.workorder.created', Buffer.from(JSON.stringify(created)), { persistent: true }); ch.publish(EXCHANGE, 'ops.workorder.created', Buffer.from(JSON.stringify(created)), { persistent: true });
+    ch.publish(EXCHANGE, 'ops.workorder.closed', Buffer.from(JSON.stringify(closed)), { persistent: true });
+    expect(await waitUntil(async () => (await count()) === 2)).toBe(true);
+    await new Promise((r) => setTimeout(r, 1200)); expect(await count()).toBe(2); expect(await dlq()).toBe(0);
+    const rows = await prisma.notification.findMany({ orderBy: { kind: 'desc' } });
+    expect(rows.map((r) => [r.kind, r.severity, r.audienceRoles])).toEqual([['WorkOrderCreated', 'warning', ['manager']], ['WorkOrderClosed', 'info', ['manager']]]);
+  });
+
   it('a repeated delivery of the same event creates a single notification', async () => {
     const e = overdue(2); toQueue(e); toQueue(e); toQueue(e);
     expect(await waitUntil(async () => (await prisma.processedEvent.count()) === 1)).toBe(true);
