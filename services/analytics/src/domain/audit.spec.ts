@@ -29,6 +29,7 @@ describe('parseAudit', () => {
       ['PaymentReceived', { paymentCop: 500, invoiceNumber: 'INV-0001', paidInFull: true }, 'Payment of 500 COP on invoice INV-0001 (paid in full)'],
       ['EngineerAllocated', { engineerName: 'Ana', projectName: 'P', percent: 50 }, 'Ana allocated to P at 50%'],
       ['AllocationRemoved', { projectName: 'P' }, 'Allocation removed from P'],
+      ['EquipmentInstalled', { itemName: 'Router', installNumber: 'INS-0001' }, 'Equipment installed: Router (INS-0001)'],
       ['EquipmentPurchased', { itemName: 'Router', orderNumber: 'PO-0001' }, 'Equipment purchased: Router (order PO-0001)'],
     ];
     for (const [type, data, text] of t) expect(summarize(type, data as any)).toBe(text);

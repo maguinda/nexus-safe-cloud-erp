@@ -7,7 +7,7 @@ import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { StockCountPanel } from './StockCountPanel';
 import { StockHistory } from './StockHistory';
-import { AdjustForm, NewItemForm, NewOrderForm, NewSupplierForm } from './ProcurementForms';
+import { AdjustForm, CatalogForm, NewItemForm, NewOrderForm, NewSupplierForm } from './ProcurementForms';
 import s from './ProcurementView.module.css';
 
 interface Data { suppliers: Supplier[]; items: StockItem[]; orders: PurchaseOrder[]; suggestions: RestockSuggestion[] }
@@ -20,6 +20,7 @@ export function ProcurementView({ toast }: { toast: (m: string) => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [adjusting, setAdjusting] = useState<string | null>(null);
+  const [editingCatalog, setEditingCatalog] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
 
   const load = useCallback(async () => {
@@ -69,6 +70,8 @@ export function ProcurementView({ toast }: { toast: (m: string) => void }) {
                     <span className={s.sub}>{t(i.kind === 'equipment' ? 'proc.kind.equipment' : 'proc.kind.spare')} · {t('proc.stock.col.for')}: {i.forKinds.length ? i.forKinds.join(', ') : t('proc.none')}</span>
                   </span>
                   <span className={i.onHand === 0 ? s.low : undefined}>{t('proc.stock.col.onHand')}: {i.onHand}</span>
+                  {i.kind === 'equipment' && <span className={s.sub}>{t('inst.hint')}</span>}
+                  {isManager && i.kind === 'equipment' && <button type="button" className={ui.btnGhost} disabled={!!busy || i.onHand === 0} aria-label={t('inst.buttonFor', { name: i.name })} onClick={() => void act(`i:${i.id}`, async () => { const r = await api.installUnit(i.id); return t('inst.done', { number: r.installNumber, onHand: r.onHand }); })}>{t('inst.button')}</button>}
                   {isManager && adjusting !== i.id && <button type="button" className={ui.btnGhost} aria-label={t('proc.adjustFor', { name: i.name })} onClick={() => setAdjusting(i.id)}>{t('proc.adjust')}</button>}
                   {isManager && adjusting === i.id && <AdjustForm api={api} item={i} onCancel={() => setAdjusting(null)} onDone={(m) => { setAdjusting(null); toast(m); void load(); }} />}
                 </li>
@@ -101,8 +104,21 @@ export function ProcurementView({ toast }: { toast: (m: string) => void }) {
             {data.suppliers.length === 0 ? <p className={ui.muted}>{t('proc.suppliers.empty')}</p> : (
               <ul className={s.list}>
                 {data.suppliers.map((p) => (
-                  <li key={p.id} className={s.row}>
-                    <span className={s.grow}><strong>{p.name}</strong> · {t(p.kind === 'fixed' ? 'proc.kind.fixed' : 'proc.kind.tender')}{p.terms && <span className={s.sub}>{t('proc.suppliers.terms', { terms: p.terms })}</span>}</span>
+                  <li key={p.id} className={s.row} data-supplier={p.name}>
+                    <span className={s.grow}>
+                      <strong>{p.name}</strong> · {t(p.kind === 'fixed' ? 'proc.kind.fixed' : 'proc.kind.tender')}
+                      {p.terms && <span className={s.sub}>{t('proc.suppliers.terms', { terms: p.terms })}</span>}
+                      {p.kind === 'tender' && p.tenderRef && <span className={s.sub}>{t('cat.tender', { ref: p.tenderRef, until: p.validUntil ? t('cat.tenderUntil', { date: p.validUntil }) : '' })}</span>}
+                      <span className={s.sub}><strong>{t('cat.title')}:</strong></span>
+                      {(p.catalog ?? []).length === 0 ? <span className={s.sub}>{t('cat.empty')}</span> : (p.catalog ?? []).map((c) => (
+                        <span key={c.itemId} className={s.sub} data-catalog={c.itemName}>
+                          {t('cat.line', { item: c.itemName, price: formatCop(c.refPriceCop), days: c.leadDays })}{' '}
+                          {isManager && <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('cat.remove', { item: c.itemName, name: p.name })} onClick={() => void act(`c:${p.id}:${c.itemId}`, async () => { await api.removeCatalog(p.id, c.itemId); return t('cat.removed', { item: c.itemName, name: p.name }); })}>×</button>}
+                        </span>
+                      ))}
+                      {isManager && editingCatalog !== p.id && <button type="button" className={ui.btnGhost} aria-label={t('cat.edit', { name: p.name })} onClick={() => setEditingCatalog(p.id)}>{t('cat.add')}</button>}
+                      {isManager && editingCatalog === p.id && <CatalogForm api={api} supplier={p} items={data.items} onCancel={() => setEditingCatalog(null)} onDone={(m) => { setEditingCatalog(null); toast(m); void load(); }} />}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -1,6 +1,8 @@
 import { InvalidEventError } from './errors';
 
 export const EQUIPMENT_PURCHASED_ROUTING_KEY = 'procurement.equipment.purchased';
+export const EQUIPMENT_INSTALLED_ROUTING_KEY = 'procurement.equipment.installed';
+const INSTALL = /^INS-\d{4,9}$/;
 export const MAX_UNITS = 100;
 const ORDER = /^PO-\d{4,9}$/;
 const NAME = /^[^<>\u0000-\u001f]{1,100}$/u;
@@ -25,3 +27,16 @@ export function parseEquipmentPurchased(raw: unknown): PurchasedEquipment {
 
 /** Nombre único y legible de la unidad en el inventario: «Router edge (PO-0001-2)», sin «#» porque la búsqueda del inventario no admite ese carácter. */
 export const unitName = (itemName: string, orderNumber: string, unit: number) => `${itemName} (${orderNumber}-${unit})`.slice(0, 120);
+
+/** Una unidad pasó de «en bodega» a «instalada» (Compras): entra al inventario de red como un equipo pendiente de configurar. */
+export function parseEquipmentInstalled(raw: unknown): { installNumber: string; itemName: string } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new InvalidEventError('event must be an object');
+  const e = raw as Record<string, any>;
+  if (e.type !== 'EquipmentInstalled') throw new InvalidEventError('unexpected type');
+  const d = e.data;
+  if (typeof d !== 'object' || d === null || Array.isArray(d)) throw new InvalidEventError('data must be an object');
+  if (typeof d.installNumber !== 'string' || !INSTALL.test(d.installNumber)) throw new InvalidEventError('installNumber must look like INS-0001');
+  const itemName = typeof d.itemName === 'string' ? d.itemName.replace(/\s+/g, ' ').trim() : '';
+  if (!NAME.test(itemName)) throw new InvalidEventError('itemName must be 1 to 100 characters without < > or control characters');
+  return { installNumber: d.installNumber, itemName };
+}

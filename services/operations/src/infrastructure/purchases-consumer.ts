@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Channel, ChannelModel, ConsumeMessage, connect } from 'amqplib';
 import { InvalidEventError } from '../domain/errors';
-import { EQUIPMENT_PURCHASED_ROUTING_KEY } from '../domain/purchased';
+import { EQUIPMENT_INSTALLED_ROUTING_KEY, EQUIPMENT_PURCHASED_ROUTING_KEY } from '../domain/purchased';
 
 export const EXCHANGE = 'erp.events';
 export const DLX = 'erp.events.dlx';
@@ -54,7 +54,9 @@ export class PurchasesConsumer {
       await ch.assertQueue(DLQ, { durable: true });
       await ch.bindQueue(DLQ, DLX, QUEUE);
       await ch.assertQueue(QUEUE, { durable: true, arguments: { 'x-dead-letter-exchange': DLX, 'x-dead-letter-routing-key': QUEUE } });
-      await ch.bindQueue(QUEUE, EXCHANGE, EQUIPMENT_PURCHASED_ROUTING_KEY);
+      await ch.bindQueue(QUEUE, EXCHANGE, EQUIPMENT_INSTALLED_ROUTING_KEY);
+      // Antes esta cola escuchaba la compra recibida: se desvincula (idempotente) para que recibir un pedido no cree equipos.
+      await ch.unbindQueue(QUEUE, EXCHANGE, EQUIPMENT_PURCHASED_ROUTING_KEY);
       await ch.prefetch(10);
       // Se pasa el canal al manejador: RabbitMQ entrega el backlog en cuanto se registra el consumo, ANTES de que this.ch esté asignado.
       // Un error del canal (p. ej. un ack repetido) o la cancelación del consumo cierran todo y se reconecta: sin esto el servicio quedaba sin consumir y sin avisar.

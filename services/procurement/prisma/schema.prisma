@@ -14,6 +14,9 @@ model Supplier {
   /// fixed (proveedor fijo) o tender (por licitación).
   kind      String
   terms     String   @default("")
+  /// Solo licitaciones: referencia y vigencia.
+  tenderRef  String?  @map("tender_ref")
+  validUntil DateTime? @map("valid_until") @db.Date
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   orders    PurchaseOrder[]
 
@@ -133,4 +136,27 @@ model StockCountLine {
 
   @@id([countId, itemId])
   @@map("stock_count_lines")
+}
+
+/// Qué vende cada proveedor (precio de referencia y plazo de entrega en días).
+model SupplierItem {
+  supplierId  String @map("supplier_id") @db.Uuid
+  itemId      String @map("item_id") @db.Uuid
+  refPriceCop Int    @map("ref_price_cop")
+  leadDays    Int    @map("lead_days")
+
+  @@id([supplierId, itemId])
+  @@map("supplier_items")
+}
+
+/// Un equipo pasó de «en bodega» a «instalado» (INS-0001…).
+model EquipmentInstall {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number      Int      @unique @default(autoincrement())
+  itemId      String   @map("item_id") @db.Uuid
+  itemName    String   @map("item_name")
+  installedBy String?  @map("installed_by")
+  installedAt DateTime @default(now()) @map("installed_at") @db.Timestamptz(6)
+
+  @@map("equipment_installs")
 }

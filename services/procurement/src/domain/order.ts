@@ -9,6 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface NewOrder { id: string; supplierId: string; itemId: string; quantity: number; unitPriceCop: number; totalCop: number }
 
+/** `unitPriceCop` puede venir vacío: entonces el caso de uso pone el precio de referencia del proveedor para ese artículo. */
 export function newOrder(supplierId: unknown, itemId: unknown, quantity: unknown, unitPriceCop: unknown): NewOrder {
   if (typeof supplierId !== 'string' || !UUID.test(supplierId)) throw new ValidationError('supplierId must be an id');
   if (typeof itemId !== 'string' || !UUID.test(itemId)) throw new ValidationError('itemId must be an id');

@@ -1,4 +1,4 @@
-import { Item, Supplier } from './catalog';
+import { Item, Supplier, SupplierView } from './catalog';
 import { ProcurementEvent } from './events';
 import { NewOrder, OrderStatus } from './order';
 import { ThresholdAlert } from './events';
@@ -7,12 +7,12 @@ export interface OrderView { id: string; number: string; supplierId: string; sup
 export interface SuggestionView { eventId: string; deviceName: string; location: string; readingKind: string; status: string; value: number; unit: string; at: string; items: { id: string; name: string; onHand: number }[] }
 
 /** Lecturas: no necesitan transacción. */
-export interface NewMovement { itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'purchase_received' | 'adjustment'; reason: string; actor: string | null }
+export interface NewMovement { itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'purchase_received' | 'adjustment' | 'install'; reason: string; actor: string | null }
 export interface MovementView { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: string; reason: string; actor: string | null; at: string }
 export interface ProcurementQueries {
   /** Más reciente primero; `itemId` filtra por artículo. */
   movements(opts: { itemId?: string; limit: number }): Promise<MovementView[]>;
-  suppliers(): Promise<Supplier[]>;
+  suppliers(): Promise<SupplierView[]>;
   items(): Promise<Item[]>;
   orders(limit: number): Promise<OrderView[]>;
   /** Los últimos avisos de sensores con los repuestos que sirven para esa medida (los que tienen existencias primero). */
@@ -22,6 +22,9 @@ export interface ProcurementCommands {
   /** false si ya existe uno con ese nombre (sin importar mayúsculas). */
   insertSupplier(s: Supplier): Promise<boolean>;
   insertItem(i: Item): Promise<boolean>;
+  /** Pone o cambia lo que un proveedor vende. false si el proveedor o el artículo no existen. */
+  setCatalog(supplierId: string, itemId: string, refPriceCop: number, leadDays: number): Promise<boolean>;
+  removeCatalog(supplierId: string, itemId: string): Promise<boolean>;
 }
 
 export interface LockedOrder { id: string; number: number; status: OrderStatus; supplierName: string; itemId: string; quantity: number; unitPriceCop: number; totalCop: number }
@@ -31,6 +34,9 @@ export interface TransactionScope {
   /** Bloquea el artículo (FOR UPDATE). null si no existe. */
   lockItem(id: string): Promise<Pick<Item, 'id' | 'name' | 'kind' | 'onHand'> | null>;
   supplierName(id: string): Promise<string | null>;
+  /** El precio de referencia con que el proveedor vende el artículo; null si NO lo vende. */
+  catalogPrice(supplierId: string, itemId: string): Promise<number | null>;
+  insertInstall(i: { itemId: string; itemName: string; actor: string | null }): Promise<{ id: string; number: number }>;
   insertOrder(o: NewOrder): Promise<number>;
   setOrderStatus(id: string, status: OrderStatus, receivedAt: Date | null): Promise<void>;
   setOnHand(itemId: string, onHand: number): Promise<void>;
