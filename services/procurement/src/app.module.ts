@@ -2,6 +2,7 @@ import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
+import { QuoteCatalogController, QC_PRISMA } from './http/quote-catalog.controller';
 import { HandleEventUseCase } from './application/handle-event.use-case';
 import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, InstallEquipmentUseCase, ListInstallsUseCase, ListMovementsUseCase, RetireInstalledUseCase, ListProcurementUseCase, ReceiveOrderUseCase, SetCatalogUseCase } from './application/procurement.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
@@ -20,7 +21,7 @@ let consumer: EventConsumer | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [ProcurementController, HealthController],
+  controllers: [ProcurementController, QuoteCatalogController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -34,6 +35,7 @@ let consumer: EventConsumer | undefined;
     { provide: CANCEL_ORDER, useFactory: () => new CancelOrderUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: COUNTS, useFactory: () => new CountsService(prisma) },
     { provide: CATALOG, useFactory: () => new SetCatalogUseCase(new PrismaProcurement(prisma)) },
+    { provide: QC_PRISMA, useValue: prisma },
     { provide: RETIRE, useFactory: () => new RetireInstalledUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: LIST_INSTALLS, useFactory: () => new ListInstallsUseCase(new PrismaProcurement(prisma)) },
     { provide: INSTALL, useFactory: () => new InstallEquipmentUseCase(new PrismaUnitOfWork(prisma)) },

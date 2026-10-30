@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -98,6 +98,15 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createOrder: (b: { supplierId: string; itemId: string; quantity: number; unitPriceCop?: number }) => request<{ id: string; number: string; unitPriceCop: number }>('POST', '/orders', b),
     setCatalog: (supplierId: string, itemId: string, b: { refPriceCop: number; leadDays: number }) => request<{ supplierId: string; itemId: string }>('PUT', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`, b),
     removeCatalog: (supplierId: string, itemId: string) => request<void>('DELETE', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`),
+    quotes: () => request<Quote[]>('GET', '/quotes'),
+    createQuote: (client: string, projectName: string) => request<Quote>('POST', '/quotes', { client, projectName }),
+    saveQuote: (id: string, b: object) => request<Quote>('PUT', `/quotes/${encodeURIComponent(id)}`, b),
+    submitQuote: (id: string) => request<Quote>('POST', `/quotes/${encodeURIComponent(id)}/submit`),
+    approveQuote: (id: string) => request<Quote>('POST', `/quotes/${encodeURIComponent(id)}/approve`),
+    rejectQuote: (id: string, note: string) => request<Quote>('POST', `/quotes/${encodeURIComponent(id)}/reject`, { note }),
+    positionRates: () => request<PositionRate[]>('GET', '/position-rates'),
+    setPositionRate: (position: string, monthlySalaryCop: number) => request<void>('PATCH', `/position-rates/${encodeURIComponent(position)}`, { monthlySalaryCop }),
+    quoteCatalog: () => request<QuoteCatalogItem[]>('GET', '/quote-catalog'),
     installs: () => request<EquipmentInstall[]>('GET', '/installs?limit=200'),
     retireUnit: (id: string, destination: 'storage' | 'retired') => request<{ installNumber: string; itemName: string; destination: string; onHand: number }>('POST', `/installs/${encodeURIComponent(id)}/retire`, { destination }),
     installUnit: (itemId: string) => request<{ installNumber: string; itemName: string; onHand: number }>('POST', `/inventory/items/${encodeURIComponent(itemId)}/install`),

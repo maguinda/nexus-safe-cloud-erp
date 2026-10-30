@@ -208,4 +208,15 @@ describe('supplier catalog and equipment installation (e2e, real PostgreSQL)', (
       await expect(prisma.$executeRawUnsafe(`UPDATE equipment_installs SET status = 'lost', ended_at = now() WHERE id = '${inst.id}'`)).rejects.toThrow();
     });
   });
+
+  it('the quoting catalog: sales, manager and project lead read what suppliers sell with the lowest reference price; billing does not; no stock or orders leak', async () => {
+    for (const u of [USERS.sales, M, USERS.lead]) { const r = await call('get', '/quote-catalog', u); expect(r.status).toBe(200); expect(r.body.length).toBeGreaterThan(0); }
+    expect((await call('get', '/quote-catalog', USERS.billing)).status).toBe(403); expect((await call('get', '/quote-catalog')).status).toBe(401);
+    const sw = (await call('get', '/quote-catalog', USERS.sales)).body.find((x: any) => x.itemId === SWITCH);
+    expect(sw).toMatchObject({ name: 'Switch de acceso 24 puertos', kind: 'equipment', refPriceCop: expect.any(Number), leadDays: expect.any(Number), supplier: expect.any(String) });
+    expect(Object.keys(sw).sort()).toEqual(['itemId', 'kind', 'leadDays', 'name', 'refPriceCop', 'supplier']);
+    // El precio mostrado es el MÁS BAJO entre los proveedores que lo venden.
+    const min = (await prisma.supplierItem.findMany({ where: { itemId: SWITCH } })).reduce((m, x) => Math.min(m, x.refPriceCop), Infinity);
+    expect(sw.refPriceCop).toBe(min);
+  });
 });

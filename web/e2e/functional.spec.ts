@@ -1851,12 +1851,12 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
 test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
-  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts', 'Profitability']);
+  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Contracts', 'Profitability']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras', 'Work orders']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(11);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(12);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1894,7 +1894,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(11);
+  expect(edges.length).toBe(12);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });
@@ -2179,3 +2179,111 @@ test('Session: two tabs renewing at the same moment both stay signed in (they ta
 test.afterAll(async () => { const rest = 36_000 - (Date.now() - lastSignInAt); if (lastSignInAt > 0 && rest > 0) await new Promise((r) => setTimeout(r, rest)); });
 
 test.afterAll(() => { execSync('sh scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' }); });
+
+test('Quotes: sales builds a quote with materials, supplies and labor, the manager approves it, and the project, its milestones and the contract are born; a rejection needs a reason and sales can fix it', async ({ browser }) => {
+  test.setTimeout(180_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'sales' | 'manager' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const [sales, manager, lead] = [await open('sales'), await open('manager'), await open('lead')];
+  const moneyNum = (s: string) => Number(s.replace(/[^\d]/g, ''));
+  try {
+    // Ventas arma la cotización.
+    await nav(sales.page, 'Quotes');
+    const nf = sales.page.getByRole('form', { name: 'New quote' });
+    await nf.getByRole('button', { name: 'Create quote' }).click();
+    await expect(nf.getByText(/The client must be 2 to 120 characters/)).toBeVisible();
+    await nf.getByLabel('The client').fill('Cliente Cotizado S.A.S.'); await nf.getByLabel('The project name').fill('Proyecto Cotizado');
+    await nf.getByRole('button', { name: 'Create quote' }).click();
+    await expect(sales.page.getByText(/Quote COT-\d{4} created\./)).toBeVisible();
+    const card = sales.page.locator('[data-quote]').first(); const number = await card.getAttribute('data-quote');
+    const ed = sales.page.getByRole('form', { name: `Open quote ${number}` });
+    // Enviar vacía se rechaza con aviso, sin tocar el servidor.
+    await ed.getByRole('button', { name: 'Send for approval' }).click();
+    await expect(ed.getByText(/add at least one milestone with a cost line/)).toBeVisible();
+    // Hito 1: solo mano de obra → números exactos (3 días × 109.091 = 327.273; precio con 25 % = 409.091).
+    await ed.getByRole('button', { name: 'Add milestone' }).click();
+    await ed.getByLabel('Name of milestone 1').fill('Instalación');
+    await ed.getByRole('button', { name: /^Field \/ installation technician · / }).click();
+    await ed.getByLabel('Quantity of line 1.1').fill('3');
+    await expect(ed.getByText(/Milestone 1: cost 327\.273 COP, price 409\.091 COP/)).toBeVisible();
+    await expect(ed.locator('[data-quote-sum]')).toContainText('price 409.091 COP');
+    // Hito 2: un material del catálogo de proveedores y un insumo a mano.
+    await ed.getByRole('button', { name: 'Add milestone' }).click();
+    await ed.getByLabel('Name of milestone 2').fill('Equipos');
+    await ed.getByRole('button', { name: /^Switch de acceso 24 puertos · / }).last().click(); // la lista del catálogo se repite en cada hito: el último es el del hito 2
+    await ed.getByRole('button', { name: 'Add an empty line to milestone 2' }).click();
+    await ed.getByRole('button', { name: 'Supply', exact: true }).last().click();
+    await ed.getByLabel('Description of line 2.2').fill('Patch cords'); await ed.getByLabel('Quantity of line 2.2').fill('10'); await ed.getByLabel('Unit cost in pesos of line 2.2').fill('3333');
+    // Avisos propios a la vista: una cantidad rara y un costo vacío no se envían.
+    await ed.getByLabel('Quantity of line 2.2').fill('1.5'); await ed.getByRole('button', { name: 'Save draft' }).click();
+    await expect(ed.getByText(/The quantity of line 2\.2 must be a whole number/)).toBeVisible();
+    await ed.getByLabel('Quantity of line 2.2').fill('10');
+    await ed.getByLabel('Margin over the cost (% from 0 to 100)').fill('101'); await ed.getByRole('button', { name: 'Save draft' }).click();
+    await expect(ed.getByText(/The margin must be a whole number from 0 to 100/)).toBeVisible();
+    await ed.getByLabel('Margin over the cost (% from 0 to 100)').fill('25');
+    await ed.getByRole('button', { name: 'Save draft' }).click();
+    await expect(sales.page.getByText(`Quote ${number} saved.`)).toBeVisible();
+    await expect(card).toContainText('Cost:'); await expect(card).toContainText('Margin: 25%');
+    const priceText = (await card.locator('p').filter({ hasText: 'Price:' }).first().textContent()) ?? ''; const price = moneyNum(priceText.match(/Price: ([\d.]+)/)![1]);
+    const cost = moneyNum(((await card.textContent()) ?? '').match(/Cost: ([\d.]+)/)![1]);
+    expect(price).toBeGreaterThan(cost); expect(price).toBeGreaterThanOrEqual(409_091 + 4);
+    await ed.getByRole('button', { name: 'Send for approval' }).click();
+    await expect(sales.page.getByText(`Quote ${number} sent to the manager.`)).toBeVisible();
+    await expect(sales.page.locator(`[data-quote="${number}"]`)).toContainText('Waiting for approval');
+    await expect(sales.page.getByRole('button', { name: `Approve quote ${number}` })).toHaveCount(0); // ventas no aprueba
+
+    // Gerencia aprueba.
+    await nav(manager.page, 'Quotes');
+    const mcard = manager.page.locator(`[data-quote="${number}"]`);
+    await expect(mcard).toContainText('Waiting for approval');
+    await mcard.getByRole('button', { name: `Approve quote ${number}` }).click();
+    await expect(manager.page.getByText(new RegExp(`Quote ${number} approved`))).toBeVisible();
+    await expect(mcard).toContainText('Approved'); await expect(mcard).toContainText(/Project created: p-/);
+    // El contrato nace en Billing (por el evento) con el precio de la cotización.
+    await expect(async () => {
+      await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Contracts');
+      const row = manager.page.locator('[data-contract="Proyecto Cotizado"]');
+      await expect(row).toBeVisible({ timeout: 1500 }); await expect(row).toContainText('Cliente Cotizado S.A.S.'); await expect(row).toContainText(price.toLocaleString('es-CO'));
+    }).toPass({ timeout: 40_000 });
+    // El proyecto y sus dos hitos existen para el líder de proyecto.
+    await nav(lead.page, 'Projects'); await lead.page.reload(); await nav(lead.page, 'Projects');
+    await expect(lead.page.getByText('Proyecto Cotizado').first()).toBeVisible();
+    // Ya aprobada no se edita: ventas la ve de solo lectura.
+    await sales.page.reload(); await nav(sales.page, 'Quotes');
+    await sales.page.getByRole('button', { name: `Open quote ${number}` }).click();
+    await expect(sales.page.getByText('This quote can no longer be edited.')).toBeVisible(); await expect(sales.page.getByRole('form', { name: `Open quote ${number}` })).toHaveCount(0);
+
+    // Segunda cotización: se rechaza con motivo y ventas la corrige y la reenvía.
+    await sales.page.getByLabel('The client').fill('Otro Cliente'); await sales.page.getByLabel('The project name').fill('Proyecto Rechazado');
+    await sales.page.getByRole('button', { name: 'Create quote' }).click();
+    await expect(sales.page.getByText(/Quote COT-\d{4} created\./)).toBeVisible();
+    const card2 = sales.page.locator('[data-quote]').first(); const number2 = (await card2.getAttribute('data-quote'))!;
+    const ed2 = sales.page.getByRole('form', { name: `Open quote ${number2}` });
+    await ed2.getByRole('button', { name: 'Add milestone' }).click(); await ed2.getByLabel('Name of milestone 1').fill('Diseño');
+    await ed2.getByRole('button', { name: 'Add an empty line to milestone 1' }).click();
+    await ed2.getByLabel('Description of line 1.1').fill('Ingeniería de detalle'); await ed2.getByLabel('Unit cost in pesos of line 1.1').fill('5000000');
+    await ed2.getByLabel('Margin over the cost (% from 0 to 100)').fill('5');
+    await ed2.getByRole('button', { name: 'Send for approval' }).click();
+    await expect(sales.page.getByText(`Quote ${number2} sent to the manager.`)).toBeVisible();
+    await manager.page.reload(); await nav(manager.page, 'Quotes');
+    const m2 = manager.page.locator(`[data-quote="${number2}"]`);
+    await expect(m2).toContainText('Low margin');
+    await m2.getByRole('button', { name: `Reject quote ${number2}` }).click();
+    const rf = manager.page.getByRole('form', { name: `Reject quote ${number2}` });
+    await rf.getByLabel(/Reason for the rejection/).fill('no'); await rf.getByRole('button', { name: 'Confirm rejection' }).click();
+    await expect(rf.getByText('The reason must be 3 to 300 characters.')).toBeVisible();
+    await rf.getByLabel(/Reason for the rejection/).fill('El margen es muy bajo para este alcance'); await rf.getByRole('button', { name: 'Confirm rejection' }).click();
+    await expect(manager.page.getByText(`Quote ${number2} rejected.`)).toBeVisible();
+    await sales.page.reload(); await nav(sales.page, 'Quotes');
+    const s2 = sales.page.locator(`[data-quote="${number2}"]`);
+    await expect(s2).toContainText('Rejected'); await expect(s2).toContainText('El margen es muy bajo para este alcance');
+    await s2.getByRole('button', { name: `Open quote ${number2}` }).click();
+    const ed3 = sales.page.getByRole('form', { name: `Open quote ${number2}` });
+    await ed3.getByLabel('Margin over the cost (% from 0 to 100)').fill('25');
+    await ed3.getByRole('button', { name: 'Send for approval' }).click();
+    await expect(sales.page.getByText(`Quote ${number2} sent to the manager.`)).toBeVisible();
+    await expect(sales.page.locator(`[data-quote="${number2}"]`)).toContainText('Waiting for approval');
+  } finally { for (const w of [sales, manager, lead]) await w.ctx.close(); }
+});

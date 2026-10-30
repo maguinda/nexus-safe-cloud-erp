@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { InvalidInputError, MilestoneAlreadyApprovedError, MilestoneNotFoundError, ProjectNotFoundError } from '../domain/errors';
+import { InvalidInputError, MilestoneAlreadyApprovedError, MilestoneNotFoundError, ProjectNotFoundError, QuoteForbiddenError, QuoteNotFoundError, QuoteStateError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (docs/openapi.yaml, schema Error). */
 @Catch()
@@ -16,11 +16,13 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let error = 'Internal Server Error';
     let message = 'Unexpected error';
 
-    if (err instanceof ProjectNotFoundError || err instanceof MilestoneNotFoundError) {
+    if (err instanceof ProjectNotFoundError || err instanceof MilestoneNotFoundError || err instanceof QuoteNotFoundError) {
       statusCode = 404; error = 'Not Found'; message = err.message;
     } else if (err instanceof InvalidInputError) {
       statusCode = 400; error = 'Bad Request'; message = err.message;
-    } else if (err instanceof MilestoneAlreadyApprovedError) {
+    } else if (err instanceof QuoteForbiddenError) {
+      statusCode = 403; error = 'Forbidden'; message = err.message;
+    } else if (err instanceof MilestoneAlreadyApprovedError || err instanceof QuoteStateError) {
       statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof HttpException) {
       statusCode = err.getStatus();

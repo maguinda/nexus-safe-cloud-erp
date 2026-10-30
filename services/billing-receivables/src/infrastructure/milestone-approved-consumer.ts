@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ChannelModel, Channel, ConsumeMessage, connect } from 'amqplib';
 import { HandleMilestoneApprovedUseCase } from '../application/handle-milestone-approved.use-case';
+import { HandleQuoteApprovedUseCase } from '../application/handle-quote-approved.use-case';
 import { InvalidEventError } from '../domain/errors';
 
 export const EXCHANGE = 'erp.events';
@@ -8,6 +9,7 @@ export const DLX = 'erp.events.dlx';
 export const QUEUE = 'q.billing';
 export const DLQ = 'q.billing.dlq';
 export const ROUTING_KEY = 'project.milestone.approved';
+export const QUOTE_ROUTING_KEY = 'project.quote.approved';
 const MAX_BYTES = 16 * 1024;
 
 /**
@@ -23,7 +25,7 @@ export class MilestoneApprovedConsumer {
   private stopped = true;
   private retryMs = 500;
 
-  constructor(private readonly useCase: HandleMilestoneApprovedUseCase, private readonly url: string) {}
+  constructor(private readonly useCase: HandleMilestoneApprovedUseCase, private readonly url: string, private readonly quoteUseCase?: HandleQuoteApprovedUseCase) {}
 
   start() {
     this.stopped = false;
@@ -52,6 +54,7 @@ export class MilestoneApprovedConsumer {
       await ch.bindQueue(DLQ, DLX, QUEUE);
       await ch.assertQueue(QUEUE, { durable: true, arguments: { 'x-dead-letter-exchange': DLX, 'x-dead-letter-routing-key': QUEUE } });
       await ch.bindQueue(QUEUE, EXCHANGE, ROUTING_KEY);
+      if (this.quoteUseCase) await ch.bindQueue(QUEUE, EXCHANGE, QUOTE_ROUTING_KEY);
       await ch.prefetch(10);
       // Se pasa el canal al manejador: RabbitMQ entrega el backlog en cuanto se registra el consumo, ANTES de que this.ch esté asignado.
       await ch.consume(QUEUE, (m) => void this.onMessage(m, ch));
@@ -75,7 +78,9 @@ export class MilestoneApprovedConsumer {
       if (msg.content.length > MAX_BYTES) throw new InvalidEventError('message too large');
       let body: unknown;
       try { body = JSON.parse(msg.content.toString('utf8')); } catch { throw new InvalidEventError('not valid JSON'); }
-      const result = await this.useCase.execute(body);
+      // La misma cola recibe dos tipos de evento: el tipo decide quién lo procesa (un tipo desconocido es un mensaje inválido).
+      const type = typeof body === 'object' && body !== null ? (body as { type?: unknown }).type : undefined;
+      const result = type === 'QuoteApproved' && this.quoteUseCase ? await this.quoteUseCase.execute(body) : await this.useCase.execute(body);
       this.log.log(`${msg.properties.messageId ?? '?'} -> ${result}`);
       ch.ack(msg);
     } catch (e) {

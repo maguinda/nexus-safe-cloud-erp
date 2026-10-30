@@ -10,6 +10,7 @@ export const USERS = {
   billing: { id: randomUUID(), email: 'andres.mora@nexus.example', role: 'billing_analyst' },
   sales: { id: randomUUID(), email: 'camila.soto@nexus.example', role: 'sales' },
   manager: { id: randomUUID(), email: 'diana.vega@nexus.example', role: 'manager' },
+  sales2: { id: randomUUID(), email: 'otra.vendedora@nexus.example', role: 'sales' },
 };
 
 /** Firma como lo haría identity-access; las opciones permiten fabricar tokens defectuosos a propósito. */
@@ -25,6 +26,7 @@ export const unsigned = (u: { id: string; email: string; role: string }) => `${b
 import { PrismaClient } from '@prisma/client';
 /** Deja los 4 hitos pendientes del seed como estaban y borra el outbox (las pruebas no deben depender del orden). */
 export async function resetState(prisma: PrismaClient) {
+  await prisma.quote.deleteMany();
   await prisma.outboxEvent.deleteMany();
   await prisma.projectTeamMember.deleteMany();
   await prisma.removedAllocation.deleteMany();

@@ -169,3 +169,14 @@ export interface Advice {
   violations: string[];
   evidence: AdviceEvidence[]; items: AdviceItem[];
 }
+
+export type LineCategory = 'materials' | 'supplies' | 'labor';
+export interface QuoteLineView { category: LineCategory; description: string; quantity: number; unitCostCop: number; ref: string | null; totalCop: number }
+export interface QuoteMilestoneView { name: string; costCop: number; priceCop: number; byCategory: Record<LineCategory, number>; lines: QuoteLineView[] }
+export interface Quote {
+  id: string; number: string; status: 'draft' | 'pending' | 'approved' | 'rejected'; client: string; projectName: string; marginPct: number;
+  createdBy: string; createdAt: string; submittedAt: string | null; decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; projectId: string | null;
+  costCop: number; priceCop: number; profitCop: number; lowMargin: boolean; byCategory: Record<LineCategory, number>; milestones: QuoteMilestoneView[];
+}
+export interface PositionRate { position: StaffPosition; kind: 'engineer' | 'technician'; label: string; monthlySalaryCop: number; dailyCostCop: number; note: string; updatedAt: string; updatedBy: string | null }
+export interface QuoteCatalogItem { itemId: string; name: string; kind: 'equipment' | 'spare'; supplier: string; refPriceCop: number; leadDays: number }

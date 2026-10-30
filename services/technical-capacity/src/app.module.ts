@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetSalaryUseCase } from './application/capacity.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
+import { RatesController, RATES_PRISMA } from './http/rates.controller';
 import { ALLOCATE, CapacityController, CREATE_ENGINEER, DELETE_ALLOCATION, LIST_CAPACITY, SET_SALARY } from './http/capacity.controller';
 import { HealthController } from './http/health.controller';
 import { OutboxRelay } from './infrastructure/outbox-relay';
@@ -17,13 +18,14 @@ let relay: OutboxRelay | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [CapacityController, HealthController],
+  controllers: [CapacityController, RatesController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
     { provide: LIST_CAPACITY, useFactory: () => new ListCapacityUseCase(new PrismaCapacity(prisma)) },
+    { provide: RATES_PRISMA, useValue: prisma },
     { provide: SET_SALARY, useFactory: () => new SetSalaryUseCase(new PrismaCapacity(prisma)) },
     { provide: CREATE_ENGINEER, useFactory: () => new CreateEngineerUseCase(new PrismaCapacity(prisma)) },
     { provide: ALLOCATE, useFactory: () => new AllocateEngineerUseCase(new PrismaUnitOfWork(prisma)) },

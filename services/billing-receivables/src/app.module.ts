@@ -15,6 +15,8 @@ import { SandboxEInvoiceProvider } from './domain/einvoice/provider';
 import { CustomersController, DELIVER_EINVOICE, ElectronicInvoiceController, GENERATE_EINVOICE, GET_EINVOICE, LIST_CUSTOMERS, SUBMIT_EINVOICE, UPSERT_CUSTOMER } from './http/einvoice.controller';
 import { HealthController } from './http/health.controller';
 import { InvoicesController, ISSUE_INVOICE, LIST_INVOICES, RECONCILE_INVOICES } from './http/invoices.controller';
+import { HandleQuoteApprovedUseCase } from './application/handle-quote-approved.use-case';
+import { PrismaQuoteContracts } from './infrastructure/prisma-quote-contracts';
 import { MilestoneApprovedConsumer } from './infrastructure/milestone-approved-consumer';
 import { DetectOverdueInvoicesUseCase } from './application/detect-overdue.use-case';
 import { OutboxRelay } from './infrastructure/outbox-relay';
@@ -55,7 +57,7 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
   onApplicationBootstrap() {
     const c = cfg();
     if (c.consumerEnabled) {
-      consumer = new MilestoneApprovedConsumer(new HandleMilestoneApprovedUseCase(new PrismaInboxUnitOfWork(prisma)), c.rabbitUrl);
+      consumer = new MilestoneApprovedConsumer(new HandleMilestoneApprovedUseCase(new PrismaInboxUnitOfWork(prisma)), c.rabbitUrl, new HandleQuoteApprovedUseCase(new PrismaQuoteContracts(prisma)));
       consumer.start();
     }
     if (c.relayEnabled) {

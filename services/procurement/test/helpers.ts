@@ -53,6 +53,6 @@ export async function resetState(prisma: PrismaClient) {
   await prisma.$transaction([
     prisma.$executeRaw`SELECT set_config('erp.allow_movement_delete', 'on', true)`,
     prisma.$executeRaw`DELETE FROM stock_movements`,
-    prisma.$executeRaw`INSERT INTO stock_movements (item_id, item_name, delta, on_hand_after, source, reason) SELECT id, name, on_hand, on_hand, 'opening', 'Saldo inicial' FROM items WHERE on_hand > 0`,
+    prisma.$executeRaw`INSERT INTO stock_movements (item_id, item_name, delta, on_hand_after, source, reason, created_at) SELECT id, name, on_hand, on_hand, 'opening', 'Saldo inicial', now() - interval '1 hour' FROM items WHERE on_hand > 0`,
   ]);
 }

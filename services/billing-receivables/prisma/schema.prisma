@@ -166,6 +166,8 @@ model Contract {
   projectName String   @map("project_name")
   /// El proyecto del contrato, elegido de la lista de Projects.
   projectId   String?  @map("project_id")
+  /// Número de la cotización aprobada de la que nació (COT-0001); null si se creó a mano. Único.
+  quoteRef    String?  @unique @map("quote_ref")
   amountCop   Int      @map("amount_cop")
   startDate   DateTime @map("start_date") @db.Date
   endDate     DateTime @map("end_date") @db.Date
