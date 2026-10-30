@@ -1,6 +1,6 @@
 import { newItem, newSupplier } from '../domain/catalog';
 import { ConflictError, NotFoundError } from '../domain/errors';
-import { equipmentPurchased, stockChanged } from '../domain/events';
+import { equipmentPurchased, orderNumber, stockChanged } from '../domain/events';
 import { applyDelta, assertCancellable, assertReceivable, newOrder, validateAdjustment } from '../domain/order';
 import { ProcurementCommands, ProcurementQueries, UnitOfWork } from '../domain/ports';
 
@@ -42,7 +42,7 @@ export class CreateOrderUseCase {
  */
 export class ReceiveOrderUseCase {
   constructor(private readonly uow: UnitOfWork, private readonly clock: () => Date = () => new Date()) {}
-  execute(orderId: string, correlationId: string) {
+  execute(orderId: string, correlationId: string, actor: string | null = null) {
     return this.uow.run(async (tx) => {
       const order = await tx.lockOrder(orderId);
       if (!order) throw new NotFoundError('Order');
@@ -52,6 +52,7 @@ export class ReceiveOrderUseCase {
       const onHand = applyDelta(item.onHand, order.quantity, item.name);
       const now = this.clock();
       await tx.setOnHand(item.id, onHand);
+      await tx.addMovement({ itemId: item.id, itemName: item.name, delta: order.quantity, onHandAfter: onHand, source: 'purchase_received', reason: `Pedido ${orderNumber(order.number)} recibido`, actor });
       await tx.setOrderStatus(order.id, 'received', now);
       await tx.addToOutbox(stockChanged(item, order.quantity, onHand, 'purchase_received', `order ${order.number}`, correlationId, now), `${order.id}:stock`);
       if (item.kind === 'equipment') {
@@ -78,17 +79,23 @@ export class CancelOrderUseCase {
 /** Ajuste manual de stock (conteo, merma, devolución): el stock NUNCA queda negativo; el artículo se bloquea y se relee dentro del bloqueo. */
 export class AdjustStockUseCase {
   constructor(private readonly uow: UnitOfWork, private readonly clock: () => Date = () => new Date()) {}
-  execute(itemId: string, input: { delta: unknown; reason: unknown }, correlationId: string) {
+  execute(itemId: string, input: { delta: unknown; reason: unknown }, correlationId: string, actor: string | null = null) {
     const { delta, reason } = validateAdjustment(input.delta, input.reason);
     return this.uow.run(async (tx) => {
       const item = await tx.lockItem(itemId);
       if (!item) throw new NotFoundError('Item');
       const onHand = applyDelta(item.onHand, delta, item.name);
       await tx.setOnHand(item.id, onHand);
+      await tx.addMovement({ itemId: item.id, itemName: item.name, delta, onHandAfter: onHand, source: 'adjustment', reason, actor });
       await tx.addToOutbox(stockChanged(item, delta, onHand, 'adjustment', reason, correlationId, this.clock()), `${item.id}:${correlationId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`);
       return { id: item.id, onHand };
     });
   }
+}
+
+export class ListMovementsUseCase {
+  constructor(private readonly q: ProcurementQueries) {}
+  execute(opts: { itemId?: string; limit: number }) { return this.q.movements(opts); }
 }
 
 export class ListProcurementUseCase {

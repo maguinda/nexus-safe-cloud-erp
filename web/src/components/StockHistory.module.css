@@ -1,0 +1,3 @@
+/* Los nombres de artículo pueden ser largos: los botones del filtro bajan de línea y nunca pasan del ancho de la pantalla. */
+.filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); min-width: 0; }
+.filters button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }

@@ -41,6 +41,7 @@ export interface CapacityResponse { today: string; engineers: CapacityEngineer[]
 export interface AllocationInput { projectName: string; percent: number; startDate: string; endDate: string; allowOverallocation?: boolean }
 
 export interface Supplier { id: string; name: string; kind: 'fixed' | 'tender'; terms: string }
+export interface StockMovement { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'opening' | 'purchase_received' | 'adjustment'; reason: string; actor: string | null; at: string }
 export interface StockItem { id: string; name: string; kind: 'equipment' | 'spare'; forKinds: string[]; onHand: number }
 export interface PurchaseOrder {
   id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string;
