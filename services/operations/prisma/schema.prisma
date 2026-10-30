@@ -22,6 +22,10 @@ model IotDevice {
   /// TEMP, HUMIDITY, STREAM, SMOKE, DETECTION, POWER o STATE.
   readingKind String       @map("reading_kind")
   unit        String
+  /// Cómo va el dispositivo según la última lectura contada (normal, warning o alert): sirve para avisar UNA vez cuando EMPEORA.
+  alertState   String       @default("normal") @map("alert_state")
+  /// Instante de esa lectura. Un lote más viejo que esto no cambia el estado.
+  alertStateAt DateTime?    @map("alert_state_at")
   readings    IotReading[]
 
   @@index([location])
@@ -104,4 +108,20 @@ model NetworkMonitoring {
   device     NetworkDevice @relation(fields: [deviceName], references: [name], onDelete: Restrict)
 
   @@map("network_monitoring")
+}
+
+/// Evento guardado en la misma transacción que el cambio de negocio; un relay lo publica después.
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  aggregateId String    @map("aggregate_id")
+  type        String
+  routingKey  String    @map("routing_key")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+
+  /// Nunca dos eventos del mismo tipo para la misma lectura (aggregate = dispositivo:instante).
+  @@unique([aggregateId, type])
+  @@index([publishedAt])
+  @@map("outbox_events")
 }

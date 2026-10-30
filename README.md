@@ -9,7 +9,7 @@ a React frontend, PostgreSQL (one database per service) and RabbitMQ.
 | `services/projects` | Projects, milestones, approval (writes the event to an outbox) |
 | `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
 | `services/analytics` | Read models built from the business events and the manager dashboard (`GET /dashboard`) |
-| `services/operations` | Operations & Telemetry: the Nexus network and IoT data from the course folder (`GET /telemetry/*`, `GET /network/*`), the telemetry ingestion API (service key) and the decision advisor (`POST /advisor/brief`). Own database, mTLS, port 4107 |
+| `services/operations` | Operations & Telemetry: the Nexus network and IoT data from the course folder (`GET /telemetry/*`, `GET /network/*`), the telemetry ingestion API (service key) and the decision advisor (`POST /advisor/brief`). It publishes `ThresholdBreached` when a sensor gets worse. Own database, mTLS, port 4107 |
 | `services/notifications` | Messenger: turns alert events (overdue invoices, sensor thresholds, over-allocation) into in-app notifications per role, with a read mark per person (the bell in the web). Own database, mTLS, port 4105 |
 | `services/technical-capacity` | Engineers, skills and allocations by period. Nobody goes over 100% load on any day (row lock + re-read inside the lock); the manager can allow it on purpose, which publishes `OverAllocationDetected`. Own database, mTLS, port 4106 |
 | `web` | React + TypeScript frontend |

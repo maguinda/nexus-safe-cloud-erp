@@ -9,6 +9,8 @@ export const READING_STATUSES = ['ACTIVE', 'ALERT', 'CLEAR', 'DETECTED', 'LOCKED
 /** Un reloj de sensor puede ir un poco adelantado, pero no horas: una lectura del futuro es un error del emisor. */
 export const MAX_FUTURE_MS = 5 * 60_000;
 export const NOTE_MAX = 200;
+/** Una medida fuera de este rango no es de un sensor real; además el servicio de avisos no acepta valores mayores y el aviso se perdería. */
+export const VALUE_LIMIT = 1_000_000_000;
 const OLDEST = Date.UTC(2000, 0, 1);
 
 const FIELDS = ['deviceId', 'recordedAt', 'status', 'value', 'unit', 'note'] as const;
@@ -68,6 +70,7 @@ export function validateBatch(body: unknown, units: ReadonlyMap<string, string>,
 
     if (typeof status !== 'string' || !(READING_STATUSES as readonly string[]).includes(status)) bad('status', `must be one of ${READING_STATUSES.join(', ')}`);
     if (typeof value !== 'number' || !Number.isFinite(value)) bad('value', 'must be a finite number');
+    else if (Math.abs(value) > VALUE_LIMIT) bad('value', `must be between -${VALUE_LIMIT} and ${VALUE_LIMIT}`);
     if (typeof unit !== 'string') bad('unit', 'must be a string');
     else if (deviceUnit !== undefined && unit !== deviceUnit) bad('unit', `must be "${deviceUnit}" for this device`);
     if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > NOTE_MAX)) bad('note', `must be a string of at most ${NOTE_MAX} characters`);

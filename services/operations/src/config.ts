@@ -6,6 +6,9 @@ export interface Config {
   publicKey: string;
   issuer: string;
   audience: string;
+  rabbitUrl: string;
+  outboxPollMs: number;
+  relayEnabled: boolean;
 }
 
 function required(name: string): string {
@@ -21,5 +24,8 @@ export function loadConfig(): Config {
     publicKey: readFileSync(resolve(required('JWT_PUBLIC_KEY_PATH')), 'utf8'),
     issuer: required('JWT_ISSUER'),
     audience: required('JWT_AUDIENCE'),
+    rabbitUrl: required('RABBITMQ_URL'),
+    outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
+    relayEnabled: process.env.RELAY_ENABLED !== 'false',
   };
 }

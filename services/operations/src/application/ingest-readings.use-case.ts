@@ -14,10 +14,11 @@ export interface IngestResult { accepted: number; duplicates: number }
 export class IngestReadingsUseCase {
   constructor(private readonly store: ReadingIngest, private readonly clock: () => Date = () => new Date()) {}
 
-  async execute(body: unknown): Promise<IngestResult> {
-    const { readings, problems } = validateBatch(body, await this.store.deviceUnits(), this.clock());
+  async execute(body: unknown, correlationId = 'no-correlation'): Promise<IngestResult> {
+    const now = this.clock();
+    const { readings, problems } = validateBatch(body, await this.store.deviceUnits(), now);
     if (problems.length > 0) throw new IngestRejectedError(problems);
-    const accepted = await this.store.insertReadings(readings);
+    const accepted = await this.store.insertReadings(readings, { correlationId, now });
     return { accepted, duplicates: readings.length - accepted };
   }
 }

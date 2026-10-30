@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { GetTelemetryUseCase } from '../application/get-telemetry.use-case';
 import { ExploreReadingsUseCase, GetTrendsUseCase } from '../application/explore.use-cases';
 import { IngestReadingsUseCase, IngestRejectedError } from '../application/ingest-readings.use-case';
@@ -82,9 +83,9 @@ export class TelemetryController {
   @ApiResponse({ status: 400, description: 'The batch is not valid: nothing was stored (all or nothing)' })
   @ApiResponse({ status: 401, description: 'Missing or wrong ingestion key' })
   @ApiResponse({ status: 503, description: 'Ingestion is not configured on this server' })
-  async ingestReadings(@Body() body: unknown) {
+  async ingestReadings(@Body() body: unknown, @Req() req: Request) {
     try {
-      return await this.ingest.execute(body);
+      return await this.ingest.execute(body, (req as any).correlationId);
     } catch (e) {
       if (!(e instanceof IngestRejectedError)) throw e;
       const shown = e.problems.slice(0, MAX_PROBLEMS_SHOWN).map((p) => `${p.path}: ${p.message}`);

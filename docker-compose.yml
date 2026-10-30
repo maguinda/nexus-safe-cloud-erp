@@ -182,8 +182,10 @@ services:
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://operations:${DB_OPERATIONS_PASSWORD}@postgres:5432/operations
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
       JWT_ISSUER: identity-access
       JWT_AUDIENCE: erp-api
