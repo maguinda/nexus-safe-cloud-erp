@@ -6,7 +6,7 @@ import { CapacityEvent } from '../domain/events';
 import { TransactionScope, UnitOfWork } from '../domain/ports';
 import { AllocateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase } from './capacity.use-cases';
 
-const ana: Engineer = { id: 'e1', name: 'Ana Torres', role: 'Network engineer', skills: [], certifications: [], dailyCostCop: 450_000 };
+const ana: Engineer = { id: 'e1', name: 'Ana Torres', role: 'Network engineer', position: 'network_engineer', kind: 'engineer', skills: [], certifications: [], monthlySalaryCop: 9_900_000, dailyCostCop: 450_000 };
 class FakeUow implements UnitOfWork {
   allocs: Allocation[] = []; outbox: CapacityEvent[] = []; failAfterInsert = false;
   async run<T>(work: (tx: TransactionScope) => Promise<T>): Promise<T> {
@@ -110,15 +110,24 @@ describe('ListCapacityUseCase', () => {
   });
 });
 
-describe('SetDailyCostUseCase and the engineer cost rules', () => {
-  const { SetDailyCostUseCase } = require('./capacity.use-cases');
-  const { dailyCost } = require('../domain/engineer');
-  it('writes, clears and refuses an unknown engineer', async () => {
-    const calls: any[] = []; const cmds: any = { setDailyCost: async (id: string, c: number | null) => { calls.push([id, c]); return id === 'e1'; } };
-    await new SetDailyCostUseCase(cmds).execute('e1', 500_000); await new SetDailyCostUseCase(cmds).execute('e1', null);
-    expect(calls).toEqual([['e1', 500_000], ['e1', null]]);
-    await expect(new SetDailyCostUseCase(cmds).execute('zz', 5)).rejects.toBeInstanceOf(EngineerNotFoundError);
+describe('SetSalaryUseCase, the positions and the derived daily cost', () => {
+  const { SetSalaryUseCase } = require('./capacity.use-cases');
+  const { monthlySalary, dailyCostFromSalary, newEngineer, position, POSITIONS } = require('../domain/engineer');
+  it('writes the salary with its derived daily cost, clears both, and refuses an unknown person', async () => {
+    const calls: any[] = []; const cmds: any = { setSalary: async (id: string, s: number | null, d: number | null) => { calls.push([id, s, d]); return id === 'e1'; } };
+    await new SetSalaryUseCase(cmds).execute('e1', 9_900_000); await new SetSalaryUseCase(cmds).execute('e1', null);
+    expect(calls).toEqual([['e1', 9_900_000, 450_000], ['e1', null, null]]);
+    await expect(new SetSalaryUseCase(cmds).execute('zz', 5)).rejects.toBeInstanceOf(EngineerNotFoundError);
   });
-  it.each([0, -1, 1.5, '300', NaN, 50_000_001, {}, []])('refuses the cost %p', (v) => { expect(() => dailyCost(v)).toThrow(ValidationError); });
-  it('accepts 1, the maximum, and empty means no cost', () => { expect(dailyCost(1)).toBe(1); expect(dailyCost(50_000_000)).toBe(50_000_000); expect(dailyCost(undefined)).toBeNull(); expect(dailyCost(null)).toBeNull(); });
+  it.each([0, -1, 1.5, '300', NaN, 200_000_001, {}, []])('refuses the salary %p', (v) => { expect(() => monthlySalary(v)).toThrow(ValidationError); });
+  it('accepts 1, the maximum, and empty means no salary', () => { expect(monthlySalary(1)).toBe(1); expect(monthlySalary(200_000_000)).toBe(200_000_000); expect(monthlySalary(undefined)).toBeNull(); expect(monthlySalary(null)).toBeNull(); });
+  it('the daily cost is the salary over 22 working days, rounded half up', () => {
+    expect(dailyCostFromSalary(null)).toBeNull(); expect(dailyCostFromSalary(22)).toBe(1); expect(dailyCostFromSalary(11)).toBe(1); expect(dailyCostFromSalary(10)).toBe(0); expect(dailyCostFromSalary(9_900_000)).toBe(450_000); expect(dailyCostFromSalary(5_000_000)).toBe(227_273); expect(dailyCostFromSalary(200_000_000)).toBe(9_090_909);
+  });
+  it('the position decides the kind; unknown positions and prototype keys are refused', () => {
+    for (const [code, v] of Object.entries(POSITIONS) as [string, any][]) expect(newEngineer('Ana Torres', undefined, [], [], null, code)).toMatchObject({ position: code, kind: v.kind, role: v.label });
+    expect(Object.values(POSITIONS).filter((v: any) => v.kind === 'technician')).toHaveLength(2);
+    for (const bad of [undefined, null, '', 'engineer', 'toString', '__proto__', 'constructor', 5, {}]) expect(() => position(bad)).toThrow(ValidationError);
+    expect(newEngineer('Ana Torres', 'Jefa de redes', [], [], 9_900_000, 'network_engineer')).toMatchObject({ role: 'Jefa de redes', monthlySalaryCop: 9_900_000, dailyCostCop: 450_000 });
+  });
 });

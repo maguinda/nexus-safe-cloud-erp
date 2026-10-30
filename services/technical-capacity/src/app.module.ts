@@ -2,10 +2,10 @@ import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
-import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetDailyCostUseCase } from './application/capacity.use-cases';
+import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetSalaryUseCase } from './application/capacity.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
-import { ALLOCATE, CapacityController, CREATE_ENGINEER, DELETE_ALLOCATION, LIST_CAPACITY, SET_COST } from './http/capacity.controller';
+import { ALLOCATE, CapacityController, CREATE_ENGINEER, DELETE_ALLOCATION, LIST_CAPACITY, SET_SALARY } from './http/capacity.controller';
 import { HealthController } from './http/health.controller';
 import { OutboxRelay } from './infrastructure/outbox-relay';
 import { PrismaCapacity } from './infrastructure/prisma-capacity';
@@ -24,7 +24,7 @@ let relay: OutboxRelay | undefined;
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
     { provide: LIST_CAPACITY, useFactory: () => new ListCapacityUseCase(new PrismaCapacity(prisma)) },
-    { provide: SET_COST, useFactory: () => new SetDailyCostUseCase(new PrismaCapacity(prisma)) },
+    { provide: SET_SALARY, useFactory: () => new SetSalaryUseCase(new PrismaCapacity(prisma)) },
     { provide: CREATE_ENGINEER, useFactory: () => new CreateEngineerUseCase(new PrismaCapacity(prisma)) },
     { provide: ALLOCATE, useFactory: () => new AllocateEngineerUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: DELETE_ALLOCATION, useFactory: () => new DeleteAllocationUseCase(new PrismaUnitOfWork(prisma)) },

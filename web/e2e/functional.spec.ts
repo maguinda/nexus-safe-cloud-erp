@@ -1149,11 +1149,21 @@ test('Capacity: the 100% rule end to end — a second allocation is refused with
     const newForm = manager.page.getByRole('form', { name: 'New engineer' });
     await newForm.getByRole('button', { name: 'Add engineer' }).click();
     await expect(newForm.getByText(/The name must have at least 2 characters/)).toBeVisible();
-    await newForm.getByLabel('The name').fill('Playwright Engineer'); await newForm.getByLabel('The role').fill('Tester');
+    await expect(newForm.getByText('Choose the position of the person.')).toBeVisible();
+    await newForm.getByLabel('The name').fill('Playwright Engineer'); await newForm.getByLabel('Own title (optional)').fill('Tester');
+    await newForm.getByRole('button', { name: 'Software engineer' }).click();
+    await newForm.getByLabel('Monthly salary in pesos (optional)').fill('1.5'); await newForm.getByRole('button', { name: 'Add engineer' }).click();
+    await expect(newForm.getByText(/Write whole pesos from 1 to 200.000.000/)).toBeVisible();
+    await newForm.getByLabel('Monthly salary in pesos (optional)').fill('6600000');
     await newForm.getByLabel('The skills').fill('Jest, Playwright, jest');
     await newForm.getByRole('button', { name: 'Add engineer' }).click();
     await expect(manager.page.getByText('Engineer Playwright Engineer added.')).toBeVisible();
     await expect(card(manager.page)).toContainText('Skills: Jest, Playwright');
+    await expect(card(manager.page)).toContainText('Software engineer · Tester'); await expect(card(manager.page)).toContainText('6.600.000 COP a month'); await expect(card(manager.page)).toContainText('Cost per working day: 300.000 COP');
+    // Los técnicos también son personal: se filtra por tipo y se les asigna igual.
+    await expect(manager.page.locator('[data-kind="technician"]')).toHaveCount(2);
+    await manager.page.getByRole('button', { name: /^Technicians \(2\)/ }).click(); await expect(manager.page.locator('[data-engineer]')).toHaveCount(2); await expect(manager.page.getByRole('heading', { name: 'Hugo Salazar' })).toBeVisible();
+    await manager.page.getByRole('button', { name: /^Everyone/ }).click();
     // Fechas relativas a hoy para que la carga de hoy se vea en la tarjeta.
     const iso = (offset: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
     await lead.page.reload(); await lead.page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click();
@@ -1420,17 +1430,17 @@ test('Profitability: the manager sees revenue minus labor cost and edits the dai
     // El costo se escribe en Capacidad técnica; el formulario avisa antes de enviar.
     await nav(manager.page, 'Capacity');
     const ana = manager.page.locator('[data-engineer="Ana Torres"]');
-    await expect(ana).toContainText('450.000 COP per day');
-    await ana.getByRole('button', { name: 'Change the daily cost of Ana Torres' }).click();
-    const form = manager.page.getByRole('form', { name: 'Change the daily cost of Ana Torres' });
-    await form.getByLabel(/Daily cost in pesos/).fill('1.5'); await form.getByRole('button', { name: 'Save cost' }).click();
-    await expect(form.getByText(/Write whole pesos from 1 to 50.000.000/)).toBeVisible();
-    await form.getByLabel(/Daily cost in pesos/).fill(''); await form.getByRole('button', { name: 'Save cost' }).click();
-    await expect(manager.page.getByText('Daily cost of Ana Torres saved.')).toBeVisible();
-    await expect(ana).toContainText('no cost yet');
+    await expect(ana).toContainText('9.900.000 COP a month'); await expect(ana).toContainText('Cost per working day: 450.000 COP');
+    await ana.getByRole('button', { name: 'Change the monthly salary of Ana Torres' }).click();
+    const form = manager.page.getByRole('form', { name: 'Change the monthly salary of Ana Torres' });
+    await form.getByLabel(/Monthly salary in pesos/).fill('1.5'); await form.getByRole('button', { name: 'Save salary' }).click();
+    await expect(form.getByText(/Write whole pesos from 1 to 200.000.000/)).toBeVisible();
+    await form.getByLabel(/Monthly salary in pesos/).fill(''); await form.getByRole('button', { name: 'Save salary' }).click();
+    await expect(manager.page.getByText('Salary of Ana Torres saved.')).toBeVisible();
+    await expect(ana).toContainText('no salary yet');
     // Una asignación nueva a un ingeniero sin costo llega por evento y la rentabilidad lo avisa.
     await nav(lead.page, 'Capacity');
-    await expect(lead.page.getByText(/Daily cost/)).toHaveCount(0);
+    await expect(lead.page.getByText(/Monthly salary|Cost per working day/)).toHaveCount(0);
     await lead.page.getByRole('button', { name: 'Allocate Ana Torres' }).click();
     const af = lead.page.getByRole('form', { name: 'Allocate Ana Torres' });
     await af.getByLabel('The project').fill('Branch network upgrade'); await af.getByLabel('Percent (1 to 100)').fill('5');

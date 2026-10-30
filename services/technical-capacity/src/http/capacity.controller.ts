@@ -1,16 +1,16 @@
 import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetDailyCostUseCase } from '../application/capacity.use-cases';
+import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetSalaryUseCase } from '../application/capacity.use-cases';
 import { AuthUser, Roles } from '../auth/auth.guard';
 import { dayString } from '../domain/dates';
-import { AllocateDto, CreateEngineerDto, SetCostDto } from './capacity.dto';
+import { AllocateDto, CreateEngineerDto, SetSalaryDto } from './capacity.dto';
 
 export const LIST_CAPACITY = 'LIST_CAPACITY';
 export const CREATE_ENGINEER = 'CREATE_ENGINEER';
 export const ALLOCATE = 'ALLOCATE';
 export const DELETE_ALLOCATION = 'DELETE_ALLOCATION';
-export const SET_COST = 'SET_COST';
+export const SET_SALARY = 'SET_SALARY';
 
 @ApiTags('Capacity')
 @ApiBearerAuth()
@@ -21,7 +21,7 @@ export class CapacityController {
     @Inject(CREATE_ENGINEER) private readonly createEngineer: CreateEngineerUseCase,
     @Inject(ALLOCATE) private readonly allocate: AllocateEngineerUseCase,
     @Inject(DELETE_ALLOCATION) private readonly deleteAllocation: DeleteAllocationUseCase,
-    @Inject(SET_COST) private readonly setCost: SetDailyCostUseCase,
+    @Inject(SET_SALARY) private readonly setSalary: SetSalaryUseCase,
   ) {}
 
   @Get('engineers')
@@ -29,22 +29,22 @@ export class CapacityController {
   @ApiOperation({ summary: 'Engineers with skills, certifications, load today, the peak of the next 30 days and their upcoming allocations (US-07)' })
   async engineers(@Req() req: Request & { user: AuthUser }) {
     const r = await this.list.execute();
-    // El costo diario es dato de gerencia: los demás roles no lo reciben.
+    // El sueldo y el costo diario son datos de gerencia: los demás roles no los reciben.
     if (req.user.role === 'manager') return r;
-    return { ...r, engineers: r.engineers.map(({ dailyCostCop: _cost, ...rest }) => rest) };
+    return { ...r, engineers: r.engineers.map(({ dailyCostCop: _cost, monthlySalaryCop: _salary, ...rest }) => rest) };
   }
 
   @Post('engineers')
   @Roles('manager')
-  @ApiOperation({ summary: 'Add an engineer to the catalog (role manager)' })
+  @ApiOperation({ summary: 'Add an engineer or technician to the staff (role manager). The position is one of a fixed catalog and decides the kind.' })
   create(@Body() dto: CreateEngineerDto) { return this.createEngineer.execute(dto); }
 
-  @Patch('engineers/:id/cost')
+  @Patch('engineers/:id/salary')
   @HttpCode(204)
   @Roles('manager')
-  @ApiOperation({ summary: 'Write or clear the daily cost of an engineer (role manager). Applies to allocations made after the change.' })
+  @ApiOperation({ summary: 'Write or clear the MONTHLY payroll salary (role manager). The cost per working day is derived (salary / 22) and applies to allocations made after the change.' })
   @ApiResponse({ status: 404, description: 'Engineer not found' })
-  async cost(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: SetCostDto) { await this.setCost.execute(id, dto.dailyCostCop); }
+  async salary(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: SetSalaryDto) { await this.setSalary.execute(id, dto.monthlySalaryCop); }
 
   @Post('engineers/:id/allocations')
   @Roles('project_lead', 'manager')

@@ -54,19 +54,19 @@ describe('load', () => {
 
 describe('engineer', () => {
   it('trims, collapses spaces and removes repeated tags ignoring case', () => {
-    const e = newEngineer('  Ana   Torres ', 'Network engineer', ['Cisco', 'cisco', ' Terraform '], ['CCNP']);
+    const e = newEngineer('  Ana   Torres ', 'Network engineer', ['Cisco', 'cisco', ' Terraform '], ['CCNP'], undefined, 'network_engineer');
     expect(e).toMatchObject({ name: 'Ana Torres', skills: ['Cisco', 'Terraform'], certifications: ['CCNP'] });
   });
-  it('lists are optional', () => { expect(newEngineer('Ana Torres', 'Dev', undefined, null)).toMatchObject({ skills: [], certifications: [] }); });
+  it('lists are optional', () => { expect(newEngineer('Ana Torres', 'Dev', undefined, null, undefined, 'software_engineer')).toMatchObject({ skills: [], certifications: [] }); });
   it.each([
     ['short name', ['A', 'Dev']], ['huge name', ['x'.repeat(81), 'Dev']], ['html in name', ['<b>Ana</b>', 'Dev']], ['number name', [5, 'Dev']], ['empty role', ['Ana Torres', ' ']],
     ['control char', ['Ana\u0000 Torres', 'Dev']],
-  ])('rejects %s', (_n, [name, role]) => { expect(() => newEngineer(name, role, [], [])).toThrow(ValidationError); });
+  ])('rejects %s', (_n, [name, role]) => { expect(() => newEngineer(name, role, [], [], undefined, 'software_engineer')).toThrow(ValidationError); });
   it('rejects too many or strange tags', () => {
-    expect(() => newEngineer('Ana Torres', 'Dev', Array.from({ length: 21 }, (_, i) => `skill-${i}`), [])).toThrow(ValidationError);
-    expect(() => newEngineer('Ana Torres', 'Dev', 'Cisco', [])).toThrow(ValidationError);
-    expect(() => newEngineer('Ana Torres', 'Dev', [3], [])).toThrow(ValidationError);
-    expect(() => newEngineer('Ana Torres', 'Dev', ['x'], [])).toThrow(ValidationError);
+    expect(() => newEngineer('Ana Torres', 'Dev', Array.from({ length: 21 }, (_, i) => `skill-${i}`), [], undefined, 'software_engineer')).toThrow(ValidationError);
+    expect(() => newEngineer('Ana Torres', 'Dev', 'Cisco', [], undefined, 'software_engineer')).toThrow(ValidationError);
+    expect(() => newEngineer('Ana Torres', 'Dev', [3], [], undefined, 'software_engineer')).toThrow(ValidationError);
+    expect(() => newEngineer('Ana Torres', 'Dev', ['x'], [], undefined, 'software_engineer')).toThrow(ValidationError);
   });
 });
 

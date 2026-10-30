@@ -20,8 +20,8 @@ class PrismaTransactionScope implements TransactionScope {
 
   async lockEngineer(id: string): Promise<Engineer | null> {
     // FOR UPDATE: otra asignación al MISMO ingeniero espera aquí y, al continuar, ya ve la carga que dejó la primera.
-    const rows = await this.tx.$queryRaw<{ id: string; name: string; role: string; skills: string[]; certifications: string[]; dailyCostCop: number | null }[]>`
-      SELECT id, name, role, skills, certifications, daily_cost_cop AS "dailyCostCop" FROM engineers WHERE id = ${id}::uuid FOR UPDATE`;
+    const rows = await this.tx.$queryRaw<{ id: string; name: string; role: string; position: Engineer['position']; kind: Engineer['kind']; skills: string[]; certifications: string[]; monthlySalaryCop: number | null; dailyCostCop: number | null }[]>`
+      SELECT id, name, role, position, kind, skills, certifications, monthly_salary_cop AS "monthlySalaryCop", daily_cost_cop AS "dailyCostCop" FROM engineers WHERE id = ${id}::uuid FOR UPDATE`;
     return rows[0] ?? null;
   }
 

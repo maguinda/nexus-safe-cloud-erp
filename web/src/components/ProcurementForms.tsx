@@ -7,15 +7,15 @@ import type { StockItem, Supplier } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 
-type Choice = { value: string; label: string };
+export type Choice = { value: string; label: string };
 
 /** Elegir entre pocas opciones con botones (no un <select> nativo: en WebKit mide menos de 32 px y la auditoría lo rechaza). */
-function Pick({ label, value, onChange, options, error, id }: { label: string; value: string; onChange: (v: string) => void; options: Choice[]; error?: string; id: string }) {
+export function Pick({ label, value, onChange, options, error, id, wrap }: { label: string; value: string; onChange: (v: string) => void; options: Choice[]; error?: string; id: string; wrap?: boolean }) {
   return (
-    <fieldset className={ui.field} aria-describedby={error ? `${id}-err` : undefined}>
+    <fieldset className={wrap ? `${ui.field} ${ui.fieldWide}` : ui.field} aria-describedby={error ? `${id}-err` : undefined}>
       <legend>{label}</legend>
-      <div className={ui.seg}>
-        {options.map((o) => <button key={o.value} type="button" className={value === o.value ? ui.segBtnOn : ui.segBtn} aria-pressed={value === o.value} onClick={() => onChange(o.value)}>{o.label}</button>)}
+      <div className={wrap ? ui.chips : ui.seg}>
+        {options.map((o) => <button key={o.value} type="button" className={wrap ? (value === o.value ? ui.chipOn : ui.chip) : (value === o.value ? ui.segBtnOn : ui.segBtn)} aria-pressed={value === o.value} onClick={() => onChange(o.value)}>{o.label}</button>)}
       </div>
       {error && <span id={`${id}-err`} className={ui.err}>{error}</span>}
     </fieldset>

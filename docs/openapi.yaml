@@ -416,11 +416,11 @@ paths:
               schema: { $ref: '#/components/schemas/Reconciliation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-  /engineers/{id}/cost:
+  /engineers/{id}/salary:
     patch:
       tags: [Capacity]
-      operationId: setEngineerDailyCost
-      summary: Write or clear the daily cost of an engineer (role manager). It applies to allocations made after the change.
+      operationId: setStaffMonthlySalary
+      summary: Write or clear the MONTHLY payroll salary of a person (role manager). The cost per working day is derived (salary / 22, rounded) and applies to allocations made after the change.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -430,7 +430,7 @@ paths:
             schema:
               type: object
               properties:
-                dailyCostCop: { type: integer, nullable: true, minimum: 1, maximum: 50000000 }
+                monthlySalaryCop: { type: integer, nullable: true, minimum: 1, maximum: 200000000 }
       responses:
         '204': { description: Saved }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -531,18 +531,20 @@ paths:
     post:
       tags: [Capacity]
       operationId: createEngineer
-      summary: Add an engineer to the catalog (role manager)
+      summary: Add an engineer or technician to the staff (role manager). The position (fixed catalog) decides the kind.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name, role]
+              required: [name, position]
               additionalProperties: false
               properties:
                 name: { type: string, minLength: 2, maxLength: 80 }
-                role: { type: string, minLength: 2, maxLength: 60 }
+                position: { type: string, enum: [software_engineer, cloud_devops_engineer, security_engineer, network_engineer, tech_lead, field_technician, support_technician], description: 'field_technician and support_technician are technicians; the rest are engineers' }
+                role: { type: string, minLength: 2, maxLength: 60, description: 'Own title; the name of the position when missing' }
+                monthlySalaryCop: { type: integer, minimum: 1, maximum: 200000000 }
                 skills: { type: array, maxItems: 20, items: { type: string, minLength: 2, maxLength: 40 } }
                 certifications: { type: array, maxItems: 20, items: { type: string, minLength: 2, maxLength: 60 } }
       responses:

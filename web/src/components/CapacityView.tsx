@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAlive } from '../hooks/useAlive';
 import { errorText } from '../i18n/server';
 import { formatDay } from '../lib/format';
-import type { CapacityEngineer, CapacityResponse } from '../lib/types';
+import { POSITION_DEFAULT_TITLE, type CapacityEngineer, type CapacityResponse } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { AllocateForm, NewEngineerForm } from './CapacityForms';
@@ -16,6 +16,7 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
   const [data, setData] = useState<CapacityResponse | null>(null);
   const [error, setError] = useState('');
   const [openFor, setOpenFor] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<'all' | 'engineer' | 'technician'>('all');
   const [busyRemove, setBusyRemove] = useState('');
   const canAllocate = user?.role === 'project_lead' || user?.role === 'manager';
   const isManager = user?.role === 'manager';
@@ -38,12 +39,17 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
       <h2 id="cap-h" className={ui.h2}>{t('capacity.title')}</h2>
       <p className={ui.muted}>{t('capacity.intro')}</p>
       {isManager && <NewEngineerForm api={api} onCreated={(name) => { toast(t('capacity.engineerCreated', { name })); void load(); }} />}
+      {data !== null && data.engineers.length > 0 && (
+        <div className={ui.seg} role="group" aria-label={t('capacity.filter')}>
+          {(['all', 'engineer', 'technician'] as const).map((k) => <button key={k} type="button" className={kindFilter === k ? ui.segBtnOn : ui.segBtn} aria-pressed={kindFilter === k} onClick={() => setKindFilter(k)}>{t(`capacity.filter.${k}` as 'capacity.filter.all', { n: k === 'all' ? data.engineers.length : data.engineers.filter((x) => x.kind === k).length })}</button>)}
+        </div>
+      )}
       {data === null ? <p role="status" className={ui.muted}>{t('capacity.loading')}</p> : data.engineers.length === 0 ? <p className={ui.muted}>{t('capacity.empty')}</p> : (
         <ul className={s.list}>
-          {data.engineers.map((e) => (
+          {data.engineers.filter((x) => kindFilter === 'all' || x.kind === kindFilter).map((e) => (
             <li key={e.id} className={s.card} data-engineer={e.name}>
               <div className={s.head}>
-                <div><h3 className={s.name}>{e.name}</h3><span className={ui.muted}>{e.role}</span></div>
+                <div><h3 className={s.name}>{e.name}</h3><span className={ui.muted}>{t(`position.${e.position}` as 'position.tech_lead')}{e.role !== POSITION_DEFAULT_TITLE[e.position] ? ` · ${e.role}` : ''}</span> <span className={e.kind === 'technician' ? s.kindTech : s.kindEng} data-kind={e.kind}>{t(`kind.${e.kind}` as 'kind.engineer')}</span></div>
                 {canAllocate && openFor !== e.id && <button type="button" className={ui.btnGhost} aria-label={t('capacity.allocateFor', { name: e.name })} onClick={() => setOpenFor(e.id)}>{t('capacity.allocate')}</button>}
               </div>
               <div className={s.bar} role="img" aria-label={t('capacity.bar', { load: e.loadToday })}>
