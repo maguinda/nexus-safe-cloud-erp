@@ -1,0 +1,19 @@
+/** Historial de movimientos de stock. */
+export const history = {
+  'hist.title': 'Movimientos del inventario',
+  'hist.intro': 'Cada vez que el stock sube o baja queda una fila: cuándo, cuánto, cómo quedó y quién lo hizo. Solo se agrega; nadie puede editarla.',
+  'hist.filter': 'Artículo',
+  'hist.all': 'Todos',
+  'hist.empty': 'Aún no hay movimientos.',
+  'hist.col.when': 'Cuándo',
+  'hist.col.item': 'Artículo',
+  'hist.col.change': 'Cambio',
+  'hist.col.after': 'Quedó en',
+  'hist.col.what': 'Qué pasó',
+  'hist.col.who': 'Quién',
+  'hist.src.opening': 'Saldo inicial',
+  'hist.src.purchase': 'Pedido recibido',
+  'hist.src.adjustment': 'Ajuste manual',
+  'hist.noActor': 'sistema',
+  'hist.loadError': 'No se pudo cargar el historial: {reason}',
+} as const;

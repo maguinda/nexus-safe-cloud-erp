@@ -35,4 +35,10 @@ export async function resetState(prisma: PrismaClient) {
   await prisma.supplier.deleteMany({ where: { id: { notIn: SEED_SUPPLIERS } } });
   await prisma.item.deleteMany({ where: { id: { notIn: SEED_ITEMS } } });
   for (const [id, onHand] of Object.entries(SEED_STOCK)) await prisma.item.update({ where: { id }, data: { onHand } });
+  // El historial solo se agrega: se limpia con la bandera de pruebas y se vuelve a abrir con el saldo del seed (como la migración).
+  await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config('erp.allow_movement_delete', 'on', true)`,
+    prisma.$executeRaw`DELETE FROM stock_movements`,
+    prisma.$executeRaw`INSERT INTO stock_movements (item_id, item_name, delta, on_hand_after, source, reason) SELECT id, name, on_hand, on_hand, 'opening', 'Saldo inicial' FROM items WHERE on_hand > 0`,
+  ]);
 }

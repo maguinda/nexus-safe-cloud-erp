@@ -206,6 +206,12 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 
 The only person in the event is `registeredBy` (the staff email of the analyst, as `approvedBy` and `issuedBy` in the invoice events); amounts and business names otherwise. The reference typed by the analyst stays in billing's database.
 
+## Stock movement history (procurement, no event)
+
+- Every change of stock writes one row in `stock_movements` **in the same transaction** that moves the stock: `purchase_received` (an order received), `adjustment` (by hand) and `opening` (the balance that existed when the table was created). It has the item name, the change, the balance after, the reason and the actor (the manager's email, from the verified token). Rows are append-only (a trigger refuses UPDATE, DELETE and TRUNCATE; tests and the demo reset use `erp.allow_movement_delete`).
+- `GET /inventory/movements?itemId=&limit=` (roles manager, project_lead, billing_analyst). No event is published for it: `StockChanged` already tells the others. Invariant tested: for every item, the sum of its movements equals its stock.
+- An item created later starts at 0, so the movements of items created through the API add up from the first received order. Stock set directly in the database (the demo seed) is not a movement; the demo reset opens it again.
+
 ## Operations consumer (purchased equipment)
 
 - `operations` binds its own queue `q.operations.purchases` (dead-letter queue `q.operations.purchases.dlq`) to `procurement.equipment.purchased`. For each unit bought it inserts one row in `network_devices` named `<item> (<order>-<unit>)`, model = the item, category `Equipo comprado`, role `Pendiente de configurar`, criticality `Media`, serial `<order>-<unit>`, no IP.

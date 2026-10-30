@@ -1278,6 +1278,13 @@ test('Procurement: buy → receive (the stock goes up once) → adjust (never be
     await f1.getByLabel('Change (+ adds, − removes)').fill('-3'); await f1.getByRole('button', { name: 'Save adjustment' }).click();
     await expect(page.getByText('Stock of Fuente de poder 12 V: 0.')).toBeVisible();
     await expect(row('Fuente de poder 12 V')).toContainText('In stock: 0');
+    // El historial anota cada movimiento: la compra recibida (+5, quedó en 13) y el ajuste (−3, quedó en 0) con quién los hizo.
+    const hist = page.getByRole('region', { name: 'Inventory movements' });
+    await expect(hist.locator('[data-movement="purchase_received"]').first()).toContainText('+5');
+    await expect(hist.locator('[data-movement="purchase_received"]').first()).toContainText('diana.vega@nexus.example');
+    await expect(hist.locator('[data-movement="adjustment"]').first()).toContainText('-3');
+    await hist.getByRole('button', { name: 'Fuente de poder 12 V' }).click();
+    await expect(hist.locator('tbody tr')).toHaveCount(2); // apertura (3) y ajuste (−3)
     // Un sensor de temperatura entra en alerta: llega por Operations → RabbitMQ → Procurement y se sugiere el repuesto que sirve para TEMP.
     const d = IOT_DEVICES.find((x: { id: string; unit: string }) => x.unit === '°C') as { id: string; name: string; unit: string };
     const sent = await page.request.post('/telemetry/readings', { headers: { 'x-ingest-key': ingestKey() }, data: { readings: [{ deviceId: d.id, recordedAt: new Date(Date.now() - 2 * 60_000).toISOString(), status: 'ALERT', value: 35, unit: d.unit, note: 'e2e rango' }] } });

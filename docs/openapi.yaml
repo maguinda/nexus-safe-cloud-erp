@@ -547,6 +547,36 @@ paths:
       responses:
         '200': { description: The items with `onHand` }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /inventory/movements:
+    get:
+      tags: [Procurement]
+      operationId: listStockMovements
+      summary: Stock movement history, newest first (roles manager, project_lead, billing_analyst)
+      parameters:
+        - { name: itemId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        '200':
+          description: Movements (opening, purchase_received, adjustment) with the balance after and the actor
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    itemId: { type: string, format: uuid }
+                    itemName: { type: string }
+                    delta: { type: integer }
+                    onHandAfter: { type: integer }
+                    source: { type: string, enum: [opening, purchase_received, adjustment] }
+                    reason: { type: string }
+                    actor: { type: string, nullable: true }
+                    at: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /inventory/suggestions:
     get:
       tags: [Procurement]

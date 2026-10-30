@@ -3,11 +3,11 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { HandleEventUseCase } from './application/handle-event.use-case';
-import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, ListProcurementUseCase, ReceiveOrderUseCase } from './application/procurement.use-cases';
+import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, ListMovementsUseCase, ListProcurementUseCase, ReceiveOrderUseCase } from './application/procurement.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { HealthController } from './http/health.controller';
-import { ADJUST, CANCEL_ORDER, CREATE_ITEM, CREATE_ORDER, CREATE_SUPPLIER, LIST, ProcurementController, RECEIVE_ORDER } from './http/procurement.controller';
+import { ADJUST, CANCEL_ORDER, CREATE_ITEM, CREATE_ORDER, CREATE_SUPPLIER, LIST, LIST_MOVEMENTS, ProcurementController, RECEIVE_ORDER } from './http/procurement.controller';
 import { EventConsumer } from './infrastructure/event-consumer';
 import { OutboxRelay } from './infrastructure/outbox-relay';
 import { PrismaEventUnitOfWork, PrismaProcurement, PrismaUnitOfWork } from './infrastructure/prisma-procurement';
@@ -31,6 +31,7 @@ let consumer: EventConsumer | undefined;
     { provide: CREATE_ORDER, useFactory: () => new CreateOrderUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: RECEIVE_ORDER, useFactory: () => new ReceiveOrderUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: CANCEL_ORDER, useFactory: () => new CancelOrderUseCase(new PrismaUnitOfWork(prisma)) },
+    { provide: LIST_MOVEMENTS, useFactory: () => new ListMovementsUseCase(new PrismaProcurement(prisma)) },
     { provide: ADJUST, useFactory: () => new AdjustStockUseCase(new PrismaUnitOfWork(prisma)) },
   ],
 })

@@ -149,6 +149,51 @@ describe('procurement: roles, orders, stock rules and events (e2e, real PostgreS
     }
   }, 180_000);
 
+  describe('stock movement history', () => {
+    const history = async (q = '', who: any = USERS.manager) => (await call('get', `/inventory/movements${q}`, who));
+    const sumFor = async (id: string) => Number((await prisma.$queryRaw<{ s: bigint | null }[]>`SELECT SUM(delta) AS s FROM stock_movements WHERE item_id = ${id}::uuid`)[0].s ?? 0);
+
+    it('the seed opens each item with its balance; manager, lead and billing read, sales does not; bad filters are 400', async () => {
+      const r = await history(); expect(r.status).toBe(200);
+      expect(r.body.map((m: any) => [m.source, m.delta, m.onHandAfter]).sort()).toEqual([['opening', 2, 2], ['opening', 3, 3], ['opening', 8, 8]]);
+      for (const u of [USERS.lead, USERS.billing]) expect((await history('', u)).status).toBe(200);
+      expect((await history('', USERS.sales)).status).toBe(403);
+      expect((await call('get', '/inventory/movements')).status).toBe(401);
+      for (const q of ['?itemId=x', '?limit=0', '?limit=201', '?limit=abc', '?itemId=1;DROP']) expect((await history(q)).status).toBe(400);
+    });
+
+    it('receiving an order and adjusting by hand each leave one movement with who, what and the balance after; a refused move leaves none', async () => {
+      const o = await order(SENSOR, 5); await call('post', `/orders/${o.body.id}/receive`, USERS.manager);
+      await call('post', `/inventory/items/${SENSOR}/adjust`, USERS.manager, { delta: -4, reason: 'Used on site' });
+      expect((await call('post', `/inventory/items/${PSU}/adjust`, USERS.manager, { delta: -99, reason: 'Too many' })).status).toBe(409);
+      expect((await call('post', `/inventory/items/${PSU}/adjust`, USERS.manager, { delta: 0, reason: 'Nothing' })).status).toBe(400);
+      const r = (await history(`?itemId=${SENSOR}`)).body;
+      expect(r.map((m: any) => [m.source, m.delta, m.onHandAfter, m.actor])).toEqual([['adjustment', -4, 9, USERS.manager.email], ['purchase_received', 5, 13, USERS.manager.email], ['opening', 8, 8, null]]);
+      expect(r[0].reason).toBe('Used on site'); expect(r[1].reason).toMatch(/^Pedido PO-\d{4} recibido$/);
+      expect((await history(`?itemId=${PSU}`)).body).toHaveLength(1);
+      expect(JSON.stringify(r)).not.toContain('payload');
+    });
+
+    it('INVARIANT: after 20 rounds of simultaneous receives and adjustments, the movements of every item add up exactly to its stock', async () => {
+      for (let round = 0; round < 20; round++) {
+        await resetState(prisma);
+        const orders = await Promise.all([order(SENSOR, 3), order(SENSOR, 2)]);
+        await Promise.all([...orders.map((o) => call('post', `/orders/${o.body.id}/receive`, USERS.manager)), ...orders.map((o) => call('post', `/orders/${o.body.id}/receive`, USERS.manager)),
+          ...Array.from({ length: 8 }, () => call('post', `/inventory/items/${SENSOR}/adjust`, USERS.manager, { delta: -2, reason: 'Used on site' }))]);
+        for (const id of SEED_ITEMS) expect(await sumFor(id)).toBe(await stock(id));
+      }
+    }, 180_000);
+
+    it('the history is append-only: the database refuses UPDATE, DELETE and TRUNCATE', async () => {
+      await expect(prisma.$executeRawUnsafe(`UPDATE stock_movements SET delta = 99`)).rejects.toThrow(/append-only/);
+      await expect(prisma.$executeRawUnsafe(`DELETE FROM stock_movements`)).rejects.toThrow(/append-only/);
+      await expect(prisma.$executeRawUnsafe(`TRUNCATE stock_movements`)).rejects.toThrow(/append-only/);
+      await expect(prisma.$executeRawUnsafe(`INSERT INTO stock_movements (item_id, item_name, delta, on_hand_after, source, reason) VALUES (gen_random_uuid(),'x',0,0,'adjustment','r')`)).rejects.toThrow();
+      await expect(prisma.$executeRawUnsafe(`INSERT INTO stock_movements (item_id, item_name, delta, on_hand_after, source, reason) VALUES (gen_random_uuid(),'x',1,-1,'adjustment','r')`)).rejects.toThrow();
+      await expect(prisma.$executeRawUnsafe(`INSERT INTO stock_movements (item_id, item_name, delta, on_hand_after, source, reason) VALUES (gen_random_uuid(),'x',1,1,'magic','r')`)).rejects.toThrow();
+    });
+  });
+
   it('the database refuses what the code would never do (negative stock, a wrong total, a received order without a date)', async () => {
     await expect(prisma.$executeRaw`UPDATE items SET on_hand = -1 WHERE id = ${SENSOR}::uuid`).rejects.toBeTruthy();
     await expect(prisma.$executeRaw`INSERT INTO purchase_orders (supplier_id, item_id, quantity, unit_price_cop, total_cop) VALUES (${SEED_SUPPLIERS[0]}::uuid, ${SENSOR}::uuid, 2, 100, 999)`).rejects.toBeTruthy();
