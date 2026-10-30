@@ -14,7 +14,13 @@ model Engineer {
   role           String
   skills         String[]
   certifications String[]
-  /// Costo diario en pesos (lo escribe gerencia); null = sin costo todavía.
+  /// Cargo del catálogo fijo (software_engineer, cloud_devops_engineer, security_engineer, network_engineer, tech_lead, field_technician, support_technician).
+  position       String
+  /// engineer o technician: lo deriva el cargo (la base lo comprueba).
+  kind           String
+  /// Sueldo MENSUAL de nómina en pesos (lo escribe gerencia); null = sin sueldo todavía.
+  monthlySalaryCop Int?       @map("monthly_salary_cop")
+  /// Costo por día hábil = sueldo ÷ 22, redondeado. Lo calcula el servicio y lo comprueba la base; Analytics lo usa para la rentabilidad.
   dailyCostCop   Int?         @map("daily_cost_cop")
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   allocations    Allocation[]

@@ -376,3 +376,37 @@
   font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
+
+/* Elegir entre muchas opciones largas: botones sueltos que bajan de línea (el .seg de una sola fila se sale de la pantalla). */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.chip {
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.chipOn {
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--navy);
+  border-radius: var(--radius-sm);
+  background: var(--navy);
+  color: var(--on-navy);
+  cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.fieldWide { grid-column: 1 / -1; }

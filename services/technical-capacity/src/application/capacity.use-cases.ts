@@ -1,6 +1,6 @@
 import { Allocation, newAllocation } from '../domain/allocation';
 import { dayString, todayNumber } from '../domain/dates';
-import { dailyCost, newEngineer } from '../domain/engineer';
+import { dailyCostFromSalary, monthlySalary, newEngineer } from '../domain/engineer';
 import { AllocationNotFoundError, EngineerNotFoundError, OverAllocationError } from '../domain/errors';
 import { allocationRemoved, engineerAllocated, overAllocationDetected } from '../domain/events';
 import { peakLoad, summarize } from '../domain/load';
@@ -10,18 +10,19 @@ const MAX_LISTED = 100;
 
 export class CreateEngineerUseCase {
   constructor(private readonly commands: EngineerCommands) {}
-  async execute(input: { name: unknown; role: unknown; skills?: unknown; certifications?: unknown; dailyCostCop?: unknown }) {
-    const e = newEngineer(input.name, input.role, input.skills, input.certifications, input.dailyCostCop);
+  async execute(input: { name: unknown; role?: unknown; position: unknown; skills?: unknown; certifications?: unknown; monthlySalaryCop?: unknown }) {
+    const e = newEngineer(input.name, input.role, input.skills, input.certifications, input.monthlySalaryCop, input.position);
     await this.commands.insertEngineer(e);
     return e;
   }
 }
 
-/** Gerencia escribe el costo diario. Solo cuenta para las asignaciones que se hagan DESPUÉS (cada asignación guarda el costo vigente al crearla). */
-export class SetDailyCostUseCase {
+/** Gerencia escribe el sueldo MENSUAL; el costo diario se calcula de él. Solo cuenta para las asignaciones que se hagan DESPUÉS (cada asignación guarda el costo vigente al crearla). */
+export class SetSalaryUseCase {
   constructor(private readonly commands: EngineerCommands) {}
-  async execute(id: string, cost: unknown): Promise<void> {
-    if (!(await this.commands.setDailyCost(id, dailyCost(cost)))) throw new EngineerNotFoundError();
+  async execute(id: string, salary: unknown): Promise<void> {
+    const s = monthlySalary(salary);
+    if (!(await this.commands.setSalary(id, s, dailyCostFromSalary(s)))) throw new EngineerNotFoundError();
   }
 }
 

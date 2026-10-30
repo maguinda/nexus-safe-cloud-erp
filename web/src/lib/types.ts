@@ -35,9 +35,13 @@ export interface EInvoice {
 export interface Customer { name: string; nit: string; dv: number; email: string; address: string; city: string }
 export type CustomerInput = Omit<Customer, 'dv'>;
 
+export const STAFF_POSITIONS = ['software_engineer', 'cloud_devops_engineer', 'security_engineer', 'network_engineer', 'tech_lead', 'field_technician', 'support_technician'] as const;
+export type StaffPosition = (typeof STAFF_POSITIONS)[number];
+/** Título que el servidor guarda cuando nadie escribe uno propio (no se traduce: viene de la base). */
+export const POSITION_DEFAULT_TITLE: Record<StaffPosition, string> = { software_engineer: 'Software engineer', cloud_devops_engineer: 'Cloud / DevOps engineer', security_engineer: 'Cybersecurity engineer', network_engineer: 'Network engineer', tech_lead: 'Tech lead / architect', field_technician: 'Field / installation technician', support_technician: 'Support / maintenance technician' };
 export interface CapacityAllocation { id: string; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
 export interface CapacityEngineer {
-  id: string; name: string; role: string; skills: string[]; certifications: string[]; dailyCostCop?: number | null;
+  id: string; name: string; role: string; position: StaffPosition; kind: 'engineer' | 'technician'; skills: string[]; certifications: string[]; monthlySalaryCop?: number | null; dailyCostCop?: number | null;
   loadToday: number; freeToday: number; peakNext30: number; minFreeNext30: number; allocations: CapacityAllocation[];
 }
 export interface CapacityResponse { today: string; engineers: CapacityEngineer[] }

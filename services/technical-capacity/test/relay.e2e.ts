@@ -33,7 +33,7 @@ describe('outbox relay -> RabbitMQ (e2e, real PostgreSQL and RabbitMQ)', () => {
   const manager = () => bearer(token(USERS.manager));
 
   it('an allocation over 100% (allowed by the manager) publishes EngineerAllocated and OverAllocationDetected, persistent, with ids and the correlation id, then marks them published', async () => {
-    const id = (await request(app.getHttpServer()).post('/engineers').set('Authorization', manager()).send({ name: 'Relay Engineer', role: 'Tester' })).body.id;
+    const id = (await request(app.getHttpServer()).post('/engineers').set('Authorization', manager()).send({ name: 'Relay Engineer', role: 'Tester', position: 'software_engineer' })).body.id;
     const post = (percent: number, extra: object = {}) => request(app.getHttpServer()).post(`/engineers/${id}/allocations`).set('Authorization', manager()).set('x-correlation-id', 'trace-relay-0001').send({ projectName: 'Branch network upgrade', percent, startDate: '2026-11-02', endDate: '2026-11-30', ...extra });
     await post(80); await post(50, { allowOverallocation: true });
     await waitFor(3);
@@ -52,7 +52,7 @@ describe('outbox relay -> RabbitMQ (e2e, real PostgreSQL and RabbitMQ)', () => {
   });
 
   it('the over-allocation event has exactly the fields the Notifications service requires (integer over 100, text, YYYY-MM-DD dates)', async () => {
-    const id = (await request(app.getHttpServer()).post('/engineers').set('Authorization', manager()).send({ name: 'Contract Engineer', role: 'Tester' })).body.id;
+    const id = (await request(app.getHttpServer()).post('/engineers').set('Authorization', manager()).send({ name: 'Contract Engineer', role: 'Tester', position: 'software_engineer' })).body.id;
     const post = (percent: number, extra: object = {}) => request(app.getHttpServer()).post(`/engineers/${id}/allocations`).set('Authorization', manager()).send({ projectName: 'Project', percent, startDate: '2026-12-01', endDate: '2026-12-05', ...extra });
     await post(100); await post(1, { allowOverallocation: true });
     await waitFor(3);

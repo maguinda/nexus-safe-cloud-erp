@@ -30,5 +30,6 @@ export interface UnitOfWork {
 export interface EngineerCommands {
   insertEngineer(e: Engineer): Promise<void>;
   /** false si el ingeniero no existe. */
-  setDailyCost(id: string, cost: number | null): Promise<boolean>;
+  /** Escribe el sueldo mensual y el costo diario derivado en una sola sentencia. */
+  setSalary(id: string, salary: number | null, daily: number | null): Promise<boolean>;
 }

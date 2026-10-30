@@ -181,7 +181,7 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 
 ## Analytics consumer: profitability
 
-- `GET /profitability` (manager only) = for each project, issued invoices **without VAT** minus the labor cost. Labor cost = `percent / 100 × working days (Monday to Friday) already elapsed × dailyCostCop`, for each allocation, counting only the days up to today.
+- `GET /profitability` (manager only) = for each project, issued invoices **without VAT** minus the labor cost. Labor cost = `percent / 100 × working days (Monday to Friday) already elapsed × dailyCostCop`. Since 2026-10-31 the staff is paid **monthly** (payroll): `dailyCostCop` in `EngineerAllocated` is derived by Technical Capacity as `monthlySalaryCop / 22`, rounded half up (the database checks it); the salary itself never leaves the service except to the manager's screen, for each allocation, counting only the days up to today.
 - Allocations without a daily cost add 0 and are counted in `uncostedAllocations`, so the screen warns that the margin looks better than it is. The link with the project is by value (project name).
 
 ## PaymentReceived
