@@ -1,11 +1,11 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Delete, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, ListMovementsUseCase, ListProcurementUseCase, ReceiveOrderUseCase } from '../application/procurement.use-cases';
+import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, InstallEquipmentUseCase, ListMovementsUseCase, ListProcurementUseCase, ReceiveOrderUseCase, SetCatalogUseCase } from '../application/procurement.use-cases';
 import { Roles } from '../auth/auth.guard';
 import { CountsService } from '../infrastructure/prisma-counts';
 import { orderNumber } from '../domain/events';
-import { AdjustDto, CountedDto, CreateItemDto, CreateOrderDto, CreateSupplierDto } from './procurement.dto';
+import { AdjustDto, CatalogDto, CountedDto, CreateItemDto, CreateOrderDto, CreateSupplierDto } from './procurement.dto';
 
 export const LIST = 'PROC_LIST';
 export const CREATE_SUPPLIER = 'PROC_CREATE_SUPPLIER';
@@ -16,6 +16,8 @@ export const CANCEL_ORDER = 'PROC_CANCEL_ORDER';
 export const ADJUST = 'PROC_ADJUST';
 export const LIST_MOVEMENTS = 'PROC_LIST_MOVEMENTS';
 export const COUNTS = 'PROC_COUNTS';
+export const CATALOG = 'PROC_CATALOG';
+export const INSTALL = 'PROC_INSTALL';
 
 const READERS = ['manager', 'project_lead', 'billing_analyst'] as const;
 
@@ -33,6 +35,8 @@ export class ProcurementController {
     @Inject(ADJUST) private readonly adjust: AdjustStockUseCase,
     @Inject(LIST_MOVEMENTS) private readonly listMovements: ListMovementsUseCase,
     @Inject(COUNTS) private readonly counts: CountsService,
+    @Inject(CATALOG) private readonly catalog: SetCatalogUseCase,
+    @Inject(INSTALL) private readonly install: InstallEquipmentUseCase,
   ) {}
 
   @Get('suppliers') @Roles(...READERS) @ApiOperation({ summary: 'Suppliers (fixed and by tender)' })
@@ -40,6 +44,15 @@ export class ProcurementController {
 
   @Post('suppliers') @Roles('manager') @ApiOperation({ summary: 'Add a supplier (role manager)' }) @ApiResponse({ status: 409, description: 'A supplier with that name already exists' })
   addSupplier(@Body() dto: CreateSupplierDto) { return this.createSupplier.execute(dto); }
+
+  @Put('suppliers/:id/catalog/:itemId') @Roles('manager') @ApiOperation({ summary: 'Say that a supplier sells an item, with a reference price and a delivery time (role manager)' }) @ApiResponse({ status: 404, description: 'Supplier or item not found' })
+  setCatalog(@Param('id', new ParseUUIDPipe()) id: string, @Param('itemId', new ParseUUIDPipe()) itemId: string, @Body() dto: CatalogDto) { return this.catalog.execute(id, itemId, dto); }
+
+  @Delete('suppliers/:id/catalog/:itemId') @HttpCode(204) @Roles('manager') @ApiOperation({ summary: 'Remove an item from a supplier’s catalog (existing orders are not touched)' }) @ApiResponse({ status: 404, description: 'Not in the catalog' })
+  async removeCatalog(@Param('id', new ParseUUIDPipe()) id: string, @Param('itemId', new ParseUUIDPipe()) itemId: string) { await this.catalog.remove(id, itemId); }
+
+  @Post('inventory/items/:id/install') @HttpCode(200) @Roles('manager') @ApiOperation({ summary: 'Install ONE unit of an equipment item: it leaves the stock and becomes an asset in the network inventory (role manager)' }) @ApiResponse({ status: 409, description: 'No stock, or the item is a spare part' })
+  installUnit(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request) { return this.install.execute(id, (req as any).correlationId ?? 'no-correlation', (req as any).user?.email ?? null); }
 
   @Get('inventory') @Roles(...READERS) @ApiOperation({ summary: 'Stock of equipment and spare parts, online (US-08)' })
   inventory() { return this.list.inventory(); }
@@ -83,7 +96,7 @@ export class ProcurementController {
   orders() { return this.list.orders(); }
 
   @Post('orders') @Roles('manager') @ApiOperation({ summary: 'Create a purchase order (pending: it does not move the stock until it is received) (role manager)' })
-  async addOrder(@Body() dto: CreateOrderDto) { const o = await this.createOrder.execute(dto); return { id: o.id, number: orderNumber(o.number), totalCop: o.totalCop, status: 'ordered' }; }
+  async addOrder(@Body() dto: CreateOrderDto) { const o = await this.createOrder.execute(dto); return { id: o.id, number: orderNumber(o.number), unitPriceCop: o.unitPriceCop, totalCop: o.totalCop, status: 'ordered' }; }
 
   @Post('orders/:id/receive') @HttpCode(200) @Roles('manager')
   @ApiOperation({ summary: 'Receive an order: the stock goes up ONCE and StockChanged (and EquipmentPurchased for equipment) is published (role manager)' })

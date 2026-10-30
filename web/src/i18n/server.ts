@@ -22,6 +22,8 @@ const RULES: Rule[] = [
   [/^The payment is higher than the balance of the invoice \((\d+) COP\)$/, 'server.overpayment', (m) => ({ balance: Number(m[1]).toLocaleString('es-CO') })],
   [/^Invalid payment: /, 'server.invalidPayment'],
   [/^Another purchased device already has that serial number$/, 'server.serialTaken'],
+  [/^That supplier does not sell that item$/, 'server.notSold'],
+  [/ is a spare part: only equipment can be installed$/, 'server.spareNotInstallable'],
   [/^Contract not found$/, 'server.contractNotFound'],
   [/^The contract is already (\w+)$/, 'server.contractNotActive', (m) => ({ status: m[1] })],
   [/^(clientName|projectName|amountCop|startDate|endDate) /, 'server.invalidContract'],

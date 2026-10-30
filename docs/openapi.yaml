@@ -646,6 +646,39 @@ paths:
       responses:
         '200': { description: Cancelled }
         '409': { description: The count is not open }
+  /suppliers/{id}/catalog/{itemId}:
+    put:
+      tags: [Procurement]
+      operationId: setSupplierCatalog
+      summary: Say that a supplier sells an item, with a reference price and a delivery time in days (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [refPriceCop, leadDays], properties: { refPriceCop: { type: integer, minimum: 1 }, leadDays: { type: integer, minimum: 0, maximum: 365 } } }
+      responses:
+        '200': { description: Saved }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Procurement]
+      operationId: removeSupplierCatalog
+      summary: Remove an item from a supplier's catalog; existing orders are not touched (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '204': { description: Removed }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /inventory/items/{id}/install:
+    post:
+      tags: [Procurement]
+      operationId: installEquipmentUnit
+      summary: Install ONE unit of an equipment item - it leaves the stock and becomes an asset in the network inventory (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200': { description: Installed (installNumber INS-0001, itemName, onHand left) }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: No stock, or the item is a spare part }
   /inventory/suggestions:
     get:
       tags: [Procurement]

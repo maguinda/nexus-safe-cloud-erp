@@ -1,17 +1,30 @@
-import { newItem, newSupplier } from '../domain/catalog';
+import { newItem, newSupplier, validateCatalogEntry } from '../domain/catalog';
 import { ConflictError, NotFoundError } from '../domain/errors';
-import { equipmentPurchased, orderNumber, stockChanged } from '../domain/events';
+import { equipmentInstalled, equipmentPurchased, installNumber, orderNumber, stockChanged } from '../domain/events';
 import { applyDelta, assertCancellable, assertReceivable, newOrder, validateAdjustment } from '../domain/order';
 import { ProcurementCommands, ProcurementQueries, UnitOfWork } from '../domain/ports';
 
 export class CreateSupplierUseCase {
   constructor(private readonly commands: ProcurementCommands) {}
-  async execute(i: { name: unknown; kind: unknown; terms?: unknown }) {
-    const s = newSupplier(i.name, i.kind, i.terms);
+  async execute(i: { name: unknown; kind: unknown; terms?: unknown; tenderRef?: unknown; validUntil?: unknown }) {
+    const s = newSupplier(i.name, i.kind, i.terms, i.tenderRef, i.validUntil);
     if (!(await this.commands.insertSupplier(s))) throw new ConflictError('A supplier with that name already exists');
     return s;
   }
 }
+/** Lo que vende cada proveedor, con su precio de referencia y su plazo. */
+export class SetCatalogUseCase {
+  constructor(private readonly commands: ProcurementCommands) {}
+  async execute(supplierId: string, itemId: string, input: { refPriceCop: unknown; leadDays: unknown }) {
+    const v = validateCatalogEntry(input.refPriceCop, input.leadDays);
+    if (!(await this.commands.setCatalog(supplierId, itemId, v.refPriceCop, v.leadDays))) throw new NotFoundError('Supplier or item');
+    return { supplierId, itemId, ...v };
+  }
+  async remove(supplierId: string, itemId: string) {
+    if (!(await this.commands.removeCatalog(supplierId, itemId))) throw new NotFoundError('Catalog entry');
+  }
+}
+
 export class CreateItemUseCase {
   constructor(private readonly commands: ProcurementCommands) {}
   async execute(i: { name: unknown; kind: unknown; forKinds?: unknown }) {
@@ -24,13 +37,19 @@ export class CreateItemUseCase {
 /** Un pedido nace «pendiente» (`ordered`): comprar no mueve el stock, recibirlo sí. */
 export class CreateOrderUseCase {
   constructor(private readonly uow: UnitOfWork) {}
-  async execute(i: { supplierId: unknown; itemId: unknown; quantity: unknown; unitPriceCop: unknown }) {
-    const o = newOrder(i.supplierId, i.itemId, i.quantity, i.unitPriceCop);
+  async execute(i: { supplierId: unknown; itemId: unknown; quantity: unknown; unitPriceCop?: unknown }) {
+    const priced = i.unitPriceCop !== undefined && i.unitPriceCop !== null;
+    // Sin precio, se valida con uno provisional y se reemplaza por el de referencia del proveedor dentro de la transacción.
+    const o = newOrder(i.supplierId, i.itemId, i.quantity, priced ? i.unitPriceCop : 1);
     return this.uow.run(async (tx) => {
       if ((await tx.supplierName(o.supplierId)) === null) throw new NotFoundError('Supplier');
       if ((await tx.lockItem(o.itemId)) === null) throw new NotFoundError('Item');
-      const number = await tx.insertOrder(o);
-      return { ...o, number };
+      // El proveedor solo vende lo de su catálogo.
+      const ref = await tx.catalogPrice(o.supplierId, o.itemId);
+      if (ref === null) throw new ConflictError('That supplier does not sell that item');
+      const order = priced ? o : newOrder(o.supplierId, o.itemId, o.quantity, ref);
+      const number = await tx.insertOrder(order);
+      return { ...order, number };
     });
   }
 }
@@ -72,6 +91,30 @@ export class CancelOrderUseCase {
       assertCancellable(order.status);
       await tx.setOrderStatus(order.id, 'cancelled', null);
       return { id: order.id, status: 'cancelled' as const };
+    });
+  }
+}
+
+/**
+ * Instalar una unidad de un EQUIPO: pasa de «en bodega» (stock) a «instalado» (activo de la empresa). Baja 1 del stock (nunca bajo 0), anota el movimiento y publica
+ * StockChanged y EquipmentInstalled en la MISMA transacción; Operations da de alta la unidad en el inventario de red. El artículo se bloquea y se relee dentro del bloqueo.
+ */
+export class InstallEquipmentUseCase {
+  constructor(private readonly uow: UnitOfWork, private readonly clock: () => Date = () => new Date()) {}
+  execute(itemId: string, correlationId: string, actor: string | null = null) {
+    return this.uow.run(async (tx) => {
+      const item = await tx.lockItem(itemId);
+      if (!item) throw new NotFoundError('Item');
+      if (item.kind !== 'equipment') throw new ConflictError(`${item.name} is a spare part: only equipment can be installed`);
+      const onHand = applyDelta(item.onHand, -1, item.name);
+      const now = this.clock();
+      const inst = await tx.insertInstall({ itemId: item.id, itemName: item.name, actor });
+      const label = installNumber(inst.number);
+      await tx.setOnHand(item.id, onHand);
+      await tx.addMovement({ itemId: item.id, itemName: item.name, delta: -1, onHandAfter: onHand, source: 'install', reason: `Instalación ${label}`, actor });
+      await tx.addToOutbox(stockChanged(item, -1, onHand, 'installation', `install ${label}`, correlationId, now), `${inst.id}:stock`);
+      await tx.addToOutbox(equipmentInstalled({ number: inst.number, itemId: item.id, itemName: item.name }, correlationId, now), `${inst.id}:installed`);
+      return { installNumber: label, itemName: item.name, onHand };
     });
   }
 }

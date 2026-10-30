@@ -1505,15 +1505,25 @@ test('Purchased equipment: buying and receiving a network device adds its units 
   const order = page.locator('[data-order]').first();
   await order.getByRole('button', { name: /^Receive order/ }).click();
   await expect(page.locator('[data-order]').first()).toContainText('Received');
+  // Recibir solo sube la bodega (2 + 2); en Red todavía no hay nada pendiente. Al INSTALAR cada unidad pasa a Red.
+  await expect(page.locator('[data-item="Switch de acceso 24 puertos"]')).toContainText('In stock: 4');
+  await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
+  await expect(page.locator('[data-pending]')).toHaveCount(0);
+  await page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click();
+  for (const left of [3, 2]) {
+    await page.getByRole('button', { name: 'Install one unit of Switch de acceso 24 puertos' }).click();
+    await expect(page.getByText(/Installed: INS-\d+\. It is now in Network/)).toBeVisible();
+    await expect(page.locator('[data-item="Switch de acceso 24 puertos"]')).toContainText(`In stock: ${left}`);
+  }
   await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
   await expect(async () => {
     await page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true }).click();
     await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
-    await page.getByPlaceholder('Name, model, role or IP').fill('Switch de acceso 24 puertos (PO-');
-    await expect(page.getByText(/Switch de acceso 24 puertos \(PO-\d+-1\)/).first()).toBeVisible({ timeout: 2000 });
-    await expect(page.getByText(/Switch de acceso 24 puertos \(PO-\d+-2\)/).first()).toBeVisible({ timeout: 2000 });
+    await page.getByPlaceholder('Name, model, role or IP').fill('Switch de acceso 24 puertos (INS-');
+    await expect(page.getByText(/Switch de acceso 24 puertos \(INS-\d+-1\)/).first()).toBeVisible({ timeout: 2000 });
+    await expect(page.getByText(/Switch de acceso 24 puertos \(INS-\d+-1\)/).first()).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 40_000 });
-  await expect(page.getByText(/\(PO-\d+-3\)/)).toHaveCount(0);
+  await expect(page.getByText(/\(INS-\d+-1\)/)).toHaveCount(2);
   // La gerencia completa uno de los dos: el formulario avisa sin enviar y, al guardar, sale de la lista de pendientes.
   await page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true }).click();
   await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
@@ -1580,6 +1590,57 @@ test('Physical count: the manager opens it, writes what was counted (the form wa
     await manager.page.getByRole('button', { name: 'Cancel count' }).click();
     await expect(manager.page.getByText(/cancelled; the stock did not change\./)).toBeVisible();
     await expect(manager.page.locator('[data-item="Sensor de temperatura TH-10"]')).toContainText('In stock: 6');
+  } finally { await manager.ctx.close(); await lead.ctx.close(); }
+});
+
+test('Suppliers and inventory: each supplier shows what it sells, an order only offers its items, the reference price comes as a hint, and equipment goes from storage to installed', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, lead] = [await open('manager'), await open('lead')];
+  const nav = (page: import('@playwright/test').Page) => page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click();
+  try {
+    await nav(manager.page); await nav(lead.page);
+    const redes = manager.page.locator('[data-supplier="Redes del Norte (example)"]'), andina = manager.page.locator('[data-supplier="Climatización Andina (example)"]');
+    await expect(redes.locator('[data-catalog]')).toHaveCount(3); await expect(andina.locator('[data-catalog]')).toHaveCount(2);
+    await expect(andina).toContainText('Tender LIC-2026-014 · valid until 2027-06-30');
+    await expect(andina.locator('[data-catalog="Sensor de temperatura TH-10"]')).toContainText('95.000 COP reference · delivery in 10 days');
+    await expect(redes.locator('[data-catalog="Sensor de temperatura TH-10"]')).toContainText('120.000 COP reference · delivery in 5 days'); // el mismo artículo, otro proveedor y otro precio
+    await expect(lead.page.locator('[data-supplier]').first()).toBeVisible();
+    await expect(lead.page.getByRole('button', { name: /Add or change an item|Remove .* from the catalog/ })).toHaveCount(0);
+    // El pedido solo ofrece lo que vende el proveedor elegido; sin precio usa el de referencia.
+    const form = manager.page.getByRole('form', { name: 'New order' });
+    await form.getByRole('button', { name: 'Climatización Andina (example)' }).click();
+    await expect(form.getByRole('button', { name: 'Switch de acceso 24 puertos' })).toHaveCount(0);
+    await form.getByRole('button', { name: 'Sensor de temperatura TH-10' }).click();
+    await expect(form.getByText(/Reference price: 95.000 COP/)).toBeVisible();
+    await form.getByLabel('Quantity (1 to 100,000)').fill('3'); await form.getByRole('button', { name: 'Create order' }).click();
+    await expect(manager.page.getByText(/Order PO-\d+ created \(pending\)\./)).toBeVisible();
+    await expect(manager.page.locator('[data-order]').first()).toContainText('285.000'); // 3 × 95.000
+    // El gerente agrega el switch al catálogo de Andina (el formulario avisa primero) y luego lo quita.
+    await andina.getByRole('button', { name: 'Catalog of Climatización Andina (example)', exact: true }).click();
+    const cf = manager.page.getByRole('form', { name: 'Catalog of Climatización Andina (example)' });
+    await cf.getByRole('button', { name: 'Save to the catalog' }).click();
+    await expect(cf.getByText('Choose an option.')).toBeVisible();
+    await cf.getByRole('button', { name: 'Switch de acceso 24 puertos' }).click(); await cf.getByLabel('Reference price in pesos').fill('2300000'); await cf.getByLabel(/Delivery time in days/).fill('400');
+    await cf.getByRole('button', { name: 'Save to the catalog' }).click();
+    await expect(cf.getByText('The time must be a whole number from 0 to 365.')).toBeVisible();
+    await cf.getByLabel(/Delivery time in days/).fill('15'); await cf.getByRole('button', { name: 'Save to the catalog' }).click();
+    await expect(manager.page.getByText('Catalog of Climatización Andina (example) updated.')).toBeVisible();
+    await expect(andina.locator('[data-catalog="Switch de acceso 24 puertos"]')).toContainText('2.300.000 COP reference · delivery in 15 days');
+    await andina.getByRole('button', { name: 'Remove Switch de acceso 24 puertos from the catalog of Climatización Andina (example)' }).click();
+    await expect(andina.locator('[data-catalog]')).toHaveCount(2);
+    // Una licitación nueva pide referencia y vigencia (una fecha inexistente se avisa).
+    const sf = manager.page.getByRole('form', { name: 'New supplier' });
+    await sf.getByLabel('Name').fill('Licitación Prueba'); await sf.getByRole('button', { name: 'Tender' }).click();
+    await sf.getByLabel(/Tender reference/).fill('LIC-2027-001'); await sf.getByLabel(/Valid until/).fill('2027-12-31'); await sf.getByRole('button', { name: 'Add' }).click();
+    await expect(manager.page.locator('[data-supplier="Licitación Prueba"]')).toContainText('Tender LIC-2027-001 · valid until 2027-12-31');
+    // El equipo sin existencias no se puede instalar (el botón está apagado).
+    await manager.page.getByRole('button', { name: 'Install one unit of Switch de acceso 24 puertos' }).click();
+    await manager.page.getByRole('button', { name: 'Install one unit of Switch de acceso 24 puertos' }).click();
+    await expect(manager.page.getByRole('button', { name: 'Install one unit of Switch de acceso 24 puertos' })).toBeDisabled();
+    await expect(lead.page.getByRole('button', { name: /Install one unit/ })).toHaveCount(0);
   } finally { await manager.ctx.close(); await lead.ctx.close(); }
 });
 

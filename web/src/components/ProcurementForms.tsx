@@ -1,7 +1,8 @@
 import { FormEvent, useState } from 'react';
 import type { Api } from '../lib/api';
 import { errorText } from '../i18n/server';
-import { checkAdjust, checkName, checkOrder, NAME_MAX, parseKinds, TERMS_MAX } from '../lib/procurement';
+import { checkAdjust, checkCatalog, checkName, checkOrder, checkTender, NAME_MAX, parseKinds, TERMS_MAX } from '../lib/procurement';
+import { formatCop } from '../lib/format';
 import type { StockItem, Supplier } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
@@ -23,16 +24,17 @@ function Pick({ label, value, onChange, options, error, id }: { label: string; v
 
 export function NewSupplierForm({ api, onCreated }: { api: Api; onCreated: (name: string) => void }) {
   const { t } = useSession();
-  const [f, setF] = useState({ name: '', kind: '', terms: '' });
-  const [e, setE] = useState<{ name?: string; kind?: string; terms?: string; form?: string }>({});
+  const [f, setF] = useState({ name: '', kind: '', terms: '', tenderRef: '', validUntil: '' });
+  const [e, setE] = useState<{ name?: string; kind?: string; terms?: string; tenderRef?: string; validUntil?: string; form?: string }>({});
   const [busy, setBusy] = useState(false);
   async function submit(ev: FormEvent) {
     ev.preventDefault();
     const next = { name: checkName(t, f.name, 'proc.field.name', 2, NAME_MAX), kind: f.kind ? '' : t('proc.v.choose'), terms: f.terms.trim() ? checkName(t, f.terms, 'proc.field.terms', 2, TERMS_MAX) : '' };
-    setE({ name: next.name || undefined, kind: next.kind || undefined, terms: next.terms || undefined });
-    if (next.name || next.kind || next.terms) return;
+    const tender = f.kind === 'tender' ? checkTender(t, { ref: f.tenderRef, until: f.validUntil }) : { errors: {} as { ref?: string; until?: string }, value: {} };
+    setE({ name: next.name || undefined, kind: next.kind || undefined, terms: next.terms || undefined, tenderRef: tender.errors.ref, validUntil: tender.errors.until });
+    if (next.name || next.kind || next.terms || tender.errors.ref || tender.errors.until) return;
     setBusy(true);
-    try { await api.createSupplier({ name: f.name.replace(/\s+/g, ' ').trim(), kind: f.kind, terms: f.terms.replace(/\s+/g, ' ').trim() }); setF({ name: '', kind: '', terms: '' }); onCreated(f.name.trim()); }
+    try { await api.createSupplier({ name: f.name.replace(/\s+/g, ' ').trim(), kind: f.kind, terms: f.terms.replace(/\s+/g, ' ').trim(), ...tender.value }); setF({ name: '', kind: '', terms: '', tenderRef: '', validUntil: '' }); onCreated(f.name.trim()); }
     catch (err) { setE({ form: t('proc.saveFailed', { reason: errorText(err, t, 'server.unexpected') }) }); } finally { setBusy(false); }
   }
   return (
@@ -43,6 +45,12 @@ export function NewSupplierForm({ api, onCreated }: { api: Api; onCreated: (name
         <Pick id="ns-kind" label={t('proc.field.kind')} value={f.kind} onChange={(v) => setF({ ...f, kind: v })} error={e.kind} options={[{ value: 'fixed', label: t('proc.kind.fixed') }, { value: 'tender', label: t('proc.kind.tender') }]} />
         <label className={ui.field}><span>{t('proc.field.terms')}</span><input type="text" autoComplete="off" value={f.terms} maxLength={TERMS_MAX + 40} onChange={(x) => setF({ ...f, terms: x.target.value })} aria-invalid={!!e.terms} aria-describedby={e.terms ? 'ns-terms-err' : undefined} />{e.terms && <span id="ns-terms-err" className={ui.err}>{e.terms}</span>}</label>
       </div>
+      {f.kind === 'tender' && (
+        <div className={ui.formGrid}>
+          <label className={ui.field}><span>{t('cat.field.tenderRef')}</span><input type="text" autoComplete="off" maxLength={60} value={f.tenderRef} onChange={(x) => setF({ ...f, tenderRef: x.target.value })} aria-invalid={!!e.tenderRef} />{e.tenderRef && <span className={ui.err}>{e.tenderRef}</span>}</label>
+          <label className={ui.field}><span>{t('cat.field.until')}</span><input type="date" value={f.validUntil} onChange={(x) => setF({ ...f, validUntil: x.target.value })} aria-invalid={!!e.validUntil} />{e.validUntil && <span className={ui.err}>{e.validUntil}</span>}</label>
+        </div>
+      )}
       {e.form && <p className={ui.err} role="alert">{e.form}</p>}
       <div className={ui.formActions}><button type="submit" className={ui.btn} disabled={busy}>{busy ? t('proc.saving') : t('proc.add')}</button></div>
     </form>
@@ -82,6 +90,11 @@ export function NewOrderForm({ api, suppliers, items, onCreated }: { api: Api; s
   const [f, setF] = useState({ supplierId: '', itemId: '', quantity: '', price: '' });
   const [e, setE] = useState<ReturnType<typeof checkOrder>['errors'] & { form?: string }>({});
   const [busy, setBusy] = useState(false);
+  const supplier = suppliers.find((x) => x.id === f.supplierId);
+  // Con un proveedor elegido solo se ofrece lo que vende (su catálogo); el precio de referencia sale como pista.
+  const sold = supplier?.catalog;
+  const options = sold ? items.filter((i) => sold.some((c) => c.itemId === i.id)) : items;
+  const ref = sold?.find((c) => c.itemId === f.itemId);
   async function submit(ev: FormEvent) {
     ev.preventDefault();
     const { errors, value } = checkOrder(t, f);
@@ -95,10 +108,11 @@ export function NewOrderForm({ api, suppliers, items, onCreated }: { api: Api; s
     <form onSubmit={submit} noValidate aria-labelledby="new-ord-h" className={ui.formCard}>
       <h3 id="new-ord-h" className={ui.h2}>{t('proc.new.order')}</h3>
       <div className={ui.formGrid}>
-        <Pick id="no-sup" label={t('proc.field.supplier')} value={f.supplierId} onChange={(v) => setF({ ...f, supplierId: v })} error={e.supplier} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        <Pick id="no-item" label={t('proc.field.item')} value={f.itemId} onChange={(v) => setF({ ...f, itemId: v })} error={e.item} options={items.map((i) => ({ value: i.id, label: i.name }))} />
+        <Pick id="no-sup" label={t('proc.field.supplier')} value={f.supplierId} onChange={(v) => setF({ ...f, supplierId: v, itemId: '' })} error={e.supplier} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+        <Pick id="no-item" label={t('proc.field.item')} value={f.itemId} onChange={(v) => setF({ ...f, itemId: v })} error={e.item} options={options.map((i) => ({ value: i.id, label: i.name }))} />
+        {supplier && options.length === 0 && <p className={ui.muted}>{t('cat.noItemsForSupplier')}</p>}
         <label className={ui.field}><span>{t('proc.field.quantity')}</span><input type="text" inputMode="numeric" autoComplete="off" value={f.quantity} maxLength={8} onChange={(x) => setF({ ...f, quantity: x.target.value })} aria-invalid={!!e.quantity} aria-describedby={e.quantity ? 'no-q-err' : undefined} />{e.quantity && <span id="no-q-err" className={ui.err}>{e.quantity}</span>}</label>
-        <label className={ui.field}><span>{t('proc.field.price')}</span><input type="text" inputMode="numeric" autoComplete="off" value={f.price} maxLength={14} onChange={(x) => setF({ ...f, price: x.target.value })} aria-invalid={!!e.price} aria-describedby={e.price ? 'no-p-err' : undefined} />{e.price && <span id="no-p-err" className={ui.err}>{e.price}</span>}</label>
+        <label className={ui.field}><span>{t('proc.field.price')}</span>{ref && <span className={ui.muted}>{t('cat.refHint', { price: formatCop(ref.refPriceCop), days: ref.leadDays })}</span>}<input type="text" inputMode="numeric" autoComplete="off" value={f.price} maxLength={14} onChange={(x) => setF({ ...f, price: x.target.value })} aria-invalid={!!e.price} aria-describedby={e.price ? 'no-p-err' : undefined} />{e.price && <span id="no-p-err" className={ui.err}>{e.price}</span>}</label>
       </div>
       {e.form && <p className={ui.err} role="alert">{e.form}</p>}
       <div className={ui.formActions}><button type="submit" className={ui.btn} disabled={busy}>{busy ? t('proc.saving') : t('proc.create')}</button></div>
@@ -130,6 +144,38 @@ export function AdjustForm({ api, item, onDone, onCancel }: { api: Api; item: St
       <div className={ui.formActions}>
         <button type="submit" className={ui.btn} disabled={busy}>{busy ? t('proc.saving') : t('proc.adjust.save')}</button>
         <button type="button" className={ui.btnGhost} onClick={onCancel}>{t('capacity.cancel')}</button>
+      </div>
+    </form>
+  );
+}
+
+/** Catálogo de un proveedor: qué vende, a qué precio de referencia y en cuántos días entrega. Solo gerencia. */
+export function CatalogForm({ api, supplier, items, onDone, onCancel }: { api: Api; supplier: Supplier; items: StockItem[]; onDone: (message: string) => void; onCancel: () => void }) {
+  const { t } = useSession();
+  const [f, setF] = useState({ itemId: '', price: '', days: '' });
+  const [e, setE] = useState<{ item?: string; price?: string; days?: string; form?: string }>({});
+  const [busy, setBusy] = useState(false);
+  async function submit(ev: FormEvent) {
+    ev.preventDefault();
+    const { errors, value } = checkCatalog(t, f);
+    const next = { ...errors, item: f.itemId ? undefined : t('proc.v.choose') };
+    setE(next);
+    if (!value || next.item) return;
+    setBusy(true);
+    try { await api.setCatalog(supplier.id, f.itemId, value); onDone(t('cat.saved', { name: supplier.name })); }
+    catch (err) { setE({ form: t('proc.saveFailed', { reason: errorText(err, t, 'server.unexpected') }) }); } finally { setBusy(false); }
+  }
+  return (
+    <form onSubmit={submit} noValidate aria-label={t('cat.edit', { name: supplier.name })} className={ui.formCard}>
+      <div className={ui.formGrid}>
+        <Pick id={`cat-item-${supplier.id}`} label={t('cat.field.item')} value={f.itemId} onChange={(v) => { const c = supplier.catalog?.find((x) => x.itemId === v); setF({ itemId: v, price: c ? String(c.refPriceCop) : f.price, days: c ? String(c.leadDays) : f.days }); }} error={e.item} options={items.map((i) => ({ value: i.id, label: i.name }))} />
+        <label className={ui.field}><span>{t('cat.field.price')}</span><input type="text" inputMode="numeric" autoComplete="off" maxLength={14} value={f.price} onChange={(x) => setF({ ...f, price: x.target.value })} aria-invalid={!!e.price} />{e.price && <span className={ui.err}>{e.price}</span>}</label>
+        <label className={ui.field}><span>{t('cat.field.days')}</span><input type="text" inputMode="numeric" autoComplete="off" maxLength={4} value={f.days} onChange={(x) => setF({ ...f, days: x.target.value })} aria-invalid={!!e.days} />{e.days && <span className={ui.err}>{e.days}</span>}</label>
+      </div>
+      {e.form && <p className={ui.err} role="alert">{e.form}</p>}
+      <div className={ui.formActions}>
+        <button type="submit" className={ui.btn} disabled={busy}>{busy ? t('proc.saving') : t('cat.save')}</button>
+        <button type="button" className={ui.btnGhost} onClick={onCancel}>{t('proc.orders.cancel')}</button>
       </div>
     </form>
   );

@@ -25,10 +25,18 @@ export const unsigned = (u: { id: string; email: string; role: string }) => `${b
 import { PrismaClient } from '@prisma/client';
 export const SEED_SUPPLIERS = ['22222222-2222-4222-8222-222222222201', '22222222-2222-4222-8222-222222222202'];
 export const SEED_ITEMS = ['33333333-3333-4333-8333-333333333301', '33333333-3333-4333-8333-333333333302', '33333333-3333-4333-8333-333333333303'];
+export const SEED_CATALOG = [
+  { supplierId: '22222222-2222-4222-8222-222222222201', itemId: '33333333-3333-4333-8333-333333333303', refPriceCop: 2_400_000, leadDays: 5 },
+  { supplierId: '22222222-2222-4222-8222-222222222201', itemId: '33333333-3333-4333-8333-333333333301', refPriceCop: 120_000, leadDays: 5 },
+  { supplierId: '22222222-2222-4222-8222-222222222201', itemId: '33333333-3333-4333-8333-333333333302', refPriceCop: 180_000, leadDays: 5 },
+  { supplierId: '22222222-2222-4222-8222-222222222202', itemId: '33333333-3333-4333-8333-333333333301', refPriceCop: 95_000, leadDays: 10 },
+  { supplierId: '22222222-2222-4222-8222-222222222202', itemId: '33333333-3333-4333-8333-333333333302', refPriceCop: 165_000, leadDays: 12 },
+];
 export const SEED_STOCK: Record<string, number> = { [SEED_ITEMS[0]]: 8, [SEED_ITEMS[1]]: 3, [SEED_ITEMS[2]]: 2 };
 /** Deja la base como el seed: borra pedidos, avisos y outbox, lo creado por las pruebas y devuelve las existencias de los artículos del seed. */
 export async function resetState(prisma: PrismaClient) {
   await prisma.stockCount.deleteMany();
+  await prisma.equipmentInstall.deleteMany();
   await prisma.outboxEvent.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.alertSuggestion.deleteMany();
@@ -36,6 +44,11 @@ export async function resetState(prisma: PrismaClient) {
   await prisma.supplier.deleteMany({ where: { id: { notIn: SEED_SUPPLIERS } } });
   await prisma.item.deleteMany({ where: { id: { notIn: SEED_ITEMS } } });
   for (const [id, onHand] of Object.entries(SEED_STOCK)) await prisma.item.update({ where: { id }, data: { onHand } });
+  // El catálogo de los proveedores sembrados vuelve a como estaba (y los datos de la licitación).
+  await prisma.supplierItem.deleteMany();
+  await prisma.supplierItem.createMany({ data: SEED_CATALOG });
+  await prisma.supplier.updateMany({ where: { id: SEED_SUPPLIERS[1] }, data: { tenderRef: 'LIC-2026-014', validUntil: new Date('2027-06-30T00:00:00Z') } });
+  await prisma.supplier.updateMany({ where: { id: SEED_SUPPLIERS[0] }, data: { tenderRef: null, validUntil: null } });
   // El historial solo se agrega: se limpia con la bandera de pruebas y se vuelve a abrir con el saldo del seed (como la migración).
   await prisma.$transaction([
     prisma.$executeRaw`SELECT set_config('erp.allow_movement_delete', 'on', true)`,

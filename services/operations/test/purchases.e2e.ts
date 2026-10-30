@@ -16,8 +16,8 @@ describe('purchased equipment enters the network inventory (e2e, real PostgreSQL
   let conn: Awaited<ReturnType<typeof connect>>;
   let ch: Channel;
   let consumer: PurchasesConsumer;
-  const ev = (data: object = {}) => ({ eventId: randomUUID(), type: 'EquipmentPurchased', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { orderNumber: 'PO-0091', orderId: randomUUID(), supplierName: 'Proveedor (example)', itemName: 'Switch Acceso 24p', quantity: 3, unitPriceCop: 1_000_000, totalCop: 3_000_000, ...data } });
-  const publish = (e: object) => ch.publish('erp.events', 'procurement.equipment.purchased', Buffer.from(JSON.stringify(e)), { persistent: true });
+  const ev = (data: object = {}) => ({ eventId: randomUUID(), type: 'EquipmentInstalled', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { installNumber: 'INS-0091', itemId: randomUUID(), itemName: 'Switch Acceso 24p', ...data } });
+  const publish = (e: object) => ch.publish('erp.events', 'procurement.equipment.installed', Buffer.from(JSON.stringify(e)), { persistent: true });
   const until = async (f: () => Promise<boolean>, ms = 10_000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await f()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
   const dlq = async () => (await ch.checkQueue('q.operations.purchases.dlq')).messageCount;
   const bought = () => prisma.networkDevice.count({ where: { sourceOrder: { not: null } } });
@@ -34,42 +34,45 @@ describe('purchased equipment enters the network inventory (e2e, real PostgreSQL
   beforeEach(() => wipeBought());
   afterAll(async () => { await wipeBought(); await consumer.stop(); await ch.close(); await conn.close(); await app.close(); await prisma.$disconnect(); });
 
-  it('each purchased unit becomes a device pending configuration; a repeated event does not duplicate; the manager sees them, nobody else', async () => {
-    const e = ev(); const dead = await dlq();
-    publish(e); publish(e);
+  it('each INSTALLED unit becomes a device pending configuration; a repeated event does not duplicate; a received purchase creates nothing; the manager sees them, nobody else', async () => {
+    const dead = await dlq();
+    const a = ev({ installNumber: 'INS-0091' }), b = ev({ installNumber: 'INS-0092' }), c = ev({ installNumber: 'INS-0093' });
+    publish(a); publish(a); publish(b); publish(c);
+    // Una compra recibida YA NO crea equipos: se confirma sin crear nada y sin ir a mensajes muertos.
+    ch.publish('erp.events', 'procurement.equipment.purchased', Buffer.from(JSON.stringify({ eventId: randomUUID(), type: 'EquipmentPurchased', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { orderNumber: 'PO-0001', itemName: 'Switch Acceso 24p', quantity: 5 } })), { persistent: true });
     expect(await until(async () => (await bought()) === 3)).toBe(true);
     await new Promise((r) => setTimeout(r, 1500));
     expect(await bought()).toBe(3); expect(await dlq()).toBe(dead);
-    const rows = await prisma.networkDevice.findMany({ where: { sourceOrder: 'PO-0091' }, orderBy: { sourceUnit: 'asc' } });
-    expect(rows.map((r) => r.name)).toEqual(['Switch Acceso 24p (PO-0091-1)', 'Switch Acceso 24p (PO-0091-2)', 'Switch Acceso 24p (PO-0091-3)']);
-    expect(rows[0]).toMatchObject({ model: 'Switch Acceso 24p', category: 'Equipo comprado', role: 'Pendiente de configurar', criticality: 'Media', serial: 'PO-0091-1', ips: null });
+    const rows = await prisma.networkDevice.findMany({ where: { sourceOrder: { startsWith: 'INS-' } }, orderBy: { sourceOrder: 'asc' } });
+    expect(rows.map((r) => r.name)).toEqual(['Switch Acceso 24p (INS-0091-1)', 'Switch Acceso 24p (INS-0092-1)', 'Switch Acceso 24p (INS-0093-1)']);
+    expect(rows[0]).toMatchObject({ model: 'Switch Acceso 24p', category: 'Equipo comprado', role: 'Pendiente de configurar', criticality: 'Media', serial: 'INS-0091-1', ips: null, sourceUnit: 1 });
     expect(new Set(rows.map((r) => r.id)).size).toBe(3);
-    const list = await get('/network/devices?q=PO-0091', USERS.manager); expect(list.status).toBe(200);
-    expect(JSON.stringify(list.body)).toContain('Switch Acceso 24p (PO-0091-1)');
+    const list = await get('/network/devices?q=INS-0091', USERS.manager); expect(list.status).toBe(200);
+    expect(JSON.stringify(list.body)).toContain('Switch Acceso 24p (INS-0091-1)');
     for (const u of [USERS.lead, USERS.billing, USERS.sales]) expect((await get('/network/devices', u)).status).toBe(403);
   });
 
-  it('invalid purchases (too many units, bad order, markup, not JSON) go to the dead-letter queue and store nothing', async () => {
+  it('invalid installs (bad number, markup, not JSON) go to the dead-letter queue and store nothing', async () => {
     const dead = await dlq();
-    publish(ev({ quantity: 101 })); publish(ev({ orderNumber: 'nope' })); publish(ev({ itemName: '<script>' })); ch.publish('erp.events', 'procurement.equipment.purchased', Buffer.from('no es json'), { persistent: true });
+    publish(ev({ installNumber: 'nope' })); publish(ev({ itemName: '<script>' })); publish(ev({ installNumber: "INS-1'; DROP" })); ch.publish('erp.events', 'procurement.equipment.installed', Buffer.from('no es json'), { persistent: true });
     expect(await until(async () => (await dlq()) === dead + 4)).toBe(true);
     expect(await bought()).toBe(0);
-    publish(ev({ orderNumber: 'PO-0092', quantity: 1 })); expect(await until(async () => (await bought()) === 1)).toBe(true);
+    publish(ev({ installNumber: 'INS-0092' })); expect(await until(async () => (await bought()) === 1)).toBe(true);
   });
 
-  it('CONCURRENCY: 30 rounds of 4 purchases at the same time never collide on ids and never lose a unit', async () => {
+  it('CONCURRENCY: 30 rounds of 6 installs at the same time (two of them repeated) never collide on ids and never lose a unit', async () => {
     const h = purchaseEventHandler(prisma);
     for (let r = 0; r < 30; r++) {
       await wipeBought();
-      const orders = [1, 2, 3, 4].map((n) => ev({ orderNumber: `PO-${String(100 + n).padStart(4, '0')}`, quantity: 2 + (n % 2), itemName: `Equipo ${n}` }));
-      await Promise.all([...orders, orders[0], orders[1]].map((o) => h(o)));
-      expect(await bought()).toBe(3 + 2 + 3 + 2);
+      const installs = [1, 2, 3, 4, 5, 6].map((n) => ev({ installNumber: `INS-${String(100 + n).padStart(4, '0')}`, itemName: `Equipo ${n}` }));
+      await Promise.all([...installs, installs[0], installs[1]].map((o) => h(o)));
+      expect(await bought()).toBe(6);
       const ids = (await prisma.networkDevice.findMany({ select: { id: true } })).map((d) => d.id);
       expect(new Set(ids).size).toBe(ids.length);
     }
   }, 120_000);
 
-  it('the database refuses an unit number out of range or an order that does not look like PO-0001', async () => {
+  it('the database refuses an unit number out of range or an origin that does not look like PO-0001 or INS-0001', async () => {
     await expect(prisma.$executeRawUnsafe(`INSERT INTO network_devices (id, name, pt_type, model, category, role, criticality, serial, source_order, source_unit) VALUES (99001,'x','p','m','c','r','Media','s','PO-0001',0)`)).rejects.toThrow();
     await expect(prisma.$executeRawUnsafe(`INSERT INTO network_devices (id, name, pt_type, model, category, role, criticality, serial, source_order, source_unit) VALUES (99002,'y','p','m','c','r','Media','s','mala',1)`)).rejects.toThrow();
   });
@@ -89,8 +92,8 @@ describe('completing a purchased device (e2e, real PostgreSQL)', () => {
   });
   beforeEach(async () => {
     await prisma.networkDevice.deleteMany({ where: { sourceOrder: { not: null } } });
-    await purchaseEventHandler(prisma)({ type: 'EquipmentPurchased', data: { orderNumber: 'PO-0555', itemName: 'Switch Acceso 24p', quantity: 1 } });
-    boughtId = (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'PO-0555' } })).id;
+    await purchaseEventHandler(prisma)({ type: 'EquipmentInstalled', data: { installNumber: 'INS-0555', itemName: 'Switch Acceso 24p' } });
+    boughtId = (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'INS-0555' } })).id;
   });
   afterAll(async () => { await prisma.networkDevice.deleteMany({ where: { sourceOrder: { not: null } } }); await app.close(); await prisma.$disconnect(); });
 
@@ -102,7 +105,7 @@ describe('completing a purchased device (e2e, real PostgreSQL)', () => {
 
   it('the manager sets role, criticality and IPs; the device stops being pending; the name and model stay', async () => {
     const r = await patch(boughtId, USERS.manager); expect(r.status).toBe(200);
-    expect(await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).toMatchObject({ role: 'Switch de acceso piso 2', criticality: 'Alta', ips: '10.0.2.5', name: 'Switch Acceso 24p (PO-0555-1)', model: 'Switch Acceso 24p', sourceOrder: 'PO-0555' });
+    expect(await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).toMatchObject({ role: 'Switch de acceso piso 2', criticality: 'Alta', ips: '10.0.2.5', name: 'Switch Acceso 24p (INS-0555-1)', model: 'Switch Acceso 24p', sourceOrder: 'INS-0555' });
     expect((await patch(boughtId, USERS.manager, { ...body, ips: '' })).status).toBe(200);
     expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).ips).toBeNull();
   });
@@ -122,13 +125,13 @@ describe('completing a purchased device (e2e, real PostgreSQL)', () => {
 
   describe('serial, warranty and assignee per unit', () => {
     const list = (u: any = USERS.manager) => request(app.getHttpServer()).get('/network/purchased').set('Authorization', bearer(token(u)));
-    const unit2 = async () => { await purchaseEventHandler(prisma)({ type: 'EquipmentPurchased', data: { orderNumber: 'PO-0556', itemName: 'Router edge', quantity: 1 } }); return (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'PO-0556' } })).id; };
+    const unit2 = async () => { await purchaseEventHandler(prisma)({ type: 'EquipmentInstalled', data: { installNumber: 'INS-0556', itemName: 'Router edge' } }); return (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'INS-0556' } })).id; };
 
     it('only the manager lists the purchased units: 401 without token, 403 for other roles; the Excel devices are not in the list', async () => {
       expect((await request(app.getHttpServer()).get('/network/purchased')).status).toBe(401);
       for (const u of [USERS.lead, USERS.billing, USERS.sales]) expect((await list(u)).status).toBe(403);
       const r = await list(); expect(r.status).toBe(200);
-      expect(r.body).toEqual([expect.objectContaining({ id: boughtId, order: 'PO-0555', unit: 1, serial: 'PO-0555-1', warrantyUntil: null, assignedTo: null })]);
+      expect(r.body).toEqual([expect.objectContaining({ id: boughtId, order: 'INS-0555', unit: 1, serial: 'INS-0555-1', warrantyUntil: null, assignedTo: null })]);
     });
 
     it('sets the real serial, the warranty and the assignee; a later edit that does not send them keeps them; empty clears warranty and assignee', async () => {
@@ -142,14 +145,14 @@ describe('completing a purchased device (e2e, real PostgreSQL)', () => {
 
     it.each<[string, object]>([['bad serial', { serial: 'a b' }], ['impossible date', { warrantyUntil: '2028-02-30' }], ['markup person', { assignedTo: '<script>' }]])('400 and nothing changes: %s', async (_n, over) => {
       expect((await patch(boughtId, USERS.manager, { ...body, ...over })).status).toBe(400);
-      expect((await list()).body[0]).toMatchObject({ role: 'Pendiente de configurar', serial: 'PO-0555-1', warrantyUntil: null, assignedTo: null });
+      expect((await list()).body[0]).toMatchObject({ role: 'Pendiente de configurar', serial: 'INS-0555-1', warrantyUntil: null, assignedTo: null });
     });
 
     it('a serial number cannot belong to two purchased devices (any case): 409 and the second keeps its own', async () => {
       const other = await unit2();
       expect((await patch(boughtId, USERS.manager, { ...body, serial: 'SN-ABC-123' })).status).toBe(200);
       expect((await patch(other, USERS.manager, { ...body, serial: 'sn-abc-123' })).status).toBe(409);
-      expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: other } })).serial).toBe('PO-0556-1');
+      expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: other } })).serial).toBe('INS-0556-1');
       expect((await patch(boughtId, USERS.manager, { ...body, serial: 'SN-ABC-123' })).status).toBe(200); // el mismo equipo puede repetir su propio serial
     });
 
