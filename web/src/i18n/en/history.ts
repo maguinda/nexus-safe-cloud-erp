@@ -15,6 +15,7 @@ export const history: Record<keyof typeof es, string> = {
   'hist.src.opening': 'Opening balance',
   'hist.src.purchase': 'Order received',
   'hist.src.adjustment': 'Manual adjustment',
+  'hist.src.count': 'Physical count',
   'hist.noActor': 'system',
   'hist.loadError': 'Could not load the history: {reason}',
 };

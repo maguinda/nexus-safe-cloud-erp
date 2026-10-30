@@ -42,7 +42,9 @@ export interface CapacityResponse { today: string; engineers: CapacityEngineer[]
 export interface AllocationInput { projectName: string; percent: number; startDate: string; endDate: string; allowOverallocation?: boolean }
 
 export interface Supplier { id: string; name: string; kind: 'fixed' | 'tender'; terms: string }
-export interface StockMovement { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'opening' | 'purchase_received' | 'adjustment'; reason: string; actor: string | null; at: string }
+export interface StockMovement { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'opening' | 'purchase_received' | 'adjustment' | 'count'; reason: string; actor: string | null; at: string }
+export interface StockCount { id: string; number: number; status: 'open' | 'closed' | 'cancelled'; openedBy: string | null; openedAt: string; closedBy: string | null; closedAt: string | null; lines: number; counted: number; differences: number }
+export interface StockCountLine { itemId: string; itemName: string; expected: number; counted: number | null; variance: number | null; appliedDelta: number | null }
 export interface StockItem { id: string; name: string; kind: 'equipment' | 'spare'; forKinds: string[]; onHand: number }
 export interface PurchaseOrder {
   id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string;

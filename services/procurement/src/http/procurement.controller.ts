@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, ListMovementsUseCase, ListProcurementUseCase, ReceiveOrderUseCase } from '../application/procurement.use-cases';
 import { Roles } from '../auth/auth.guard';
+import { CountsService } from '../infrastructure/prisma-counts';
 import { orderNumber } from '../domain/events';
-import { AdjustDto, CreateItemDto, CreateOrderDto, CreateSupplierDto } from './procurement.dto';
+import { AdjustDto, CountedDto, CreateItemDto, CreateOrderDto, CreateSupplierDto } from './procurement.dto';
 
 export const LIST = 'PROC_LIST';
 export const CREATE_SUPPLIER = 'PROC_CREATE_SUPPLIER';
@@ -14,6 +15,7 @@ export const RECEIVE_ORDER = 'PROC_RECEIVE_ORDER';
 export const CANCEL_ORDER = 'PROC_CANCEL_ORDER';
 export const ADJUST = 'PROC_ADJUST';
 export const LIST_MOVEMENTS = 'PROC_LIST_MOVEMENTS';
+export const COUNTS = 'PROC_COUNTS';
 
 const READERS = ['manager', 'project_lead', 'billing_analyst'] as const;
 
@@ -30,6 +32,7 @@ export class ProcurementController {
     @Inject(CANCEL_ORDER) private readonly cancelOrder: CancelOrderUseCase,
     @Inject(ADJUST) private readonly adjust: AdjustStockUseCase,
     @Inject(LIST_MOVEMENTS) private readonly listMovements: ListMovementsUseCase,
+    @Inject(COUNTS) private readonly counts: CountsService,
   ) {}
 
   @Get('suppliers') @Roles(...READERS) @ApiOperation({ summary: 'Suppliers (fixed and by tender)' })
@@ -48,6 +51,24 @@ export class ProcurementController {
     if (limit !== undefined) { if (!/^\d{1,3}$/.test(limit) || Number(limit) < 1 || Number(limit) > 200) throw new BadRequestException('limit must be a whole number from 1 to 200'); n = Number(limit); }
     return this.listMovements.execute({ itemId: itemId?.toLowerCase(), limit: n });
   }
+
+  @Get('counts') @Roles(...READERS) @ApiOperation({ summary: 'Physical counts, newest first (last 20)' })
+  listCounts() { return this.counts.list(); }
+
+  @Get('counts/:id') @Roles(...READERS) @ApiOperation({ summary: 'One count with its lines (expected, counted, variance)' }) @ApiResponse({ status: 404, description: 'Count not found' })
+  getCount(@Param('id', new ParseUUIDPipe()) id: string) { return this.counts.get(id); }
+
+  @Post('counts') @Roles('manager') @ApiOperation({ summary: 'Open a physical count: a snapshot of the expected stock of every item (role manager). Only one can be open' }) @ApiResponse({ status: 409, description: 'There is already an open count' })
+  openCount(@Req() req: Request) { return this.counts.open((req as any).user?.email ?? null); }
+
+  @Patch('counts/:id/lines/:itemId') @Roles('manager') @ApiOperation({ summary: 'Write what was counted for an item (0 to 1.000.000) while the count is open (role manager)' }) @ApiResponse({ status: 409, description: 'The count is not open' })
+  setCounted(@Param('id', new ParseUUIDPipe()) id: string, @Param('itemId', new ParseUUIDPipe()) itemId: string, @Body() dto: CountedDto, @Req() req: Request) { return this.counts.setCounted(id, itemId, dto.counted, (req as any).user?.email ?? null); }
+
+  @Post('counts/:id/close') @HttpCode(200) @Roles('manager') @ApiOperation({ summary: 'Close the count: each counted item gets an adjustment of counted − expected (movement + StockChanged). All or nothing' }) @ApiResponse({ status: 409, description: 'Not open, or an item would end below zero' })
+  closeCount(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request) { return this.counts.close(id, (req as any).user?.email ?? null, (req as any).correlationId ?? 'no-correlation'); }
+
+  @Post('counts/:id/cancel') @HttpCode(200) @Roles('manager') @ApiOperation({ summary: 'Cancel an open count without touching the stock (role manager)' }) @ApiResponse({ status: 409, description: 'The count is not open' })
+  cancelCount(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request) { return this.counts.cancel(id, (req as any).user?.email ?? null); }
 
   @Get('inventory/suggestions') @Roles(...READERS) @ApiOperation({ summary: 'Recent sensor alerts with the spare parts that serve that measure (those in stock first)' })
   suggestions() { return this.list.suggestions(); }

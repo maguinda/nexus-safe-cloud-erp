@@ -274,6 +274,11 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Límites: «a quién» es solo un nombre (no una cuenta ni un correo: no se verifica que exista); sin historial de asignaciones ni acta de entrega; la garantía no genera avisos en la campana. Lo 🔴 que NO se hizo: nada de dinero ni permisos nuevos.
 - Pruebas: 34 unitarias nuevas, e2e con carrera de 30 rondas por la misma serie (la mutación de quitar el índice la hace fallar), web 699.
 
+## Conteo físico con conciliación (opción D del inventario, 2026-10-30, 🔴)
+- Procurement: `stock_counts` y `stock_count_lines`; abrir toma la foto del stock esperado (un solo conteo abierto: índice único parcial), anotar lo contado, cerrar aplica **contado − esperado (foto)** sobre el stock ACTUAL (lo que entró o salió después se conserva) como movimientos (`source count`) y `StockChanged`, **todo o nada** (si un artículo quedaría negativo se rechaza el cierre y el conteo sigue abierto). Orden de bloqueos: conteo → artículos por id. Gateway: `/counts`. Web: «Conteo físico» en Compras.
+- Ataque adversarial (🔴), 12 e2e: 8 aperturas a la vez (gana 1), 6 cierres a la vez ×30 rondas (se aplica una vez), cerrar vs cancelar vs anotar ×30, cerrar mientras se reciben pedidos y se ajusta ×20 (sin bloqueo mutuo y con el historial sumando el stock), entradas raras (negativos, decimales, texto, nulos), estados límite (cerrado/cancelado no aceptan nada). Cuatro mutaciones fallan: quitar el bloqueo del conteo, ignorar el stock actual, quitar el bloqueo de artículos y quitar el índice de uno abierto.
+- Límites: solo gerencia cuenta; no hay conteos parciales por zona ni segundo contador; lo contado antes de un movimiento posterior se interpreta como foto (la persona debe contar al abrir); un artículo creado después de abrir no entra en ese conteo.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

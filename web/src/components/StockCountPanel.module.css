@@ -1,0 +1,5 @@
+/* La celda de «Contado» junta campo + botón + aviso: baja de línea, el campo mide al menos 36 px de alto y nada pasa del ancho de la pantalla. */
+.cell { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-width: 0; }
+.input { min-height: 36px; width: 8rem; max-width: 100%; box-sizing: border-box; }
+.name { overflow-wrap: anywhere; min-width: 0; }
+.err { flex-basis: 100%; }

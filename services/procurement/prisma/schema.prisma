@@ -105,3 +105,32 @@ model StockMovement {
   @@index([itemId, createdAt(sort: Desc)])
   @@map("stock_movements")
 }
+
+/// Conteo físico del inventario. Solo uno abierto a la vez (índice único parcial en la base).
+model StockCount {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number    Int      @unique @default(autoincrement())
+  status    String   @default("open")
+  openedBy  String?  @map("opened_by")
+  openedAt  DateTime @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedBy  String?  @map("closed_by")
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(6)
+  lines     StockCountLine[]
+
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  countId      String   @map("count_id") @db.Uuid
+  itemId       String   @map("item_id") @db.Uuid
+  itemName     String   @map("item_name")
+  expected     Int
+  counted      Int?
+  countedBy    String?  @map("counted_by")
+  countedAt    DateTime? @map("counted_at") @db.Timestamptz(6)
+  appliedDelta Int?     @map("applied_delta")
+  count        StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+
+  @@id([countId, itemId])
+  @@map("stock_count_lines")
+}
