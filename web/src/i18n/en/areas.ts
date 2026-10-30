@@ -22,3 +22,4 @@ export { profitability } from './profitability';
 export { audit } from './audit';
 export { cameras } from './cameras';
 export { configure } from './configure';
+export { history } from './history';

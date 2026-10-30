@@ -262,6 +262,10 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - `PATCH /network/devices/:id/configure` (gerente): rol (no vale «pendiente»), criticidad e IP (hasta 4, IPv4 distintas). Una sola sentencia que solo toca filas con `source_order` (los 76 equipos del Excel no se editan por aquí). Web: panel «Equipos comprados por configurar» arriba de la pantalla Red (desaparece cuando no hay pendientes). Sin campo de sede (la tabla no lo tiene).
 - Pruebas: 17 unitarias + 10 e2e nuevos de operations (una mutación falla), 9 de web, el funcional de compras ahora completa un equipo, auditoría de diseño de Red con un nombre largo en 6 perfiles.
 
+## Historial de movimientos de stock (opción B del inventario, 2026-10-30, 🟡)
+- Procurement: tabla `stock_movements` solo-agregar (triggers; bandera `erp.allow_movement_delete`), escrita en la MISMA transacción que mueve el stock (recibir pedido y ajuste manual) con el actor del token; la migración abre el saldo existente como «apertura». `GET /inventory/movements`. Web: tabla «Movimientos del inventario» al final de Compras (filtro por artículo). `reset-demo.sh` la reabre.
+- Invariante probada con 20 rondas simultáneas: la suma de movimientos de cada artículo = su stock. Dos mutaciones fallan (no anotar al recibir; delta equivocado).
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

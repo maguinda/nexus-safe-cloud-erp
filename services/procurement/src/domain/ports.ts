@@ -7,7 +7,11 @@ export interface OrderView { id: string; number: string; supplierId: string; sup
 export interface SuggestionView { eventId: string; deviceName: string; location: string; readingKind: string; status: string; value: number; unit: string; at: string; items: { id: string; name: string; onHand: number }[] }
 
 /** Lecturas: no necesitan transacción. */
+export interface NewMovement { itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'purchase_received' | 'adjustment'; reason: string; actor: string | null }
+export interface MovementView { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: string; reason: string; actor: string | null; at: string }
 export interface ProcurementQueries {
+  /** Más reciente primero; `itemId` filtra por artículo. */
+  movements(opts: { itemId?: string; limit: number }): Promise<MovementView[]>;
   suppliers(): Promise<Supplier[]>;
   items(): Promise<Item[]>;
   orders(limit: number): Promise<OrderView[]>;
@@ -30,6 +34,8 @@ export interface TransactionScope {
   insertOrder(o: NewOrder): Promise<number>;
   setOrderStatus(id: string, status: OrderStatus, receivedAt: Date | null): Promise<void>;
   setOnHand(itemId: string, onHand: number): Promise<void>;
+  /** Anota el movimiento en el historial (misma transacción que `setOnHand`). */
+  addMovement(m: NewMovement): Promise<void>;
   addToOutbox(event: ProcurementEvent, aggregateId: string): Promise<void>;
 }
 export interface UnitOfWork { run<T>(work: (tx: TransactionScope) => Promise<T>): Promise<T> }

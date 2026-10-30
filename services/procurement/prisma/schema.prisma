@@ -89,3 +89,19 @@ model OutboxEvent {
   @@index([publishedAt])
   @@map("outbox_events")
 }
+
+/// Historial de movimientos de stock (solo se agrega).
+model StockMovement {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId      String   @map("item_id") @db.Uuid
+  itemName    String   @map("item_name")
+  delta       Int
+  onHandAfter Int      @map("on_hand_after")
+  source      String
+  reason      String
+  actor       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([itemId, createdAt(sort: Desc)])
+  @@map("stock_movements")
+}

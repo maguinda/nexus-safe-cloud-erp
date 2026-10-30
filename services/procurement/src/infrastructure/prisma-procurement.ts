@@ -2,7 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { Item, Supplier } from '../domain/catalog';
 import { ProcurementEvent, orderNumber, routingKeyOf, ThresholdAlert } from '../domain/events';
 import { NewOrder, OrderStatus } from '../domain/order';
-import { EventScope, EventUnitOfWork, LockedOrder, OrderView, ProcurementCommands, ProcurementQueries, SuggestionView, TransactionScope, UnitOfWork } from '../domain/ports';
+import { EventScope, EventUnitOfWork, LockedOrder, MovementView, NewMovement, OrderView, ProcurementCommands, ProcurementQueries, SuggestionView, TransactionScope, UnitOfWork } from '../domain/ports';
 
 const TX = { timeout: 10_000, maxWait: 10_000 };
 
@@ -21,6 +21,10 @@ export class PrismaProcurement implements ProcurementQueries, ProcurementCommand
   async suppliers(): Promise<Supplier[]> {
     const rows = await this.prisma.supplier.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] });
     return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind as Supplier['kind'], terms: r.terms }));
+  }
+  async movements(opts: { itemId?: string; limit: number }): Promise<MovementView[]> {
+    const rows = await this.prisma.stockMovement.findMany({ where: opts.itemId ? { itemId: opts.itemId } : {}, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take: opts.limit });
+    return rows.map((r) => ({ id: r.id, itemId: r.itemId, itemName: r.itemName, delta: r.delta, onHandAfter: r.onHandAfter, source: r.source, reason: r.reason, actor: r.actor, at: r.createdAt.toISOString() }));
   }
   async items(): Promise<Item[]> {
     const rows = await this.prisma.item.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] });
@@ -80,6 +84,9 @@ class Scope implements TransactionScope {
   }
   async setOnHand(itemId: string, onHand: number) {
     await this.tx.$executeRaw`UPDATE items SET on_hand = ${onHand} WHERE id = ${itemId}::uuid`;
+  }
+  async addMovement(m: NewMovement) {
+    await this.tx.stockMovement.create({ data: { itemId: m.itemId, itemName: m.itemName, delta: m.delta, onHandAfter: m.onHandAfter, source: m.source, reason: m.reason, actor: m.actor } });
   }
   async addToOutbox(event: ProcurementEvent, aggregateId: string) {
     await this.tx.outboxEvent.create({ data: { id: event.eventId, aggregateId, type: event.type, routingKey: routingKeyOf(event), payload: event as unknown as Prisma.InputJsonValue } });
