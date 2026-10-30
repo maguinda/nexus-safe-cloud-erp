@@ -1,6 +1,6 @@
 import { Allocation, newAllocation } from '../domain/allocation';
 import { dayString, todayNumber } from '../domain/dates';
-import { dailyCostFromSalary, monthlySalary, newEngineer } from '../domain/engineer';
+import { monthlySalary, newEngineer } from '../domain/engineer';
 import { AllocationNotFoundError, EngineerNotFoundError, OverAllocationError } from '../domain/errors';
 import { allocationRemoved, engineerAllocated, overAllocationDetected } from '../domain/events';
 import { peakLoad, summarize } from '../domain/load';
@@ -22,7 +22,7 @@ export class SetSalaryUseCase {
   constructor(private readonly commands: EngineerCommands) {}
   async execute(id: string, salary: unknown): Promise<void> {
     const s = monthlySalary(salary);
-    if (!(await this.commands.setSalary(id, s, dailyCostFromSalary(s)))) throw new EngineerNotFoundError();
+    if (!(await this.commands.setSalary(id, s))) throw new EngineerNotFoundError();
   }
 }
 

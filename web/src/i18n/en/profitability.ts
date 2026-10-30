@@ -18,7 +18,7 @@ export const profitability: Record<keyof typeof es, string> = {
   'cost.label': 'Monthly salary (payroll)',
   'cost.none': 'no salary yet',
   'cost.value': '{amount} COP a month',
-  'cost.daily': 'Cost per working day: {amount} COP (salary ÷ 22)',
+  'cost.daily': 'Cost per working day for the company: {amount} COP (salary + benefits and social security ÷ 22)',
   'cost.change': 'Change',
   'cost.edit': 'Change the monthly salary of {name}',
   'cost.field': 'Monthly salary in pesos (empty to remove it)',

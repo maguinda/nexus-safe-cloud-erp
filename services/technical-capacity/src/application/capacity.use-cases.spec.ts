@@ -110,24 +110,34 @@ describe('ListCapacityUseCase', () => {
   });
 });
 
-describe('SetSalaryUseCase, the positions and the derived daily cost', () => {
+describe('SetSalaryUseCase, the positions and the cost for the company', () => {
   const { SetSalaryUseCase } = require('./capacity.use-cases');
-  const { monthlySalary, dailyCostFromSalary, newEngineer, position, POSITIONS } = require('../domain/engineer');
-  it('writes the salary with its derived daily cost, clears both, and refuses an unknown person', async () => {
-    const calls: any[] = []; const cmds: any = { setSalary: async (id: string, s: number | null, d: number | null) => { calls.push([id, s, d]); return id === 'e1'; } };
+  const { monthlySalary, employerCost, employerDailyCost, newEngineer, position, POSITIONS, arlPpm, transportAid } = require('../domain/engineer');
+  it('writes the salary (the store works out the cost with the SQL function), clears it, and refuses an unknown person', async () => {
+    const calls: any[] = []; const cmds: any = { setSalary: async (id: string, s: number | null) => { calls.push([id, s]); return id === 'e1'; } };
     await new SetSalaryUseCase(cmds).execute('e1', 9_900_000); await new SetSalaryUseCase(cmds).execute('e1', null);
-    expect(calls).toEqual([['e1', 9_900_000, 450_000], ['e1', null, null]]);
+    expect(calls).toEqual([['e1', 9_900_000], ['e1', null]]);
     await expect(new SetSalaryUseCase(cmds).execute('zz', 5)).rejects.toBeInstanceOf(EngineerNotFoundError);
   });
   it.each([0, -1, 1.5, '300', NaN, 200_000_001, {}, []])('refuses the salary %p', (v) => { expect(() => monthlySalary(v)).toThrow(ValidationError); });
   it('accepts 1, the maximum, and empty means no salary', () => { expect(monthlySalary(1)).toBe(1); expect(monthlySalary(200_000_000)).toBe(200_000_000); expect(monthlySalary(undefined)).toBeNull(); expect(monthlySalary(null)).toBeNull(); });
-  it('the daily cost is the salary over 22 working days, rounded half up', () => {
-    expect(dailyCostFromSalary(null)).toBeNull(); expect(dailyCostFromSalary(22)).toBe(1); expect(dailyCostFromSalary(11)).toBe(1); expect(dailyCostFromSalary(10)).toBe(0); expect(dailyCostFromSalary(9_900_000)).toBe(450_000); expect(dailyCostFromSalary(5_000_000)).toBe(227_273); expect(dailyCostFromSalary(200_000_000)).toBe(9_090_909);
+  it('an engineer (no transport aid, ARL class I): benefits 21,83 %, pension 12 %, caja 4 %, ARL 0,522 %', () => {
+    expect(employerCost(5_000_000, 'network_engineer')).toEqual({ salaryCop: 5_000_000, transportAidCop: 0, prestacionesCop: 1_091_500, pensionCop: 600_000, cajaCop: 200_000, arlCop: 26_100, monthlyCop: 6_917_600, dailyCop: 314_436 });
   });
+  it('a field technician (transport aid 249.095 because he earns under 2 minimum wages; ARL class V 6,96 %)', () => {
+    expect(employerCost(2_400_000, 'field_technician')).toMatchObject({ transportAidCop: 249_095, arlCop: 167_040, monthlyCop: 3_768_045, dailyCop: 171_275 });
+    expect(employerCost(2_600_000, 'support_technician')).toMatchObject({ transportAidCop: 249_095, arlCop: 63_336, dailyCop: 179_091 }); // ARL clase III
+  });
+  it('the transport aid stops above 2 minimum wages (3.501.810) and the cost is always above the salary', () => {
+    expect(transportAid(3_501_810)).toBe(249_095); expect(transportAid(3_501_811)).toBe(0);
+    for (const [s, p] of [[1, 'tech_lead'], [1_000_000, 'field_technician'], [3_501_810, 'support_technician'], [200_000_000, 'tech_lead']] as const) { const c = employerCost(s, p); expect(c.monthlyCop).toBeGreaterThan(s); expect(c.dailyCop).toBeGreaterThanOrEqual(Math.floor(s / 22)); }
+  });
+  it('the ARL class follows the position', () => { expect(arlPpm('field_technician')).toBe(6_960); expect(arlPpm('support_technician')).toBe(2_436); for (const p of ['software_engineer', 'cloud_devops_engineer', 'security_engineer', 'network_engineer', 'tech_lead']) expect(arlPpm(p)).toBe(522); });
+  it('no salary means no cost', () => { expect(employerDailyCost(null, 'tech_lead')).toBeNull(); expect(employerDailyCost(5_000_000, 'network_engineer')).toBe(314_436); });
   it('the position decides the kind; unknown positions and prototype keys are refused', () => {
     for (const [code, v] of Object.entries(POSITIONS) as [string, any][]) expect(newEngineer('Ana Torres', undefined, [], [], null, code)).toMatchObject({ position: code, kind: v.kind, role: v.label });
     expect(Object.values(POSITIONS).filter((v: any) => v.kind === 'technician')).toHaveLength(2);
     for (const bad of [undefined, null, '', 'engineer', 'toString', '__proto__', 'constructor', 5, {}]) expect(() => position(bad)).toThrow(ValidationError);
-    expect(newEngineer('Ana Torres', 'Jefa de redes', [], [], 9_900_000, 'network_engineer')).toMatchObject({ role: 'Jefa de redes', monthlySalaryCop: 9_900_000, dailyCostCop: 450_000 });
+    expect(newEngineer('Ana Torres', 'Jefa de redes', [], [], 9_900_000, 'network_engineer')).toMatchObject({ role: 'Jefa de redes', monthlySalaryCop: 9_900_000, dailyCostCop: 622_584 });
   });
 });

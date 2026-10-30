@@ -57,18 +57,18 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
   it('the salary is monthly: only the manager writes and sees it; the daily cost is derived (salary / 22) and travels in the allocation event as the value in force at that moment', async () => {
     const mk = await call('post', '/engineers', as(USERS.manager), { name: 'Costed Engineer', position: 'network_engineer', monthlySalaryCop: 9_900_000 });
     expect(mk.status).toBe(201); const id = mk.body.id as string;
-    expect(mk.body).toMatchObject({ position: 'network_engineer', kind: 'engineer', role: 'Network engineer', monthlySalaryCop: 9_900_000, dailyCostCop: 450_000 });
+    expect(mk.body).toMatchObject({ position: 'network_engineer', kind: 'engineer', role: 'Network engineer', monthlySalaryCop: 9_900_000, dailyCostCop: 622_584 });
     const list = async (u: any) => (await call('get', '/engineers', as(u))).body.engineers.find((x: any) => x.id === id);
-    expect(await list(USERS.manager)).toMatchObject({ monthlySalaryCop: 9_900_000, dailyCostCop: 450_000, position: 'network_engineer', kind: 'engineer' });
+    expect(await list(USERS.manager)).toMatchObject({ monthlySalaryCop: 9_900_000, dailyCostCop: 622_584, position: 'network_engineer', kind: 'engineer' });
     for (const u of [USERS.lead, USERS.sales]) { const p = await list(u); expect(p).not.toHaveProperty('dailyCostCop'); expect(p).not.toHaveProperty('monthlySalaryCop'); expect(p).toMatchObject({ position: 'network_engineer', kind: 'engineer' }); }
     await alloc(id, 50, '2026-11-02', '2026-11-30');
     expect((await call('patch', `/engineers/${id}/salary`, as(USERS.lead), { monthlySalaryCop: 1 })).status).toBe(403);
     expect((await call('patch', `/engineers/${id}/salary`, as(USERS.sales), { monthlySalaryCop: 1 })).status).toBe(403);
     expect((await call('patch', `/engineers/${id}/salary`, as(USERS.manager), { monthlySalaryCop: 13_200_000 })).status).toBe(204);
-    expect(await list(USERS.manager)).toMatchObject({ monthlySalaryCop: 13_200_000, dailyCostCop: 600_000 });
+    expect(await list(USERS.manager)).toMatchObject({ monthlySalaryCop: 13_200_000, dailyCostCop: 830_112 });
     await alloc(id, 10, '2026-12-01', '2026-12-10');
     const ev = (await outbox()).filter((e) => e.type === 'EngineerAllocated').map((e: any) => e.payload.data.dailyCostCop);
-    expect(ev).toEqual([450000, 600000]); // la primera asignación conserva el costo que había
+    expect(ev).toEqual([622584, 830112]); // la primera asignación conserva el costo que había
     expect((await call('patch', `/engineers/${id}/salary`, as(USERS.manager), { monthlySalaryCop: null })).status).toBe(204);
     expect(await list(USERS.manager)).toMatchObject({ monthlySalaryCop: null, dailyCostCop: null });
     for (const bad of [0, -5, 1.5, '300', 200_000_001]) expect((await call('patch', `/engineers/${id}/salary`, as(USERS.manager), { monthlySalaryCop: bad })).status).toBe(400);
@@ -210,17 +210,34 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
     expect((await list(USERS.billing)).status).toBe(403); expect((await call('get', '/position-rates')).status).toBe(401);
     const r = (await list(USERS.sales)).body as any[];
     expect(r.map((x) => x.position)).toEqual(['software_engineer', 'cloud_devops_engineer', 'security_engineer', 'network_engineer', 'tech_lead', 'field_technician', 'support_technician']);
-    expect(r.find((x) => x.position === 'network_engineer')).toMatchObject({ kind: 'engineer', monthlySalaryCop: 5_000_000, dailyCostCop: 227_273 });
-    expect(r.find((x) => x.position === 'field_technician')).toMatchObject({ kind: 'technician', monthlySalaryCop: 2_400_000, dailyCostCop: 109_091 });
+    expect(r.find((x) => x.position === 'network_engineer')).toMatchObject({ kind: 'engineer', monthlySalaryCop: 5_000_000, dailyCostCop: 314_436 });
+    expect(r.find((x) => x.position === 'field_technician')).toMatchObject({ kind: 'technician', monthlySalaryCop: 2_400_000, dailyCostCop: 171_275 });
     for (const x of r) { expect(x.note.length).toBeGreaterThan(10); expect(x.monthlySalaryCop).toBeGreaterThan(1_750_905); } // ninguno por debajo del mínimo legal
     for (const u of [USERS.lead, USERS.sales, USERS.billing]) expect((await call('patch', '/position-rates/tech_lead', as(u), { monthlySalaryCop: 1 })).status).toBe(403);
     expect((await call('patch', '/position-rates/tech_lead', as(USERS.manager), { monthlySalaryCop: 11_000_000, note: 'Ajustado por gerencia' })).status).toBe(204);
-    expect((await list(USERS.sales)).body.find((x: any) => x.position === 'tech_lead')).toMatchObject({ monthlySalaryCop: 11_000_000, dailyCostCop: 500_000, note: 'Ajustado por gerencia', updatedBy: USERS.manager.email });
+    expect((await list(USERS.sales)).body.find((x: any) => x.position === 'tech_lead')).toMatchObject({ monthlySalaryCop: 11_000_000, dailyCostCop: 691_760, note: 'Ajustado por gerencia', updatedBy: USERS.manager.email });
     for (const bad of [{}, { monthlySalaryCop: 0 }, { monthlySalaryCop: 1.5 }, { monthlySalaryCop: '9' }, { monthlySalaryCop: 200_000_001 }, { monthlySalaryCop: 5, note: 'x' }, { monthlySalaryCop: 5, note: '<b>nota</b>' }]) expect((await call('patch', '/position-rates/tech_lead', as(USERS.manager), bad)).status).toBe(400);
     for (const bad of ['ceo', 'toString', '__proto__']) expect((await call('patch', `/position-rates/${bad}`, as(USERS.manager), { monthlySalaryCop: 5_000_000 })).status).toBe(404);
     expect((await list(USERS.sales)).body.find((x: any) => x.position === 'tech_lead').monthlySalaryCop).toBe(11_000_000);
     await prisma.$executeRawUnsafe(`UPDATE position_rates SET monthly_salary_cop = 10000000, note = 'Estimado oct-2026 (restaurado por la prueba)' WHERE position = 'tech_lead'`);
     await expect(prisma.$executeRawUnsafe(`UPDATE position_rates SET monthly_salary_cop = 0 WHERE position = 'tech_lead'`)).rejects.toThrow();
     await expect(prisma.$executeRawUnsafe(`INSERT INTO position_rates (position, monthly_salary_cop, note) VALUES ('ceo', 5000000, 'inventado')`)).rejects.toThrow();
+  });
+
+  it('the cost with benefits: the SQL function the database checks and the TypeScript breakdown agree on 400 salary and position pairs, including every edge of the transport aid', async () => {
+    const { employerCost, POSITIONS } = require('../src/domain/engineer');
+    const positions = Object.keys(POSITIONS);
+    const salaries = [1, 22, 1_750_905, 3_501_809, 3_501_810, 3_501_811, 10_000_000, 200_000_000, ...Array.from({ length: 392 }, (_, i) => 1 + ((i * 7_919_113 + 12345) % 200_000_000))];
+    for (const [i, s] of salaries.entries()) {
+      const pos = positions[i % positions.length];
+      const sql = (await prisma.$queryRawUnsafe<{ d: number }[]>(`SELECT employer_daily_cost(${s}, '${pos}') AS d`))[0].d;
+      if (sql !== employerCost(s, pos).dailyCop) throw new Error(`SQL and TypeScript disagree for ${s} ${pos}: ${sql} vs ${employerCost(s, pos).dailyCop}`);
+    }
+  });
+
+  it('the database refuses a daily cost that is not the cost of the salary and position (the old «salary / 22» is no longer valid)', async () => {
+    const id = await newEngineer('Costo Banco'); await call('patch', `/engineers/${id}/salary`, as(USERS.manager), { monthlySalaryCop: 5_000_000 });
+    await expect(prisma.$executeRawUnsafe(`UPDATE engineers SET daily_cost_cop = 227273 WHERE id = '${id}'`)).rejects.toThrow();
+    await prisma.$executeRawUnsafe(`UPDATE engineers SET daily_cost_cop = 314436 WHERE id = '${id}'`);
   });
 });
