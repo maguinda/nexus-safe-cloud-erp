@@ -9,3 +9,4 @@ if (existsSync('.env')) {
 }
 process.env.NODE_ENV = 'test';
 process.env.RELAY_ENABLED = 'false'; // los e2e no publican a RabbitMQ (ni siquiera si el .env lo enciende); solo el del relé lo enciende dentro de su archivo
+process.env.RETENTION_ENABLED = 'false'; // los e2e no borran lecturas por su cuenta; el de la retención llama al caso de uso a mano
