@@ -15,6 +15,8 @@ export const notifications = {
   'notif.more': 'Ver más avisos',
   'notif.OverdueDetected': 'La factura {invoiceNumber} de «{projectName}» ({milestoneName}) lleva {days} días vencida · {total} con IVA',
   'notif.ThresholdBreached': '{deviceName} en {location}: {readingKind} en {value} {unit} ({status})',
+  'notif.WorkOrderCreated': 'Nueva orden {orderNumber} ({type}, prioridad {priority}) sobre {targetName}',
+  'notif.WorkOrderClosed': 'La orden {orderNumber} ({type}) sobre {targetName} quedó: {outcome}',
   'notif.OverAllocationDetected': '{engineerName} está asignado al {percent} % entre {from} y {to}',
   'notif.unknown': 'Aviso nuevo',
 } as const;

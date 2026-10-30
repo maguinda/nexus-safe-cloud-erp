@@ -24,5 +24,6 @@ import { cameras } from './cameras';
 import { configure } from './configure';
 import { history } from './history';
 import { count } from './count';
+import { workorders } from './workorders';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders };

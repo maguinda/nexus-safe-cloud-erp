@@ -29,10 +29,10 @@ function ChipGroup({ legend, options, value, onToggle }: { legend: string; optio
   );
 }
 
-interface Props { api: Api; state: ExplorerState; setState: (f: (s: ExplorerState) => ExplorerState) => void; facets: NetworkFacets | null; totals: { devices: number; links: number }; lang: Lang; t: TFn }
+interface Props { api: Api; state: ExplorerState; setState: (f: (s: ExplorerState) => ExplorerState) => void; facets: NetworkFacets | null; totals: { devices: number; links: number }; lang: Lang; t: TFn; onWorkOrder?: (d: NetworkDeviceItem) => void }
 
 /** El explorador: dos pestañas (Dispositivos y Enlaces) con filtros, chips de filtros activos, orden por columna, paginación y estados de carga, vacío y error. El foco y el desplazamiento los maneja quien lo contiene. */
-export const Explorer = forwardRef<HTMLElement, Props>(function Explorer({ api, state, setState, facets, totals, lang, t }, ref) {
+export const Explorer = forwardRef<HTMLElement, Props>(function Explorer({ api, state, setState, facets, totals, lang, t, onWorkOrder }, ref) {
   const devices = state.tab === 'devices';
   const dq = toDevicesQuery(state), lq = toLinksQuery(state);
   const q = devices ? state.devices.q : state.links.q;
@@ -162,7 +162,7 @@ export const Explorer = forwardRef<HTMLElement, Props>(function Explorer({ api, 
                       <td data-label={t('netview.col.ntp')}>{config(d, d.ntp)}</td>
                       <td data-label={t('netview.col.netflow')}>{config(d, d.netflow)}</td>
                       <td data-label={t('netview.col.links')} className={ui.num}>{d.links}</td>
-                      <td data-label={t('netview.col.actions')}><button type="button" className={s.rowBtn} disabled={d.links === 0} aria-label={t('netview.viewLinksOf', { name: d.name })} onClick={() => setState((x) => linksOfDevice(x, d.name))}>{t('netview.viewLinks')}</button></td>
+                      <td data-label={t('netview.col.actions')}><button type="button" className={s.rowBtn} disabled={d.links === 0} aria-label={t('netview.viewLinksOf', { name: d.name })} onClick={() => setState((x) => linksOfDevice(x, d.name))}>{t('netview.viewLinks')}</button>{onWorkOrder && <button type="button" className={ui.btnGhost} aria-label={t('wo.createFor', { name: d.name })} onClick={() => onWorkOrder(d)}>{t('wo.create')}</button>}</td>
                     </tr>
                   ))}
                 </tbody>

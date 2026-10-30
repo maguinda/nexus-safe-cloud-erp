@@ -1644,6 +1644,68 @@ test('Suppliers and inventory: each supplier shows what it sells, an order only 
   } finally { await manager.ctx.close(); await lead.ctx.close(); }
 });
 
+test('Work orders: from an alert in Sensors and from a device in Network the manager creates inspection or maintenance orders; no duplicates; the order is followed to done; the bell tells; the lead only reads', async ({ browser }) => {
+  test.setTimeout(180_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'lead' | 'sales') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, lead, sales] = [await open('manager'), await open('lead'), await open('sales')];
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  try {
+    // 1) Desde una ALERTA de Sensores: solo las lecturas con aviso traen el botón.
+    await nav(manager.page, 'Sensors');
+    await manager.page.getByRole('button', { name: 'See detail: Alerts' }).click();
+    const btn = manager.page.getByRole('button', { name: /^Create a work order for / }).first();
+    await expect(btn).toBeVisible();
+    await btn.click();
+    const dlg = manager.page.getByRole('dialog');
+    await expect(dlg.getByText(/Origin: ALERT/)).toBeVisible();
+    await expect(dlg.getByRole('button', { name: 'Corrective maintenance' })).toHaveAttribute('aria-pressed', 'true'); // una alerta sugiere el correctivo
+    await dlg.getByLabel('What has to be done').fill('x'); await dlg.getByRole('button', { name: 'Create order' }).click(); // el formulario avisa sin enviar
+    await expect(dlg.getByText(/Write 3 to 300 characters/)).toBeVisible();
+    await dlg.getByLabel('What has to be done').fill('Revisar el sensor y cambiar la fuente si hace falta'); await dlg.getByRole('button', { name: 'High', exact: true }).click(); await dlg.getByLabel('Responsible (optional)').fill('Julián Pardo');
+    await dlg.getByRole('button', { name: 'Create order' }).click();
+    await expect(manager.page.getByText(/Order OT-\d+ created\./)).toBeVisible();
+    await expect(manager.page.getByRole('dialog')).toHaveCount(0);
+    // La misma orden otra vez (mismo equipo y tipo) no se duplica.
+    await manager.page.getByRole('button', { name: /^Create a work order for / }).first().click();
+    const dlg2 = manager.page.getByRole('dialog');
+    await dlg2.getByRole('button', { name: 'Corrective maintenance' }).click(); await dlg2.getByLabel('What has to be done').fill('Otra vez lo mismo'); await dlg2.getByRole('button', { name: 'Create order' }).click();
+    await expect(dlg2.getByText(/There is already an open order \(OT-\d+\) of that type for that equipment/)).toBeVisible();
+    await manager.page.keyboard.press('Escape'); await expect(manager.page.getByRole('dialog')).toHaveCount(0);
+    // 2) Desde un equipo de Red: una inspección.
+    await nav(manager.page, 'Network');
+    await manager.page.getByRole('button', { name: /^Create a work order for / }).first().click();
+    const dlg3 = manager.page.getByRole('dialog');
+    await dlg3.getByRole('button', { name: 'Inspection' }).click(); await dlg3.getByLabel('What has to be done').fill('Inspección de puertos y ventilación'); await dlg3.getByRole('button', { name: 'Create order' }).click();
+    await expect(manager.page.getByText(/Order OT-\d+ created\./)).toBeVisible();
+    // 3) El seguimiento: dos órdenes abiertas; se inicia una, se cierra, se cancela la otra.
+    await nav(manager.page, 'Work orders');
+    const cards = manager.page.locator('[data-order]');
+    await expect(cards).toHaveCount(2);
+    const corrective = cards.filter({ hasText: 'Corrective maintenance' }), inspection = cards.filter({ hasText: 'Inspection' });
+    await expect(corrective).toContainText('Julián Pardo'); await expect(corrective).toContainText('High');
+    await corrective.getByRole('button', { name: /^Start order/ }).click(); await expect(corrective).toContainText('In progress');
+    await corrective.getByRole('button', { name: /^Mark order .* as done/ }).click();
+    await expect(manager.page.getByText(/Order OT-\d+: Done\./)).toBeVisible();
+    await expect(cards).toHaveCount(1); // cerrada: sale de «Open and in progress»
+    await inspection.getByRole('button', { name: /^Cancel order/ }).click(); await expect(cards).toHaveCount(0);
+    await manager.page.getByRole('button', { name: 'All', exact: true }).click(); await expect(cards).toHaveCount(2);
+    await corrective.getByRole('button', { name: /^See the history of order/ }).click();
+    await expect(corrective.getByText(/Open|In progress|Done/).first()).toBeVisible();
+    // 4) La campana de gerencia avisó (creada y cerrada).
+    await manager.page.reload();
+    await manager.page.getByRole('button', { name: /notifications|bell/i }).first().click();
+    await expect(manager.page.getByText(/New order OT-\d+ \(Corrective maintenance, High priority\)/).first()).toBeVisible({ timeout: 30_000 });
+    // 5) El líder solo lee; ventas no tiene la opción.
+    await nav(lead.page, 'Work orders');
+    await lead.page.getByRole('button', { name: 'All', exact: true }).click();
+    await expect(lead.page.locator('[data-order]').first()).toBeVisible();
+    await expect(lead.page.getByRole('button', { name: /^(Start|Mark|Cancel order|Assign)/ })).toHaveCount(0);
+    await expect(sales.page.getByRole('navigation').getByRole('button', { name: 'Work orders', exact: true })).toHaveCount(0);
+  } finally { await manager.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');
@@ -1762,11 +1824,11 @@ test('Menu: the manager\'s options are grouped under labels, with icons that onl
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts', 'Profitability']);
-  await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras']);
+  await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras', 'Work orders']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(10);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(11);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1804,7 +1866,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(10);
+  expect(edges.length).toBe(11);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

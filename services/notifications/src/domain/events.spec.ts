@@ -27,6 +27,19 @@ describe('parseEvent', () => {
     expect(parseEvent({ ...overdue(), eventId: id }).eventId).toBe(id.toLowerCase());
     expect(Object.keys(parseEvent(threshold({ extra: 1 })).params)).not.toContain('extra');
   });
+  const wo = (over2: any = {}) => env('WorkOrderCreated', { orderNumber: 'OT-0007', orderType: 'corrective', priority: 'critical', targetKind: 'sensor', targetName: 'Sensor oficina 2', dueDate: null, ...over2 });
+  const woc = (over2: any = {}) => env('WorkOrderClosed', { orderNumber: 'OT-0007', orderType: 'corrective', outcome: 'done', targetName: 'Sensor oficina 2', ...over2 });
+  it('a new work order is a notice for management only: warning for high or critical priority, info otherwise; only what the screen shows is kept', () => {
+    const c = parseEvent(wo({ secret: 'x' })); expect(c).toMatchObject({ kind: 'WorkOrderCreated', severity: 'warning', audienceRoles: ['manager'], params: { orderNumber: 'OT-0007', orderType: 'corrective', priority: 'critical', targetName: 'Sensor oficina 2' } });
+    expect(Object.keys(c.params)).not.toContain('secret'); expect(Object.keys(c.params)).not.toContain('dueDate');
+    expect(parseEvent(wo({ priority: 'high' })).severity).toBe('warning'); for (const p of ['normal', 'low']) expect(parseEvent(wo({ priority: p })).severity).toBe('info');
+  });
+  it('a closed work order is an info notice for management with its outcome', () => {
+    expect(parseEvent(woc())).toMatchObject({ kind: 'WorkOrderClosed', severity: 'info', audienceRoles: ['manager'], params: { orderNumber: 'OT-0007', outcome: 'done', orderType: 'corrective', targetName: 'Sensor oficina 2' } });
+    expect(parseEvent(woc({ outcome: 'cancelled' })).params.outcome).toBe('cancelled');
+  });
+  it.each<[string, unknown]>([['created: bad number', wo({ orderNumber: 'INV-1' })], ['created: bad type', wo({ orderType: 'repair' })], ['created: bad priority', wo({ priority: 'urgent' })], ['created: no target', wo({ targetName: ' ' })], ['created: huge target', wo({ targetName: 'x'.repeat(121) })],
+    ['closed: bad number', woc({ orderNumber: 'OT-1' })], ['closed: bad outcome', woc({ outcome: 'open' })], ['closed: bad type', woc({ orderType: 5 })], ['closed: no target', woc({ targetName: undefined })]])('refuses %s', (_n, raw) => { expect(() => parseEvent(raw)).toThrow(InvalidEventError); });
   it('every kind has an audience and every audience is a known role', () => {
     for (const k of KINDS) expect(AUDIENCE[k].length).toBeGreaterThan(0);
   });

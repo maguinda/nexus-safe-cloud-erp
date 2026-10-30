@@ -16,7 +16,7 @@ const SEV_PILL = { normal: ui.stateNormal, warning: ui.stateWarning, alert: ui.s
 export const readingValue = (r: Pick<ReadingItem, 'value' | 'unit'>, lang: Lang): string => (r.unit === 'BOOL' ? formatNumber(r.value, lang, 1) : `${formatNumber(r.value, lang, 1)} ${r.unit}`);
 
 /** Tabla explorable de lecturas: orden por columna, paginación y estados cargando/vacío/error. Las notas, los dispositivos y los estados son de la fuente y NO se traducen. */
-export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispatch: Dispatch<ExplorerAction>; headingRef: RefObject<HTMLHeadingElement | null>; onRetry: () => void; newer?: boolean; onLatest?: () => void; lang: Lang; t: TFn }> = ({ load, state, dispatch, headingRef, onRetry, newer, onLatest, lang, t }) => {
+export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispatch: Dispatch<ExplorerAction>; headingRef: RefObject<HTMLHeadingElement | null>; onRetry: () => void; newer?: boolean; onLatest?: () => void; lang: Lang; t: TFn; onWorkOrder?: (r: ReadingItem) => void }> = ({ load, state, dispatch, headingRef, onRetry, newer, onLatest, lang, t, onWorkOrder }) => {
   const info = load.status === 'ready' ? pageInfo(load.page.total, load.page.offset, load.page.limit, load.page.items.length) : null;
   const sortHead = (key: SortKey, label: string, num = false) => (
     <th className={num ? ui.num : undefined} aria-sort={state.sort === key ? (state.order === 'asc' ? 'ascending' : 'descending') : 'none'}>
@@ -55,6 +55,7 @@ export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispa
                 {sortHead('status', t('sensors.col.status'))}
                 {sortHead('value', t('sensors.col.value'), true)}
                 <th>{t('sensors.col.note')}</th>
+                {onWorkOrder && <th>{t('wo.title')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -67,6 +68,7 @@ export const ReadingsTable: FC<{ load: ReadingsLoad; state: ExplorerState; dispa
                   <td data-label={t('sensors.col.status')}><span><span className={SEV_PILL[r.severity]}>{t(`sensors.severity.${r.severity}` as MsgKey)}</span><span className={s.rawStatus}>{r.status}</span></span></td>
                   <td className={ui.num} data-label={t('sensors.col.value')}>{readingValue(r, lang)}</td>
                   <td className={s.note} data-label={t('sensors.col.note')}>{r.note ?? '—'}</td>
+                  {onWorkOrder && <td data-label={t('wo.title')}>{r.severity !== 'normal' ? <button type="button" className={ui.btnGhost} aria-label={t('wo.createFor', { name: r.deviceName })} onClick={() => onWorkOrder(r)}>{t('wo.create')}</button> : '—'}</td>}
                 </tr>
               ))}
             </tbody>

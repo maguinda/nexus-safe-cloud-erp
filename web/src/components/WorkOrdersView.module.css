@@ -1,0 +1,8 @@
+.filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); min-width: 0; margin: var(--sp-3) 0; }
+.filters button { max-width: 100%; white-space: normal; }
+.list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.card { min-width: 0; overflow-wrap: anywhere; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.assign { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-2); margin-top: var(--sp-2); }
+.log { margin: var(--sp-2) 0 0; padding-left: var(--sp-4); }

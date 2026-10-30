@@ -16,6 +16,8 @@ export const notifications: Record<keyof typeof es, string> = {
   'notif.more': 'Show more notifications',
   'notif.OverdueDetected': 'Invoice {invoiceNumber} of “{projectName}” ({milestoneName}) is {days} days overdue · {total} with IVA',
   'notif.ThresholdBreached': '{deviceName} in {location}: {readingKind} at {value} {unit} ({status})',
+  'notif.WorkOrderCreated': 'New order {orderNumber} ({type}, {priority} priority) on {targetName}',
+  'notif.WorkOrderClosed': 'Order {orderNumber} ({type}) on {targetName} ended as: {outcome}',
   'notif.OverAllocationDetected': '{engineerName} is allocated at {percent}% between {from} and {to}',
   'notif.unknown': 'New notification',
 };

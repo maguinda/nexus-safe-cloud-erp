@@ -219,6 +219,12 @@ The only person in the event is `registeredBy` (the staff email of the analyst, 
 - Each applied difference is one `stock_movements` row with source `count` (reason `Conteo físico #N`, the actor) and one `StockChanged` event (reason `adjustment`, the same note), in the same transaction. Lock order is always: count, then items by id; receive locks order then item and adjust locks the item, so there is no cycle.
 - Roles: manager opens, counts, closes and cancels; manager, project_lead and billing_analyst read.
 
+## WorkOrderCreated and WorkOrderClosed (operations)
+
+- Published by `operations` in the same transaction as the order (outbox). `WorkOrderCreated` → `ops.workorder.created`, data `orderNumber` (`OT-0001`), `orderType` (`inspection`, `preventive`, `corrective`), `priority`, `targetKind` (`sensor` or `device`), `targetName`, `dueDate`. `WorkOrderClosed` → `ops.workorder.closed`, data `orderNumber`, `orderType`, `outcome` (`done` or `cancelled`), `targetName`. No personal data (the responsible name and the creator stay in operations' database).
+- Consumed by `notifications` (a bell notice for the manager: warning for high or critical priority, info otherwise) and, through the `#` queue, by the audit log of `analytics`.
+- Rules: the manager creates from an alert (Sensors) or a device (Network) with `POST /work-orders`; **only one open order per equipment and type** (409 naming the existing one); the equipment name is read from the database, never from the client; status `open → in_progress → done` or `cancelled` (done and cancelled are final; the row is locked and the status read again inside the lock); every change leaves a line in the history; manager and project lead read, only the manager writes.
+
 ## Supplier catalog and equipment installation (procurement)
 
 - **Catalog:** `supplier_items` says what each supplier sells, with a reference price and a delivery time in days (`PUT/DELETE /suppliers/:id/catalog/:itemId`, manager). `GET /suppliers` returns each supplier with its `catalog` and, for suppliers by tender, `tenderRef` and `validUntil` (only a tender supplier may carry them: CHECK). **An order only accepts what the supplier sells** (409 `That supplier does not sell that item`); without `unitPriceCop` the order takes the supplier's reference price.

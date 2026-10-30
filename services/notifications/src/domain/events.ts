@@ -5,14 +5,14 @@ import { InvalidEventError } from './errors';
  * se valida cada campo y se GUARDA solo lo que se muestra (nunca el mensaje completo ni datos personales).
  * Los campos extra se ignoran (compatibilidad hacia adelante); los que faltan o son raros, no.
  */
-export const KINDS = ['OverdueDetected', 'ThresholdBreached', 'OverAllocationDetected'] as const;
+export const KINDS = ['OverdueDetected', 'ThresholdBreached', 'OverAllocationDetected', 'WorkOrderCreated', 'WorkOrderClosed'] as const;
 export type Kind = (typeof KINDS)[number];
 export const SEVERITIES = ['info', 'warning', 'critical'] as const;
 export type Severity = (typeof SEVERITIES)[number];
 export const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const ROUTING_KEYS = ['billing.invoice.overdue', 'ops.threshold.breached', 'capacity.overallocation.detected'] as const;
+export const ROUTING_KEYS = ['billing.invoice.overdue', 'ops.threshold.breached', 'capacity.overallocation.detected', 'ops.workorder.created', 'ops.workorder.closed'] as const;
 
 /** Lo que se guarda: qué pasó, qué tan grave es, quién lo ve y los datos para escribirlo en pantalla. */
 export interface NotificationDraft {
@@ -28,6 +28,11 @@ export interface NotificationDraft {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CORR = /^[A-Za-z0-9._-]{8,64}$/;
 const INVOICE = /^INV-\d{4,9}$/;
+const ORDER = /^OT-\d{4,9}$/;
+function oneOf<T extends string>(v: unknown, list: readonly T[], field: string): T {
+  if (typeof v !== 'string' || !(list as readonly string[]).includes(v)) throw new InvalidEventError(`${field} must be one of: ${list.join(', ')}`);
+  return v as T;
+}
 
 function text(v: unknown, field: string, max = 200): string {
   if (typeof v !== 'string' || v.trim().length === 0 || v.length > max) throw new InvalidEventError(`${field} must be a non-empty string up to ${max} chars`);
@@ -47,6 +52,9 @@ export const AUDIENCE: Record<Kind, Role[]> = {
   OverdueDetected: ['billing_analyst', 'manager'],
   ThresholdBreached: ['manager'],
   OverAllocationDetected: ['manager', 'sales'],
+  // Las órdenes de trabajo las crea y cierra gerencia: le avisan a ella.
+  WorkOrderCreated: ['manager'],
+  WorkOrderClosed: ['manager'],
 };
 
 export function parseEvent(raw: unknown): NotificationDraft {
@@ -79,6 +87,17 @@ export function parseEvent(raw: unknown): NotificationDraft {
       return { ...base, kind: 'OverAllocationDetected', severity: 'warning', audienceRoles: AUDIENCE.OverAllocationDetected, params: {
         engineerName: text(d.engineerName, 'engineerName', 120), allocationPercent: int(d.allocationPercent, 'allocationPercent', 101, 1000),
         periodStart: text(d.periodStart, 'periodStart', 10), periodEnd: text(d.periodEnd, 'periodEnd', 10) } };
+    case 'WorkOrderCreated': {
+      if (typeof d.orderNumber !== 'string' || !ORDER.test(d.orderNumber)) throw new InvalidEventError('orderNumber has an invalid format');
+      const priority = oneOf(d.priority, ['low', 'normal', 'high', 'critical'], 'priority');
+      return { ...base, kind: 'WorkOrderCreated', severity: priority === 'critical' || priority === 'high' ? 'warning' : 'info', audienceRoles: AUDIENCE.WorkOrderCreated, params: {
+        orderNumber: d.orderNumber, orderType: oneOf(d.orderType, ['inspection', 'preventive', 'corrective'], 'orderType'), priority, targetName: text(d.targetName, 'targetName', 120) } };
+    }
+    case 'WorkOrderClosed': {
+      if (typeof d.orderNumber !== 'string' || !ORDER.test(d.orderNumber)) throw new InvalidEventError('orderNumber has an invalid format');
+      return { ...base, kind: 'WorkOrderClosed', severity: 'info', audienceRoles: AUDIENCE.WorkOrderClosed, params: {
+        orderNumber: d.orderNumber, orderType: oneOf(d.orderType, ['inspection', 'preventive', 'corrective'], 'orderType'), outcome: oneOf(d.outcome, ['done', 'cancelled'], 'outcome'), targetName: text(d.targetName, 'targetName', 120) } };
+    }
     default:
       throw new InvalidEventError(`unknown event type`);
   }

@@ -10,6 +10,9 @@ import { addedSince } from '../lib/sensors-live';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { Cards } from './sensors/Cards';
+import { WorkOrderDialog } from './WorkOrderDialog';
+import type { WoTarget } from './WorkOrderDialog';
+import { readingValue } from './sensors/ReadingsTable';
 import { Charts } from './sensors/Charts';
 import { FilterBar } from './sensors/FilterBar';
 import { Insights } from './sensors/Insights';
@@ -25,6 +28,8 @@ import s from './sensors/Sensors.module.css';
 export function SensorsView() {
   const { api, lang, t } = useSession();
   const [range, setRange] = useState<RangeKey>(DEFAULT_RANGE);
+  const [woTarget, setWoTarget] = useState<WoTarget | null>(null);
+  const [woMsg, setWoMsg] = useState('');
   const { data, error, switching, reload, live } = useSensorsData(api, t, range);
   const [state, dispatch] = useReducer(explorerReducer, INITIAL_STATE);
   const window = data?.trends.window ?? data?.facets.window ?? null;
@@ -63,7 +68,9 @@ export function SensorsView() {
       <Cards cards={cards} facets={facets} location={state.filters.location} range={trends.range} window={window} bucketMinutes={trends.bucketMinutes} lang={lang} t={t} onDetail={show} />
       <FilterBar filters={state.filters} facets={facets} window={window} dispatch={dispatch} lang={lang} t={t} />
       <Charts trends={trends} location={state.filters.location} slotLabel={slotLabel} lang={lang} t={t} />
-      <ReadingsTable load={load} state={state} dispatch={dispatch} headingRef={focus.ref} onRetry={retry} newer={newer} onLatest={state.page === 0 ? retry : () => dispatch({ type: 'page', page: 0 })} lang={lang} t={t} />
+      {woMsg && <p role="status" className={ui.muted}>{woMsg}</p>}
+      <ReadingsTable onWorkOrder={(r) => setWoTarget({ kind: 'sensor', ref: r.deviceId, name: r.deviceName, suggest: 'corrective', note: `${r.status} · ${r.deviceName} · ${r.location} · ${readingValue(r, lang)}` })} load={load} state={state} dispatch={dispatch} headingRef={focus.ref} onRetry={retry} newer={newer} onLatest={state.page === 0 ? retry : () => dispatch({ type: 'page', page: 0 })} lang={lang} t={t} />
+      {woTarget && <WorkOrderDialog target={woTarget} onClose={() => setWoTarget(null)} onCreated={(o) => { setWoTarget(null); setWoMsg(t('wo.created', { n: o.number })); }} />}
     </div>
   );
 }

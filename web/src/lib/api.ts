@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -135,6 +135,11 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     networkSummary: () => request<NetworkSummary>('GET', '/network/summary'),
     networkDevices: (q: DevicesQuery = {}) => request<Page<NetworkDeviceItem>>('GET', `/network/devices${queryString(q)}`),
     networkLinks: (q: LinksQuery = {}) => request<Page<NetworkLinkItem>>('GET', `/network/links${queryString(q)}`),
+    workOrders: (status?: string) => request<WorkOrder[]>('GET', status ? `/work-orders?status=${encodeURIComponent(status)}` : '/work-orders'),
+    workOrder: (id: string) => request<{ order: WorkOrder; log: WorkOrderLogLine[] }>('GET', `/work-orders/${encodeURIComponent(id)}`),
+    createWorkOrder: (b: { type: string; targetKind: string; targetRef: string | number; description: string; priority?: string; dueDate?: string; assignedTo?: string; sourceNote?: string }) => request<WorkOrder>('POST', '/work-orders', b),
+    setWorkOrderStatus: (id: string, status: string) => request<WorkOrder>('PATCH', `/work-orders/${encodeURIComponent(id)}/status`, { status }),
+    assignWorkOrder: (id: string, assignedTo: string) => request<WorkOrder>('PATCH', `/work-orders/${encodeURIComponent(id)}/assign`, { assignedTo }),
     purchasedDevices: () => request<PurchasedDevice[]>('GET', '/network/purchased'),
     configureDevice: (id: number, b: { role: string; criticality: string; ips: string; serial?: string; warrantyUntil?: string; assignedTo?: string }) => request<{ id: number }>('PATCH', `/network/devices/${id}/configure`, b),
     networkFacets: () => request<NetworkFacets>('GET', '/network/facets'),
