@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -81,6 +81,16 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createProject: (name: string, client: string) => request<Project>('POST', '/projects', { name, client }),
     createMilestone: (projectId: string, name: string, amountCop: number) => request<Milestone>('POST', `/projects/${encodeURIComponent(projectId)}/milestones`, { name, amountCop }),
     approve: (milestoneId: string) => request<ApproveResponse>('POST', `/milestones/${encodeURIComponent(milestoneId)}/approve`),
+    suppliers: () => request<Supplier[]>('GET', '/suppliers'),
+    createSupplier: (b: { name: string; kind: string; terms: string }) => request<Supplier>('POST', '/suppliers', b),
+    inventory: () => request<StockItem[]>('GET', '/inventory'),
+    suggestions: () => request<RestockSuggestion[]>('GET', '/inventory/suggestions'),
+    createItem: (b: { name: string; kind: string; forKinds: string[] }) => request<StockItem>('POST', '/inventory/items', b),
+    adjustStock: (id: string, b: { delta: number; reason: string }) => request<{ id: string; onHand: number }>('POST', `/inventory/items/${encodeURIComponent(id)}/adjust`, b),
+    orders: () => request<PurchaseOrder[]>('GET', '/orders'),
+    createOrder: (b: { supplierId: string; itemId: string; quantity: number; unitPriceCop: number }) => request<{ id: string; number: string }>('POST', '/orders', b),
+    receiveOrder: (id: string) => request<{ id: string; onHand: number }>('POST', `/orders/${encodeURIComponent(id)}/receive`),
+    cancelOrder: (id: string) => request<{ id: string }>('POST', `/orders/${encodeURIComponent(id)}/cancel`),
     capacity: () => request<CapacityResponse>('GET', '/engineers'),
     createEngineer: (b: { name: string; role: string; skills: string[]; certifications: string[] }) => request<{ id: string; name: string }>('POST', '/engineers', b),
     allocate: (engineerId: string, b: AllocationInput) => request<{ id: string; peak: number; overAllocated: boolean }>('POST', `/engineers/${encodeURIComponent(engineerId)}/allocations`, b),

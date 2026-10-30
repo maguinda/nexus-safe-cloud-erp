@@ -16,8 +16,9 @@ function dbFingerprint(): string {
   const billing = q('billing', `select (select count(*) from invoices) || '/' || (select count(*) from processed_events)`);
   const analytics = q('analytics', `select (select count(*) from milestone_facts) || '/' || (select count(*) from processed_events)`);
   const operations = q('operations', `select (select count(*) from iot_readings) || '/' || (select count(*) from network_devices)`);
+  const procurement = q('procurement', `select (select count(*) from purchase_orders) || '/' || (select count(*) from suppliers) || '/' || (select sum(on_hand) from items) || '/' || (select count(*) from outbox_events)`);
   const capacity = q('capacity', `select (select count(*) from engineers) || '/' || (select count(*) from allocations) || '/' || (select count(*) from outbox_events)`);
-  return `${projects} | ${billing} | ${analytics} | ${capacity} | ${operations}`;
+  return `${projects} | ${billing} | ${analytics} | ${capacity} | ${operations} | ${procurement}`;
 }
 
 let before = '';
@@ -59,6 +60,8 @@ const screensFor = (lang: Lang): { name: string; role: RoleKey | null; go: (p: P
     // Gerencia: formulario de ingeniero y el de asignar abierto (el más ancho); ventas: solo lectura.
     { name: 'capacity-manager', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.capacity'), exact: true }).click(); await p.getByRole('heading', { name: 'Ana Torres' }).waitFor(); await p.getByRole('button', { name: T('capacity.allocateFor', { name: 'Ana Torres' }) }).click(); await p.getByRole('form', { name: T('capacity.allocateFor', { name: 'Ana Torres' }) }).waitFor(); } },
     { name: 'capacity-sales', role: 'sales', go: async (p) => { await p.getByRole('button', { name: T('nav.capacity'), exact: true }).click(); await p.getByRole('heading', { name: 'Ana Torres' }).waitFor(); } },
+    { name: 'procurement-manager', role: 'manager', go: async (p) => { await p.getByRole('button', { name: T('nav.procurement'), exact: true }).click(); await p.getByRole('heading', { name: T('proc.new.order') }).waitFor(); await p.getByRole('button', { name: T('proc.adjustFor', { name: 'Sensor de temperatura TH-10' }) }).click(); await p.getByRole('form', { name: T('proc.adjustFor', { name: 'Sensor de temperatura TH-10' }) }).waitFor(); } },
+    { name: 'procurement-lead', role: 'lead', go: async (p) => { await p.getByRole('button', { name: T('nav.procurement'), exact: true }).click(); await p.getByRole('heading', { name: T('proc.stock.title') }).waitFor(); } },
     { name: 'forbidden', role: 'sales', go: async (p) => { await p.getByRole('button', { name: T('nav.invoices') }).click(); await p.getByText(T('invoices.denied.title')).waitFor(); } },
   ];
 };

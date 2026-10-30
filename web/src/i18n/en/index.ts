@@ -14,5 +14,6 @@ import { advisor } from './advisor';
 import { einvoice } from './einvoice';
 import { notifications } from './notifications';
 import { capacity } from './capacity';
+import { procurement } from './procurement';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement };

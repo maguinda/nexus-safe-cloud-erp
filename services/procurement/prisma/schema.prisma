@@ -1,0 +1,91 @@
+// Base de Procurement & Inventory: proveedores, pedidos de compra, existencias y las sugerencias que salen de los avisos de sensores.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Supplier {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  /// fixed (proveedor fijo) o tender (por licitación).
+  kind      String
+  terms     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  orders    PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Item {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  /// equipment (equipo que entra a la flota) o spare (repuesto).
+  kind      String
+  /// Medidas de sensor (TEMP, HUMIDITY…) para las que sirve: con ellas se sugiere cuando un sensor se pone en alerta.
+  forKinds  String[] @map("for_kinds")
+  onHand    Int      @default(0) @map("on_hand")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  orders    PurchaseOrder[]
+
+  @@map("items")
+}
+
+model PurchaseOrder {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// PO-0001, PO-0002… (la base numera, sin huecos por reintentos de la aplicación).
+  number       Int       @unique @default(autoincrement())
+  supplierId   String    @map("supplier_id") @db.Uuid
+  itemId       String    @map("item_id") @db.Uuid
+  quantity     Int
+  unitPriceCop Int       @map("unit_price_cop")
+  totalCop     Int       @map("total_cop")
+  status       String    @default("ordered")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  receivedAt   DateTime? @map("received_at") @db.Timestamptz(6)
+  supplier     Supplier  @relation(fields: [supplierId], references: [id])
+  item         Item      @relation(fields: [itemId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@map("purchase_orders")
+}
+
+model ProcessedEvent {
+  eventId     String   @id @map("event_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@map("processed_events")
+}
+
+/// Avisos de sensores (ThresholdBreached) que llegaron: sirven para sugerir repuestos. Solo se guardan los últimos.
+model AlertSuggestion {
+  id          Int      @id @default(autoincrement())
+  eventId     String   @unique @map("event_id") @db.Uuid
+  deviceName  String   @map("device_name")
+  location    String
+  readingKind String   @map("reading_kind")
+  status      String
+  value       Float
+  unit        String
+  occurredAt  DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([occurredAt(sort: Desc)])
+  @@map("alert_suggestions")
+}
+
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  aggregateId String    @map("aggregate_id")
+  type        String
+  routingKey  String    @map("routing_key")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+
+  @@unique([aggregateId, type])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}

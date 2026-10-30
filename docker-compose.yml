@@ -14,6 +14,7 @@ services:
       DB_NOTIFICATIONS_PASSWORD: ${DB_NOTIFICATIONS_PASSWORD}
       DB_CAPACITY_PASSWORD: ${DB_CAPACITY_PASSWORD}
       DB_OPERATIONS_PASSWORD: ${DB_OPERATIONS_PASSWORD}
+      DB_PROCUREMENT_PASSWORD: ${DB_PROCUREMENT_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -201,6 +202,26 @@ services:
       TLS_ALLOWED_CLIENTS: gateway,operations
     secrets: [jwt_public, tls_ca, tls_operations_cert, tls_operations_key]
 
+  procurement:
+    build: ./services/procurement
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://procurement:${DB_PROCUREMENT_PASSWORD}@postgres:5432/procurement
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public
+      JWT_ISSUER: identity-access
+      JWT_AUDIENCE: erp-api
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      SEED_DEMO: ${SEED_DEMO:-false}
+      TLS_ENABLED: "true"
+      TLS_CERT_PATH: /run/secrets/tls_procurement_cert
+      TLS_KEY_PATH: /run/secrets/tls_procurement_key
+      TLS_CA_PATH: /run/secrets/tls_ca
+      TLS_ALLOWED_CLIENTS: gateway,procurement
+    secrets: [jwt_public, tls_ca, tls_procurement_cert, tls_procurement_key]
+
   web:
     build: ./web
     restart: unless-stopped
@@ -217,6 +238,7 @@ services:
       notifications: { condition: service_healthy }
       capacity: { condition: service_healthy }
       operations: { condition: service_healthy }
+      procurement: { condition: service_healthy }
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -266,6 +288,10 @@ secrets:
     file: ./infra/certs/operations.pem
   tls_operations_key:
     file: ./infra/certs/operations-key.pem
+  tls_procurement_cert:
+    file: ./infra/certs/procurement.pem
+  tls_procurement_key:
+    file: ./infra/certs/procurement-key.pem
 
 volumes:
   pgdata:

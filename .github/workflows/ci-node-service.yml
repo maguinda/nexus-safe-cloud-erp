@@ -49,6 +49,7 @@ jobs:
       DB_NOTIFICATIONS_PASSWORD: changemenotifications1
       DB_CAPACITY_PASSWORD: changemecapacity1
       DB_OPERATIONS_PASSWORD: changemeoperations1
+      DB_PROCUREMENT_PASSWORD: changemeprocurement1
       PGHOST: localhost
       PGPASSWORD: ci-postgres-password
       DEMO_PASSWORD: demo-password-1

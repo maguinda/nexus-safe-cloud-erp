@@ -65,6 +65,8 @@ tags:
     description: Owned by analytics (manager only)
   - name: Capacity
     description: Engineers, skills and allocations (service technical-capacity, port 4106). Nobody goes over 100% load on any day.
+  - name: Procurement
+    description: Suppliers, purchase orders and stock (service procurement, port 4108). An order only moves the stock when it is received.
   - name: Notifications
     description: In-app alerts built from events of other services (service notifications, port 4105). Each role sees its own; read marks are per person.
   - name: Advisor
@@ -469,6 +471,119 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { description: Allocation not found }
+  /suppliers:
+    get:
+      tags: [Procurement]
+      operationId: listSuppliers
+      summary: Suppliers, fixed and by tender (roles manager, project_lead, billing_analyst)
+      responses:
+        '200': { description: The suppliers by name }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Procurement]
+      operationId: createSupplier
+      summary: Add a supplier (role manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name, kind], additionalProperties: false, properties: { name: { type: string, minLength: 2, maxLength: 80 }, kind: { type: string, enum: [fixed, tender] }, terms: { type: string, maxLength: 200 } } }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: A supplier with that name already exists }
+  /inventory:
+    get:
+      tags: [Procurement]
+      operationId: listInventory
+      summary: Stock of equipment and spare parts (roles manager, project_lead, billing_analyst)
+      responses:
+        '200': { description: The items with `onHand` }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /inventory/suggestions:
+    get:
+      tags: [Procurement]
+      operationId: listRestockSuggestions
+      summary: Recent sensor alerts with the spare parts that serve that measure (in stock first)
+      responses:
+        '200': { description: Up to 20 alerts, newest first }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /inventory/items:
+    post:
+      tags: [Procurement]
+      operationId: createItem
+      summary: Add an item with zero stock (role manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name, kind], additionalProperties: false, properties: { name: { type: string, minLength: 2, maxLength: 80 }, kind: { type: string, enum: [equipment, spare] }, forKinds: { type: array, maxItems: 10, items: { type: string } } } }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: An item with that name already exists }
+  /inventory/items/{id}/adjust:
+    post:
+      tags: [Procurement]
+      operationId: adjustStock
+      summary: Adjust the stock by hand; never below 0 (role manager)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [delta, reason], additionalProperties: false, properties: { delta: { type: integer, description: 'Not 0; up to 100000 either way' }, reason: { type: string, minLength: 3, maxLength: 120 } } }
+      responses:
+        '200': { description: The new stock }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { description: Item not found }
+        '409': { description: The stock would go below 0 }
+  /orders:
+    get:
+      tags: [Procurement]
+      operationId: listOrders
+      summary: Purchase orders, newest first (roles manager, project_lead, billing_analyst)
+      responses:
+        '200': { description: Up to 200 orders }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Procurement]
+      operationId: createOrder
+      summary: Create a purchase order; it is pending and does NOT move the stock (role manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [supplierId, itemId, quantity, unitPriceCop], additionalProperties: false, properties: { supplierId: { type: string, format: uuid }, itemId: { type: string, format: uuid }, quantity: { type: integer, minimum: 1, maximum: 100000 }, unitPriceCop: { type: integer, minimum: 1, maximum: 1000000000 } } }
+      responses:
+        '201': { description: Created as PO-0001, PO-0002… }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { description: Supplier or item not found }
+  /orders/{id}/receive:
+    post:
+      tags: [Procurement]
+      operationId: receiveOrder
+      summary: Receive an order; the stock goes up ONCE and StockChanged (and EquipmentPurchased for equipment) is published (role manager)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Received; returns the new stock }
+        '404': { description: Order not found }
+        '409': { description: The order is not pending any more }
+  /orders/{id}/cancel:
+    post:
+      tags: [Procurement]
+      operationId: cancelOrder
+      summary: Cancel a pending order (role manager)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cancelled }
+        '404': { description: Order not found }
+        '409': { description: The order is not pending any more }
   /notifications:
     get:
       tags: [Notifications]
