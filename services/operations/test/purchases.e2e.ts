@@ -20,6 +20,7 @@ describe('purchased equipment enters the network inventory (e2e, real PostgreSQL
   const publish = (e: object) => ch.publish('erp.events', 'procurement.equipment.installed', Buffer.from(JSON.stringify(e)), { persistent: true });
   const until = async (f: () => Promise<boolean>, ms = 10_000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await f()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
   const dlq = async () => (await ch.checkQueue('q.operations.purchases.dlq')).messageCount;
+  const publishKey = (key: string, e: object) => ch.publish('erp.events', key, Buffer.from(JSON.stringify(e)), { persistent: true });
   const bought = () => prisma.networkDevice.count({ where: { sourceOrder: { not: null } } });
   const wipeBought = () => prisma.networkDevice.deleteMany({ where: { sourceOrder: { not: null } } });
   const get = (p: string, u: any) => request(app.getHttpServer()).get(p).set('Authorization', bearer(token(u)));
@@ -75,6 +76,52 @@ describe('purchased equipment enters the network inventory (e2e, real PostgreSQL
   it('the database refuses an unit number out of range or an origin that does not look like PO-0001 or INS-0001', async () => {
     await expect(prisma.$executeRawUnsafe(`INSERT INTO network_devices (id, name, pt_type, model, category, role, criticality, serial, source_order, source_unit) VALUES (99001,'x','p','m','c','r','Media','s','PO-0001',0)`)).rejects.toThrow();
     await expect(prisma.$executeRawUnsafe(`INSERT INTO network_devices (id, name, pt_type, model, category, role, criticality, serial, source_order, source_unit) VALUES (99002,'y','p','m','c','r','Media','s','mala',1)`)).rejects.toThrow();
+  });
+  describe('an installed unit leaves the network inventory when it goes back to storage or is retired', () => {
+    const h = () => purchaseEventHandler(prisma);
+    const inst = (n: string) => ({ type: 'EquipmentInstalled', data: { installNumber: n, itemName: 'Switch Acceso 24p' } });
+    const ret = (n: string, destination = 'storage') => ({ type: 'EquipmentRetired', data: { installNumber: n, itemName: 'Switch Acceso 24p', destination } });
+    const has = (n: string) => prisma.networkDevice.count({ where: { sourceOrder: n } });
+
+    it('removes the asset of that installation, only that one; a repeat or an unknown number changes nothing', async () => {
+      await h()(inst('INS-0701')); await h()(inst('INS-0702'));
+      expect(await h()(ret('INS-0701'))).toBe('removed'); expect(await has('INS-0701')).toBe(0); expect(await has('INS-0702')).toBe(1);
+      expect(await h()(ret('INS-0701'))).toBe('duplicate'); expect(await h()(ret('INS-0999', 'retired'))).toBe('duplicate'); expect(await has('INS-0702')).toBe(1);
+      expect(await h()(ret('INS-0702', 'retired'))).toBe('removed'); expect(await prisma.networkDevice.count({ where: { sourceOrder: { not: null } } })).toBe(0);
+    });
+
+    it('the 76 devices of the Excel are never touched by a retirement', async () => {
+      const before = await prisma.networkDevice.count({ where: { sourceOrder: null } });
+      await h()(ret('INS-0888')); await h()(inst('INS-0801')); await h()(ret('INS-0801'));
+      expect(await prisma.networkDevice.count({ where: { sourceOrder: null } })).toBe(before);
+    });
+
+    it('a device that has links or monitoring is not deleted: it is marked as out of service', async () => {
+      await h()(inst('INS-0802')); const d = await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'INS-0802' } });
+      await prisma.networkMonitoring.create({ data: { deviceName: d.name, syslog: true, snmp: true, ntp: true, netflow: true } as any });
+      expect(await h()(ret('INS-0802'))).toBe('marked'); expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: d.id } })).role).toBe('Retirado de servicio');
+      await prisma.networkMonitoring.delete({ where: { deviceName: d.name } });
+    });
+
+    it('invalid retirements go to the dead-letter queue and store nothing; the real routing key reaches the consumer', async () => {
+      await h()(inst('INS-0803')); const dead = await dlq();
+      publishKey('procurement.equipment.retired', { eventId: randomUUID(), type: 'EquipmentRetired', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { installNumber: 'nope', destination: 'storage' } });
+      publishKey('procurement.equipment.retired', { eventId: randomUUID(), type: 'EquipmentRetired', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { installNumber: 'INS-0803', destination: 'lost' } });
+      expect(await until(async () => (await dlq()) === dead + 2)).toBe(true); expect(await has('INS-0803')).toBe(1);
+      const ok = { eventId: randomUUID(), type: 'EquipmentRetired', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { installNumber: 'INS-0803', itemId: randomUUID(), itemName: 'x', destination: 'retired' } };
+      publishKey('procurement.equipment.retired', ok); publishKey('procurement.equipment.retired', ok);
+      expect(await until(async () => (await has('INS-0803')) === 0)).toBe(true); await new Promise((r) => setTimeout(r, 1200)); expect(await dlq()).toBe(dead + 2);
+    });
+
+    it('CONCURRENCY: 20 rounds of installs and retirements of different units at once never collide on ids and leave exactly the units that were not retired', async () => {
+      for (let r = 0; r < 20; r++) {
+        await prisma.networkDevice.deleteMany({ where: { sourceOrder: { not: null } } });
+        await Promise.all([1, 2, 3, 4].map((n) => h()(inst(`INS-09${n}0`))));
+        await Promise.all([...[1, 2].map((n) => h()(ret(`INS-09${n}0`))), ...[5, 6].map((n) => h()(inst(`INS-09${n}0`))), h()(ret('INS-0930')), h()(ret('INS-0930'))]);
+        const left = (await prisma.networkDevice.findMany({ where: { sourceOrder: { not: null } }, select: { sourceOrder: true, id: true } }));
+        expect(left.map((x) => x.sourceOrder).sort()).toEqual(['INS-0940', 'INS-0950', 'INS-0960']); expect(new Set(left.map((x) => x.id)).size).toBe(3);
+      }
+    }, 120_000);
   });
 });
 

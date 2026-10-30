@@ -27,6 +27,7 @@ const RULES: Rule[] = [
   [/^There is already an open work order (OT-\d+|one|another) for that equipment and type$/, 'server.woDuplicate', (m) => ({ n: m[1] })],
   [/^The work order is (\w+): it cannot go to (\w+)$/, 'server.woState', (m) => ({ status: m[1], to: m[2] })],
   [/^That equipment does not exist$/, 'server.woTarget'],
+  [/^(INS-\d+) is already (installed|returned|retired)$/, 'server.installEnded', (m) => ({ number: m[1], status: m[2] })],
   [/^Contract not found$/, 'server.contractNotFound'],
   [/^The contract is already (\w+)$/, 'server.contractNotActive', (m) => ({ status: m[1] })],
   [/^(clientName|projectName|amountCop|startDate|endDate) /, 'server.invalidContract'],

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { parseEquipmentInstalled, unitName } from '../domain/purchased';
+import { parseEquipmentInstalled, parseEquipmentRetired, unitName } from '../domain/purchased';
 
 const LOCK = 727_001; // candado de la base para repartir ids del inventario sin choques
 const TX = { timeout: 15_000, maxWait: 15_000 };
@@ -12,6 +12,20 @@ export function purchaseEventHandler(prisma: PrismaClient) {
   return async (raw: unknown): Promise<string> => {
     // La compra recibida ya NO crea equipos (queda «en bodega»): solo se confirma. El equipo nace al instalarse.
     if (typeof raw === 'object' && raw !== null && (raw as { type?: unknown }).type === 'EquipmentPurchased') return 'ignored (in storage, not installed)';
+    // Una unidad que vuelve a bodega o se da de baja sale de Red. Si el equipo tuviera enlaces o monitoreo (no pasa con los instalados desde Compras) no se borra: se marca.
+    if (typeof raw === 'object' && raw !== null && (raw as { type?: unknown }).type === 'EquipmentRetired') {
+      const r = parseEquipmentRetired(raw);
+      return prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK})`;
+        const rows = await tx.$queryRaw<{ id: number; name: string }[]>`SELECT id, name FROM network_devices WHERE source_order = ${r.installNumber} FOR UPDATE`;
+        if (rows.length === 0) return 'duplicate';
+        const dev = rows[0];
+        const used = (await tx.$queryRaw<{ n: bigint }[]>`SELECT (SELECT count(*) FROM network_links WHERE origin_name = ${dev.name} OR destination_name = ${dev.name}) + (SELECT count(*) FROM network_monitoring WHERE device_name = ${dev.name}) AS n`)[0].n;
+        if (used > 0n) { await tx.$executeRaw`UPDATE network_devices SET role = 'Retirado de servicio' WHERE id = ${dev.id}`; return 'marked'; }
+        await tx.$executeRaw`DELETE FROM network_devices WHERE id = ${dev.id}`;
+        return 'removed';
+      }, TX);
+    }
     const p = parseEquipmentInstalled(raw);
     return prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK})`;

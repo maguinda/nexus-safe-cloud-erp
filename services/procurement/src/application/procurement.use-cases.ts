@@ -1,6 +1,6 @@
 import { newItem, newSupplier, validateCatalogEntry } from '../domain/catalog';
-import { ConflictError, NotFoundError } from '../domain/errors';
-import { equipmentInstalled, equipmentPurchased, installNumber, orderNumber, stockChanged } from '../domain/events';
+import { ConflictError, NotFoundError, ValidationError } from '../domain/errors';
+import { equipmentInstalled, equipmentPurchased, equipmentRetired, installNumber, orderNumber, stockChanged } from '../domain/events';
 import { applyDelta, assertCancellable, assertReceivable, newOrder, validateAdjustment } from '../domain/order';
 import { ProcurementCommands, ProcurementQueries, UnitOfWork } from '../domain/ports';
 
@@ -117,6 +117,42 @@ export class InstallEquipmentUseCase {
       return { installNumber: label, itemName: item.name, onHand };
     });
   }
+}
+
+/**
+ * Una unidad instalada deja de estarlo: vuelve a la bodega (el stock sube 1) o se da de baja (el stock no cambia). Se bloquea primero la INSTALACIÓN y luego el artículo
+ * (instalar solo bloquea el artículo y crea una fila nueva, así que no se forma ningún ciclo). El estado se relee dentro del bloqueo: devolver dos veces la misma unidad
+ * la devuelve una sola vez (el segundo recibe 409). Operations quita el activo de Red al recibir EquipmentRetired.
+ */
+export class RetireInstalledUseCase {
+  constructor(private readonly uow: UnitOfWork, private readonly clock: () => Date = () => new Date()) {}
+  execute(installId: string, destination: unknown, correlationId: string, actor: string | null = null) {
+    if (destination !== 'storage' && destination !== 'retired') throw new ValidationError('destination must be storage or retired');
+    return this.uow.run(async (tx) => {
+      const inst = await tx.lockInstall(installId);
+      if (!inst) throw new NotFoundError('Installation');
+      if (inst.status !== 'installed') throw new ConflictError(`${installNumber(inst.number)} is already ${inst.status}`);
+      const item = await tx.lockItem(inst.itemId);
+      if (!item) throw new NotFoundError('Item');
+      const now = this.clock();
+      const label = installNumber(inst.number);
+      let onHand = item.onHand;
+      if (destination === 'storage') {
+        onHand = applyDelta(item.onHand, 1, item.name);
+        await tx.setOnHand(item.id, onHand);
+        await tx.addMovement({ itemId: item.id, itemName: item.name, delta: 1, onHandAfter: onHand, source: 'return', reason: `Devolución ${label}`, actor });
+        await tx.addToOutbox(stockChanged(item, 1, onHand, 'return', `return ${label}`, correlationId, now), `${inst.id}:return-stock`);
+      }
+      await tx.endInstall(inst.id, destination === 'storage' ? 'returned' : 'retired', actor);
+      await tx.addToOutbox(equipmentRetired({ number: inst.number, itemId: item.id, itemName: item.name }, destination, correlationId, now), `${inst.id}:retired`);
+      return { installNumber: label, itemName: item.name, destination, onHand };
+    });
+  }
+}
+
+export class ListInstallsUseCase {
+  constructor(private readonly q: ProcurementQueries) {}
+  execute(opts: { itemId?: string; limit: number }) { return this.q.installs(opts); }
 }
 
 /** Ajuste manual de stock (conteo, merma, devolución): el stock NUNCA queda negativo; el artículo se bloquea y se relee dentro del bloqueo. */

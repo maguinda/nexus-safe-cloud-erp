@@ -1,11 +1,11 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Delete, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, InstallEquipmentUseCase, ListMovementsUseCase, ListProcurementUseCase, ReceiveOrderUseCase, SetCatalogUseCase } from '../application/procurement.use-cases';
+import { AdjustStockUseCase, CancelOrderUseCase, CreateItemUseCase, CreateOrderUseCase, CreateSupplierUseCase, InstallEquipmentUseCase, ListInstallsUseCase, ListMovementsUseCase, RetireInstalledUseCase, ListProcurementUseCase, ReceiveOrderUseCase, SetCatalogUseCase } from '../application/procurement.use-cases';
 import { Roles } from '../auth/auth.guard';
 import { CountsService } from '../infrastructure/prisma-counts';
 import { orderNumber } from '../domain/events';
-import { AdjustDto, CatalogDto, CountedDto, CreateItemDto, CreateOrderDto, CreateSupplierDto } from './procurement.dto';
+import { AdjustDto, CatalogDto, RetireDto, CountedDto, CreateItemDto, CreateOrderDto, CreateSupplierDto } from './procurement.dto';
 
 export const LIST = 'PROC_LIST';
 export const CREATE_SUPPLIER = 'PROC_CREATE_SUPPLIER';
@@ -18,6 +18,8 @@ export const LIST_MOVEMENTS = 'PROC_LIST_MOVEMENTS';
 export const COUNTS = 'PROC_COUNTS';
 export const CATALOG = 'PROC_CATALOG';
 export const INSTALL = 'PROC_INSTALL';
+export const RETIRE = 'PROC_RETIRE';
+export const LIST_INSTALLS = 'PROC_LIST_INSTALLS';
 
 const READERS = ['manager', 'project_lead', 'billing_analyst'] as const;
 
@@ -37,6 +39,8 @@ export class ProcurementController {
     @Inject(COUNTS) private readonly counts: CountsService,
     @Inject(CATALOG) private readonly catalog: SetCatalogUseCase,
     @Inject(INSTALL) private readonly install: InstallEquipmentUseCase,
+    @Inject(RETIRE) private readonly retire: RetireInstalledUseCase,
+    @Inject(LIST_INSTALLS) private readonly listInstalls: ListInstallsUseCase,
   ) {}
 
   @Get('suppliers') @Roles(...READERS) @ApiOperation({ summary: 'Suppliers (fixed and by tender)' })
@@ -53,6 +57,17 @@ export class ProcurementController {
 
   @Post('inventory/items/:id/install') @HttpCode(200) @Roles('manager') @ApiOperation({ summary: 'Install ONE unit of an equipment item: it leaves the stock and becomes an asset in the network inventory (role manager)' }) @ApiResponse({ status: 409, description: 'No stock, or the item is a spare part' })
   installUnit(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request) { return this.install.execute(id, (req as any).correlationId ?? 'no-correlation', (req as any).user?.email ?? null); }
+
+  @Get('installs') @Roles(...READERS) @ApiOperation({ summary: 'Installed equipment units (INS-0001…) with their status, newest first; filter by item' }) @ApiResponse({ status: 400, description: 'Bad itemId or limit' })
+  installs(@Query('itemId') itemId?: string, @Query('limit') limit?: string) {
+    if (itemId !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(itemId)) throw new BadRequestException('itemId must be a UUID');
+    let n = 100;
+    if (limit !== undefined) { if (!/^\d{1,3}$/.test(limit) || Number(limit) < 1 || Number(limit) > 200) throw new BadRequestException('limit must be a whole number from 1 to 200'); n = Number(limit); }
+    return this.listInstalls.execute({ itemId: itemId?.toLowerCase(), limit: n });
+  }
+
+  @Post('installs/:id/retire') @HttpCode(200) @Roles('manager') @ApiOperation({ summary: 'Take an installed unit out of service: back to storage (the stock goes up by one) or retired (the stock does not change) (role manager)' }) @ApiResponse({ status: 409, description: 'The unit is not installed any more' })
+  retireUnit(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RetireDto, @Req() req: Request) { return this.retire.execute(id, dto.destination, (req as any).correlationId ?? 'no-correlation', (req as any).user?.email ?? null); }
 
   @Get('inventory') @Roles(...READERS) @ApiOperation({ summary: 'Stock of equipment and spare parts, online (US-08)' })
   inventory() { return this.list.inventory(); }

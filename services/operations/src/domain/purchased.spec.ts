@@ -1,5 +1,5 @@
 import { InvalidEventError } from './errors';
-import { parseEquipmentInstalled, parseEquipmentPurchased, unitName } from './purchased';
+import { parseEquipmentInstalled, parseEquipmentPurchased, parseEquipmentRetired, unitName } from './purchased';
 
 const ev = (data: object = {}, over: object = {}) => ({ eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a01', type: 'EquipmentPurchased', occurredAt: '2026-10-30T10:00:00.000Z', correlationId: 'corr-12345678',
   data: { orderNumber: 'PO-0007', orderId: 'x', supplierName: 'Proveedor', itemName: '  Router   edge  ', quantity: 2, unitPriceCop: 100, totalCop: 200, ...data }, ...over });
@@ -21,4 +21,10 @@ describe('parseEquipmentInstalled', () => {
   it.each<[string, unknown]>([['null', null], ['an array', []], ['another type', inst({}, { type: 'EquipmentPurchased' })], ['no data', inst({}, { data: undefined })], ['number without INS', inst({ installNumber: 'PO-0001' })], ['number injection', inst({ installNumber: "INS-1'; DROP" })],
     ['markup item', inst({ itemName: '<b>x</b>' })], ['empty item', inst({ itemName: ' ' })], ['long item', inst({ itemName: 'x'.repeat(101) })], ['control char', inst({ itemName: 'a\u0000b' })],
   ])('refuses %s', (_n, raw) => { expect(() => parseEquipmentInstalled(raw)).toThrow(InvalidEventError); });
+});
+
+describe('parseEquipmentRetired', () => {
+  const ret = (data: object = {}, over: object = {}) => ({ eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a01', type: 'EquipmentRetired', occurredAt: '2026-10-30T10:00:00.000Z', correlationId: 'corr-12345678', data: { installNumber: 'INS-0007', itemId: 'x', itemName: 'Router', destination: 'storage', ...data }, ...over });
+  it('keeps the number and the destination', () => { expect(parseEquipmentRetired(ret())).toEqual({ installNumber: 'INS-0007', destination: 'storage' }); expect(parseEquipmentRetired(ret({ destination: 'retired' })).destination).toBe('retired'); });
+  it.each<[string, unknown]>([['null', null], ['array', []], ['other type', ret({}, { type: 'EquipmentInstalled' })], ['no data', ret({}, { data: undefined })], ['bad number', ret({ installNumber: 'PO-1' })], ['bad destination', ret({ destination: 'lost' })], ['no destination', ret({ destination: undefined })]])('refuses %s', (_n, raw) => { expect(() => parseEquipmentRetired(raw)).toThrow(InvalidEventError); });
 });

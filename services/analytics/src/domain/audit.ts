@@ -28,6 +28,7 @@ export function summarize(type: string, d: Record<string, unknown>): string {
     case 'StockChanged': return `Stock of ${str(d.itemName)} changed by ${typeof d.delta === 'number' ? d.delta : '?'}`;
     case 'WorkOrderCreated': return `Work order ${str(d.orderNumber)} (${str(d.orderType)}) created on ${str(d.targetName)}`;
     case 'WorkOrderClosed': return `Work order ${str(d.orderNumber)} ${str(d.outcome)} on ${str(d.targetName)}`;
+    case 'EquipmentRetired': return `Equipment ${str(d.installNumber)} ${d.destination === 'storage' ? 'returned to storage' : 'retired'} (${str(d.itemName)})`;
     case 'EquipmentInstalled': return `Equipment installed: ${str(d.itemName)} (${str(d.installNumber)})`;
     case 'EquipmentPurchased': return `Equipment purchased: ${str(d.itemName)} (order ${str(d.orderNumber)})`;
     default: return `Event ${type}`;

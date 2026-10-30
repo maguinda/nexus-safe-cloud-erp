@@ -1,8 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Item, Supplier, SupplierView } from '../domain/catalog';
-import { ProcurementEvent, orderNumber, routingKeyOf, ThresholdAlert } from '../domain/events';
+import { ProcurementEvent, installNumber, orderNumber, routingKeyOf, ThresholdAlert } from '../domain/events';
 import { NewOrder, OrderStatus } from '../domain/order';
-import { EventScope, EventUnitOfWork, LockedOrder, MovementView, NewMovement, OrderView, ProcurementCommands, ProcurementQueries, SuggestionView, TransactionScope, UnitOfWork } from '../domain/ports';
+import { EventScope, EventUnitOfWork, InstallView, LockedOrder, MovementView, NewMovement, OrderView, ProcurementCommands, ProcurementQueries, SuggestionView, TransactionScope, UnitOfWork } from '../domain/ports';
 
 const TX = { timeout: 10_000, maxWait: 10_000 };
 
@@ -35,6 +35,10 @@ export class PrismaProcurement implements ProcurementQueries, ProcurementCommand
       SELECT si.supplier_id, si.item_id, i.name AS item_name, i.kind AS item_kind, si.ref_price_cop, si.lead_days FROM supplier_items si JOIN items i ON i.id = si.item_id ORDER BY i.name, i.id`;
     return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind as Supplier['kind'], terms: r.terms, tenderRef: r.tenderRef, validUntil: r.validUntil ? r.validUntil.toISOString().slice(0, 10) : null,
       catalog: cat.filter((c) => c.supplier_id === r.id).map((c) => ({ itemId: c.item_id, itemName: c.item_name, itemKind: c.item_kind, refPriceCop: c.ref_price_cop, leadDays: c.lead_days })) }));
+  }
+  async installs(opts: { itemId?: string; limit: number }): Promise<InstallView[]> {
+    const rows = await this.prisma.equipmentInstall.findMany({ where: opts.itemId ? { itemId: opts.itemId } : {}, orderBy: [{ number: 'desc' }], take: opts.limit });
+    return rows.map((r) => ({ id: r.id, number: installNumber(r.number), itemId: r.itemId, itemName: r.itemName, status: r.status, installedAt: r.installedAt.toISOString(), installedBy: r.installedBy, endedAt: r.endedAt ? r.endedAt.toISOString() : null, endedBy: r.endedBy }));
   }
   async movements(opts: { itemId?: string; limit: number }): Promise<MovementView[]> {
     const rows = await this.prisma.stockMovement.findMany({ where: opts.itemId ? { itemId: opts.itemId } : {}, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take: opts.limit });
@@ -87,6 +91,13 @@ class Scope implements TransactionScope {
   async catalogPrice(supplierId: string, itemId: string) {
     const r = await this.tx.$queryRaw<{ p: number }[]>`SELECT ref_price_cop AS p FROM supplier_items WHERE supplier_id = ${supplierId}::uuid AND item_id = ${itemId}::uuid`;
     return r[0] ? r[0].p : null;
+  }
+  async lockInstall(id: string) {
+    const r = await this.tx.$queryRaw<{ id: string; number: number; item_id: string; item_name: string; status: string }[]>`SELECT id, number, item_id, item_name, status FROM equipment_installs WHERE id = ${id}::uuid FOR UPDATE`;
+    return r[0] ? { id: r[0].id, number: r[0].number, itemId: r[0].item_id, itemName: r[0].item_name, status: r[0].status as 'installed' | 'returned' | 'retired' } : null;
+  }
+  async endInstall(id: string, status: 'returned' | 'retired', actor: string | null) {
+    await this.tx.$executeRaw`UPDATE equipment_installs SET status = ${status}, ended_at = now(), ended_by = ${actor} WHERE id = ${id}::uuid`;
   }
   async insertInstall(i: { itemId: string; itemName: string; actor: string | null }) {
     const r = await this.tx.$queryRaw<{ id: string; number: number }[]>`INSERT INTO equipment_installs (item_id, item_name, installed_by) VALUES (${i.itemId}::uuid, ${i.itemName}, ${i.actor}) RETURNING id, number`;

@@ -9,19 +9,25 @@ export interface EquipmentPurchasedEvent extends Envelope {
 }
 export interface StockChangedEvent extends Envelope {
   type: 'StockChanged';
-  data: { itemId: string; itemName: string; delta: number; onHand: number; reason: 'purchase_received' | 'adjustment' | 'installation'; note: string };
+  data: { itemId: string; itemName: string; delta: number; onHand: number; reason: 'purchase_received' | 'adjustment' | 'installation' | 'return'; note: string };
+}
+/** Una unidad instalada volvió a bodega o se dio de baja: Operations quita (o marca) el activo del inventario de red. */
+export interface EquipmentRetiredEvent extends Envelope {
+  type: 'EquipmentRetired';
+  data: { installNumber: string; itemId: string; itemName: string; destination: 'storage' | 'retired' };
 }
 /** Una unidad de equipo pasó de «en bodega» a «instalada»: Operations la da de alta en el inventario de red. */
 export interface EquipmentInstalledEvent extends Envelope {
   type: 'EquipmentInstalled';
   data: { installNumber: string; itemId: string; itemName: string };
 }
-export type ProcurementEvent = EquipmentPurchasedEvent | StockChangedEvent | EquipmentInstalledEvent;
+export type ProcurementEvent = EquipmentPurchasedEvent | StockChangedEvent | EquipmentInstalledEvent | EquipmentRetiredEvent;
 
 export const EQUIPMENT_PURCHASED_ROUTING_KEY = 'procurement.equipment.purchased';
 export const STOCK_CHANGED_ROUTING_KEY = 'procurement.stock.changed';
 export const EQUIPMENT_INSTALLED_ROUTING_KEY = 'procurement.equipment.installed';
-export const routingKeyOf = (e: ProcurementEvent): string => (e.type === 'EquipmentPurchased' ? EQUIPMENT_PURCHASED_ROUTING_KEY : e.type === 'EquipmentInstalled' ? EQUIPMENT_INSTALLED_ROUTING_KEY : STOCK_CHANGED_ROUTING_KEY);
+export const EQUIPMENT_RETIRED_ROUTING_KEY = 'procurement.equipment.retired';
+export const routingKeyOf = (e: ProcurementEvent): string => (e.type === 'EquipmentPurchased' ? EQUIPMENT_PURCHASED_ROUTING_KEY : e.type === 'EquipmentInstalled' ? EQUIPMENT_INSTALLED_ROUTING_KEY : e.type === 'EquipmentRetired' ? EQUIPMENT_RETIRED_ROUTING_KEY : STOCK_CHANGED_ROUTING_KEY);
 export const installNumber = (n: number): string => `INS-${String(n).padStart(4, '0')}`;
 /** Lo que este servicio ESCUCHA. */
 export const ROUTING_KEYS = ['ops.threshold.breached'] as const;
@@ -32,12 +38,16 @@ export function equipmentPurchased(o: { number: number; id: string; supplierName
   return { eventId: randomUUID(), type: 'EquipmentPurchased', occurredAt: now.toISOString(), correlationId,
     data: { orderNumber: orderNumber(o.number), orderId: o.id, supplierName: o.supplierName, itemName: o.itemName, quantity: o.quantity, unitPriceCop: o.unitPriceCop, totalCop: o.totalCop } };
 }
-export function stockChanged(item: { id: string; name: string }, delta: number, onHand: number, reason: 'purchase_received' | 'adjustment' | 'installation', note: string, correlationId: string, now: Date): StockChangedEvent {
+export function stockChanged(item: { id: string; name: string }, delta: number, onHand: number, reason: 'purchase_received' | 'adjustment' | 'installation' | 'return', note: string, correlationId: string, now: Date): StockChangedEvent {
   return { eventId: randomUUID(), type: 'StockChanged', occurredAt: now.toISOString(), correlationId, data: { itemId: item.id, itemName: item.name, delta, onHand, reason, note } };
 }
 
 export function equipmentInstalled(i: { number: number; itemId: string; itemName: string }, correlationId: string, now: Date): EquipmentInstalledEvent {
   return { eventId: randomUUID(), type: 'EquipmentInstalled', occurredAt: now.toISOString(), correlationId, data: { installNumber: installNumber(i.number), itemId: i.itemId, itemName: i.itemName } };
+}
+
+export function equipmentRetired(i: { number: number; itemId: string; itemName: string }, destination: 'storage' | 'retired', correlationId: string, now: Date): EquipmentRetiredEvent {
+  return { eventId: randomUUID(), type: 'EquipmentRetired', occurredAt: now.toISOString(), correlationId, data: { installNumber: installNumber(i.number), itemId: i.itemId, itemName: i.itemName, destination } };
 }
 
 // ---- Entrada: ThresholdBreached (lo publica operations; contrato en docs/events.md) ----

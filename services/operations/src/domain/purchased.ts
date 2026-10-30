@@ -2,6 +2,7 @@ import { InvalidEventError } from './errors';
 
 export const EQUIPMENT_PURCHASED_ROUTING_KEY = 'procurement.equipment.purchased';
 export const EQUIPMENT_INSTALLED_ROUTING_KEY = 'procurement.equipment.installed';
+export const EQUIPMENT_RETIRED_ROUTING_KEY = 'procurement.equipment.retired';
 const INSTALL = /^INS-\d{4,9}$/;
 export const MAX_UNITS = 100;
 const ORDER = /^PO-\d{4,9}$/;
@@ -39,4 +40,16 @@ export function parseEquipmentInstalled(raw: unknown): { installNumber: string; 
   const itemName = typeof d.itemName === 'string' ? d.itemName.replace(/\s+/g, ' ').trim() : '';
   if (!NAME.test(itemName)) throw new InvalidEventError('itemName must be 1 to 100 characters without < > or control characters');
   return { installNumber: d.installNumber, itemName };
+}
+
+/** Una unidad instalada volvió a bodega o se dio de baja (Compras): el activo sale del inventario de red. */
+export function parseEquipmentRetired(raw: unknown): { installNumber: string; destination: 'storage' | 'retired' } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new InvalidEventError('event must be an object');
+  const e = raw as Record<string, any>;
+  if (e.type !== 'EquipmentRetired') throw new InvalidEventError('unexpected type');
+  const d = e.data;
+  if (typeof d !== 'object' || d === null || Array.isArray(d)) throw new InvalidEventError('data must be an object');
+  if (typeof d.installNumber !== 'string' || !INSTALL.test(d.installNumber)) throw new InvalidEventError('installNumber must look like INS-0001');
+  if (d.destination !== 'storage' && d.destination !== 'retired') throw new InvalidEventError('destination must be storage or retired');
+  return { installNumber: d.installNumber, destination: d.destination };
 }

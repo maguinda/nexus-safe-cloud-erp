@@ -1557,6 +1557,20 @@ test('Purchased equipment: buying and receiving a network device adds its units 
   await f2.getByLabel(/What it is for/).fill('Switch piso 3'); await f2.getByRole('button', { name: 'Media' }).click(); await f2.getByLabel(/Real serial number/).fill('foc2145x0ab');
   await f2.getByRole('button', { name: 'Save device' }).click();
   await expect(f2.getByText('Another purchased device already has that serial number.')).toBeVisible();
+  // Una unidad instalada puede volver a bodega: el stock sube y la unidad sale de Red.
+  await page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click();
+  await page.getByRole('button', { name: 'See the installed units of Switch de acceso 24 puertos' }).click();
+  await expect(page.locator('[data-install]')).toHaveCount(2);
+  await page.locator('[data-install][data-status="installed"]').first().getByRole('button', { name: /^Return INS-\d+ to storage/ }).click();
+  await expect(page.getByText(/is back in storage \(3 in storage\)/)).toBeVisible();
+  await expect(page.locator('[data-item="Switch de acceso 24 puertos"]')).toContainText('In stock: 3');
+  await expect(page.locator('[data-install][data-status="returned"]')).toHaveCount(1);
+  await page.locator('[data-install][data-status="installed"]').first().getByRole('button', { name: /^Retire INS-\d+/ }).click();
+  await expect(page.getByText(/was retired; it will leave Network/)).toBeVisible();
+  await expect(page.locator('[data-item="Switch de acceso 24 puertos"]')).toContainText('In stock: 3'); // dar de baja no mueve el stock
+  await expect(page.locator('[data-install][data-status="installed"]')).toHaveCount(0);
+  await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
+  await expect(async () => { await page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true }).click(); await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click(); await expect(page.locator('[data-unit]')).toHaveCount(0, { timeout: 2000 }); }).toPass({ timeout: 40_000 });
 });
 
 test('Physical count: the manager opens it, writes what was counted (the form warns first), closes it and the difference is applied; others only read', async ({ browser }) => {

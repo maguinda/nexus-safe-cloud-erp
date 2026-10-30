@@ -43,6 +43,8 @@ jobs:
           sed -i "s/^INGEST_KEY=.*/INGEST_KEY=$(openssl rand -hex 24)/" .env
       - name: The example environment file must load in the shell too (e2e-flow and this job source it)
         run: sh scripts/check-env-example.sh
+      - name: Every service route is declared in the gateway
+        run: python3 scripts/check-gateway-routes.py
       - name: Build and start the stack
         run: docker compose up -d --build
       - name: Wait for the gateway

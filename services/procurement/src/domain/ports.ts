@@ -7,9 +7,11 @@ export interface OrderView { id: string; number: string; supplierId: string; sup
 export interface SuggestionView { eventId: string; deviceName: string; location: string; readingKind: string; status: string; value: number; unit: string; at: string; items: { id: string; name: string; onHand: number }[] }
 
 /** Lecturas: no necesitan transacción. */
-export interface NewMovement { itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'purchase_received' | 'adjustment' | 'install'; reason: string; actor: string | null }
+export interface NewMovement { itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'purchase_received' | 'adjustment' | 'install' | 'return'; reason: string; actor: string | null }
 export interface MovementView { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: string; reason: string; actor: string | null; at: string }
+export interface InstallView { id: string; number: string; itemId: string; itemName: string; status: string; installedAt: string; installedBy: string | null; endedAt: string | null; endedBy: string | null }
 export interface ProcurementQueries {
+  installs(opts: { itemId?: string; limit: number }): Promise<InstallView[]>;
   /** Más reciente primero; `itemId` filtra por artículo. */
   movements(opts: { itemId?: string; limit: number }): Promise<MovementView[]>;
   suppliers(): Promise<SupplierView[]>;
@@ -36,6 +38,9 @@ export interface TransactionScope {
   supplierName(id: string): Promise<string | null>;
   /** El precio de referencia con que el proveedor vende el artículo; null si NO lo vende. */
   catalogPrice(supplierId: string, itemId: string): Promise<number | null>;
+  /** Bloquea la instalación (FOR UPDATE); null si no existe. */
+  lockInstall(id: string): Promise<{ id: string; number: number; itemId: string; itemName: string; status: 'installed' | 'returned' | 'retired' } | null>;
+  endInstall(id: string, status: 'returned' | 'retired', actor: string | null): Promise<void>;
   insertInstall(i: { itemId: string; itemName: string; actor: string | null }): Promise<{ id: string; number: number }>;
   insertOrder(o: NewOrder): Promise<number>;
   setOrderStatus(id: string, status: OrderStatus, receivedAt: Date | null): Promise<void>;
