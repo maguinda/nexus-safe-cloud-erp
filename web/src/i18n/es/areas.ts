@@ -14,3 +14,4 @@ export { advisor } from './advisor';
 export { einvoice } from './einvoice';
 export { notifications } from './notifications';
 export { capacity } from './capacity';
+export { procurement } from './procurement';

@@ -1224,6 +1224,68 @@ test('Notifications: a sensor that goes into ALERT rings the manager\'s bell (no
   } finally { await manager.ctx.close(); await lead.ctx.close(); deleteOldReadings(); }
 });
 
+test('Procurement: each role sees what it may — sales has no screen, lead and billing only look, the manager buys, receives and adjusts', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const nav = (page: import('@playwright/test').Page) => page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true });
+  const open = async (role: 'sales' | 'lead' | 'billing' | 'manager') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [sales, lead, billing, manager] = [await open('sales'), await open('lead'), await open('billing'), await open('manager')];
+  try {
+    await expect(nav(sales.page)).toHaveCount(0);
+    for (const who of [lead, billing, manager]) { await nav(who.page).click(); await expect(who.page.getByRole('heading', { name: 'Procurement and inventory' })).toBeVisible(); await expect(who.page.locator('[data-item="Sensor de temperatura TH-10"]')).toContainText('In stock: 8'); }
+    for (const who of [lead, billing]) {
+      await expect(who.page.getByText('You can look; only the manager buys and adjusts stock.')).toBeVisible();
+      await expect(who.page.getByRole('button', { name: /^Adjust / })).toHaveCount(0);
+      await expect(who.page.getByRole('heading', { name: 'New order' })).toHaveCount(0);
+    }
+    await expect(manager.page.getByRole('heading', { name: 'New order' })).toBeVisible();
+    await expect(manager.page.getByRole('button', { name: 'Adjust the stock of Sensor de temperatura TH-10' })).toBeVisible();
+  } finally { for (const w of [sales, lead, billing, manager]) await w.ctx.close(); }
+});
+
+test('Procurement: buy → receive (the stock goes up once) → adjust (never below zero), and a sensor alert suggests the spare part', async ({ browser }) => {
+  test.setTimeout(180_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const ctx = await browser.newContext(); const page = await ctx.newPage();
+  const row = (name: string) => page.locator(`[data-item="${name}"]`);
+  try {
+    await openAs(page, 'manager');
+    await page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click();
+    await expect(row('Sensor de temperatura TH-10')).toContainText('In stock: 8');
+    // El formulario avisa sin enviar.
+    const form = page.getByRole('form', { name: 'New order' });
+    await form.getByRole('button', { name: 'Create order' }).click();
+    await expect(form.getByText('The quantity must be a whole number from 1 to 100,000.')).toBeVisible();
+    await expect(form.getByText('Choose an option.').first()).toBeVisible();
+    await form.getByRole('button', { name: 'Redes del Norte (example)' }).click();
+    await form.getByRole('button', { name: 'Sensor de temperatura TH-10' }).click();
+    await form.getByLabel('Quantity (1 to 100,000)').fill('5'); await form.getByLabel('Price per unit in pesos').fill('100000');
+    await form.getByRole('button', { name: 'Create order' }).click();
+    await expect(page.getByText(/Order PO-\d+ created \(pending\)\./)).toBeVisible();
+    const order = page.locator('[data-order]').first();
+    await expect(order).toContainText('Sensor de temperatura TH-10 × 5'); await expect(order).toContainText('Pending');
+    await expect(row('Sensor de temperatura TH-10')).toContainText('In stock: 8'); // comprar no mueve el stock
+    // Recibir sube el stock UNA vez (el botón desaparece: un segundo clic ya no existe).
+    await order.getByRole('button', { name: /^Receive order/ }).click();
+    await expect(page.getByText(/is now at 13\./)).toBeVisible();
+    await expect(row('Sensor de temperatura TH-10')).toContainText('In stock: 13');
+    await expect(page.locator('[data-order]').first()).toContainText('Received');
+    await expect(page.locator('[data-order]').first().getByRole('button')).toHaveCount(0);
+    // Ajuste: restar de más se rechaza con el mensaje; restar lo justo funciona.
+    const adj = async (delta: string) => { await page.getByRole('button', { name: 'Adjust the stock of Fuente de poder 12 V' }).click(); const f = page.getByRole('form', { name: 'Adjust the stock of Fuente de poder 12 V' }); await f.getByLabel('Change (+ adds, − removes)').fill(delta); await f.getByLabel('The reason').fill('Stock count'); await f.getByRole('button', { name: 'Save adjustment' }).click(); return f; };
+    const f1 = await adj('-4');
+    await expect(f1.getByRole('alert')).toHaveText('Fuente de poder 12 V has 3 in stock: it cannot go down by 4.');
+    await f1.getByLabel('Change (+ adds, − removes)').fill('-3'); await f1.getByRole('button', { name: 'Save adjustment' }).click();
+    await expect(page.getByText('Stock of Fuente de poder 12 V: 0.')).toBeVisible();
+    await expect(row('Fuente de poder 12 V')).toContainText('In stock: 0');
+    // Un sensor de temperatura entra en alerta: llega por Operations → RabbitMQ → Procurement y se sugiere el repuesto que sirve para TEMP.
+    const d = IOT_DEVICES.find((x: { id: string; unit: string }) => x.unit === '°C') as { id: string; name: string; unit: string };
+    const sent = await page.request.post('/telemetry/readings', { headers: { 'x-ingest-key': ingestKey() }, data: { readings: [{ deviceId: d.id, recordedAt: new Date(Date.now() - 2 * 60_000).toISOString(), status: 'ALERT', value: 35, unit: d.unit, note: 'e2e rango' }] } });
+    expect(sent.status()).toBe(200);
+    await expect.poll(async () => { await page.reload(); await page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click(); await row('Sensor de temperatura TH-10').waitFor(); return page.getByText('Spare parts that serve it: Sensor de temperatura TH-10 (13)').count(); }, { timeout: 60_000, intervals: [3000] }).toBeGreaterThan(0);
+  } finally { await ctx.close(); deleteOldReadings(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');
@@ -1341,10 +1403,10 @@ test('Menu: the manager\'s options are grouped under labels, with icons that onl
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
-  await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity']);
+  await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(5);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(6);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1382,7 +1444,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(5);
+  expect(edges.length).toBe(6);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

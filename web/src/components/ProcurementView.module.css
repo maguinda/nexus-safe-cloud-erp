@@ -1,0 +1,65 @@
+.stack {
+  display: grid;
+  gap: var(--sp-3);
+}
+.cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+.card {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.card h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+.list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.row > .grow {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.sub {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.low {
+  color: var(--bad);
+  font-weight: 600;
+}
+.status {
+  font-weight: 600;
+}
+.statusReceived {
+  color: var(--ok, var(--accent));
+}
+.statusCancelled {
+  color: var(--muted);
+}
+.alert {
+  border-left: 4px solid var(--bad);
+}

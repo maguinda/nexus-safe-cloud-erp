@@ -34,6 +34,14 @@ export interface CapacityEngineer {
 export interface CapacityResponse { today: string; engineers: CapacityEngineer[] }
 export interface AllocationInput { projectName: string; percent: number; startDate: string; endDate: string; allowOverallocation?: boolean }
 
+export interface Supplier { id: string; name: string; kind: 'fixed' | 'tender'; terms: string }
+export interface StockItem { id: string; name: string; kind: 'equipment' | 'spare'; forKinds: string[]; onHand: number }
+export interface PurchaseOrder {
+  id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string;
+  quantity: number; unitPriceCop: number; totalCop: number; status: 'ordered' | 'received' | 'cancelled'; createdAt: string; receivedAt: string | null;
+}
+export interface RestockSuggestion { eventId: string; deviceName: string; location: string; readingKind: string; status: string; value: number; unit: string; at: string; items: { id: string; name: string; onHand: number }[] }
+
 export interface NotificationItem {
   id: string; kind: string; severity: 'info' | 'warning' | 'critical'; params: Record<string, string | number>; occurredAt: string; read: boolean;
 }

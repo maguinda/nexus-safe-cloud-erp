@@ -7,6 +7,14 @@ const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager'];
 /** Los avisos de los servicios, tal como los escriben en inglés. Lo que no está aquí se muestra sin traducir. */
 const RULES: Rule[] = [
   [/^(.+) would be allocated at (\d+)% \(the limit is 100%\)$/, 'server.overAllocation', (m) => ({ name: m[1], percent: m[2] })],
+  [/^(.+) has (\d+) in stock: it cannot go down by (\d+)$/, 'server.stockNegative', (m) => ({ name: m[1], have: m[2], by: m[3] })],
+  [/^(.+) cannot hold more than (\d+) units$/, 'server.stockCap', (m) => ({ name: m[1], max: m[2] })],
+  [/^The order is already (\w+)$/, 'server.orderNotPending', (m) => ({ status: m[1] })],
+  ['A supplier with that name already exists', 'server.supplierExists'],
+  ['An item with that name already exists', 'server.itemExists'],
+  ['Supplier not found', 'server.supplierNotFound'],
+  ['Item not found', 'server.itemNotFound'],
+  ['Order not found', 'server.orderNotFound'],
   ['Engineer not found', 'server.engineerNotFound'],
   ['Allocation not found', 'server.allocationNotFound'],
   ['Only the manager can allow going over 100%', 'server.onlyManagerOver'],

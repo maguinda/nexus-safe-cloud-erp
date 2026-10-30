@@ -119,6 +119,16 @@ Rules:
 - A refused action (403, 409) publishes nothing.
 - Messages that were already waiting in the queue when a consumer starts are processed like any other (regression test `consumer-backlog.e2e.ts`).
 
+## StockChanged and EquipmentPurchased
+
+- Published by: `procurement`, in the **same transaction** that moves the stock (transactional outbox, relay to `erp.events`).
+- `StockChanged` → routing key `procurement.stock.changed`: after receiving a purchase order or adjusting the stock by hand. `data`: `itemId`, `itemName`, `delta` (negative when stock goes down), `onHand` (the stock AFTER the change), `reason` (`purchase_received` or `adjustment`), `note` (the order number or the reason typed).
+- `EquipmentPurchased` → routing key `procurement.equipment.purchased`: only when an order for an item of kind `equipment` is received (once per order). `data`: `orderNumber` (`PO-0001`), `orderId`, `supplierName`, `itemName`, `quantity`, `unitPriceCop`, `totalCop`. It is there for Operations to add the new equipment to the fleet (not consumed yet).
+- A purchase order is **pending until it is received**: creating it publishes nothing and does not move the stock. Receiving the same order twice, or at the same time, raises the stock once (the second answer is 409).
+- No personal data: business names, quantities and amounts.
+
+`procurement` also **consumes** `ThresholdBreached` (queue `q.procurement`, dead-letter queue `q.procurement.dlq`) to suggest the spare parts that serve the measure of a device in alert. It keeps the latest 200 alerts; invalid messages go to the dead-letter queue.
+
 ## ThresholdBreached
 
 - Published by: `operations`, in the **same transaction** that stores the readings of an ingestion batch (transactional outbox, relay to `erp.events`)
