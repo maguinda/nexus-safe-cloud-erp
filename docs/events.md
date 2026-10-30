@@ -189,6 +189,12 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 
 No personal data: amounts and business names (the reference typed by the analyst and who registered the payment stay in billing's database).
 
+## Projects consumer (project team)
+
+- `projects` binds its own queue `q.projects.team` (dead-letter queue `q.projects.team.dlq`) to `capacity.engineer.allocated` and stores one row per allocation in `project_team` (engineer name, project name, percent, period). Nothing else of the event is kept (no costs, no personal data).
+- Idempotent by the allocation id (`INSERT ... ON CONFLICT DO NOTHING`): a repeated event is acknowledged as a duplicate and never reaches the dead-letter queue. An invalid event (percent outside 1..100, markup in a name, impossible dates, not JSON) goes to the dead-letter queue and blocks nothing.
+- The project is linked by value: `GET /projects/:projectId/team` returns the rows whose project name equals the project's name (roles project_lead, billing_analyst, manager).
+
 ## Notifications consumer
 
 `notifications` has its own queue `q.notifications` (dead-letter queue `q.notifications.dlq`) bound to three routing keys. It saves ONE notification per event (idempotent by `eventId`, in one transaction with the processed-event mark) and keeps only what the screen shows: the kind, the severity, who sees it and the few values needed to write the text. **No personal data is stored** (no emails, no client names).

@@ -17,3 +17,4 @@ export { capacity } from './capacity';
 export { procurement } from './procurement';
 export { payments } from './payments';
 export { contracts } from './contracts';
+export { team } from './team';

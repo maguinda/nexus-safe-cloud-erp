@@ -9,6 +9,7 @@ export interface Config {
   rabbitUrl: string;
   outboxPollMs: number;
   relayEnabled: boolean;
+  consumerEnabled: boolean;
 }
 
 function required(name: string): string {
@@ -27,5 +28,6 @@ export function loadConfig(): Config {
     rabbitUrl: required('RABBITMQ_URL'),
     outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
     relayEnabled: process.env.RELAY_ENABLED !== 'false',
+    consumerEnabled: process.env.CONSUMER_ENABLED !== 'false',
   };
 }

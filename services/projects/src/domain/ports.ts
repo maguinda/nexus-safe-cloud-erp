@@ -15,7 +15,11 @@ export interface ProjectQueries {
   listProjects(): Promise<ProjectSummary[]>;
   /** null si el proyecto no existe. */
   listMilestones(projectId: string): Promise<Milestone[] | null>;
+  /** El equipo del proyecto (por nombre del proyecto); null si el proyecto no existe. */
+  listTeam(projectId: string): Promise<TeamMemberView[] | null>;
 }
+
+export interface TeamMemberView { engineerName: string; percent: number; periodStart: string; periodEnd: string }
 
 /** Lo que se puede hacer dentro de UNA transacción de base de datos. */
 export interface TransactionScope {

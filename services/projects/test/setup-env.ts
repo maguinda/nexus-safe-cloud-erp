@@ -8,3 +8,5 @@ if (existsSync('.env')) {
   }
 }
 process.env.NODE_ENV = 'test';
+// Las pruebas e2e no consumen del bus real salvo la que lo prueba a propósito: un consumidor vivo dejaba jest colgado.
+process.env.CONSUMER_ENABLED = 'false';

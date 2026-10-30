@@ -1,3 +1,4 @@
+import { ProjectTeam } from './ProjectTeam';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { AddMilestoneForm, NewProjectForm } from './CreateForms';
@@ -149,6 +150,8 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
         </div>
         {hidden > 0 && <button type="button" className={`${ui.btnGhost} ${s.more}`} onClick={() => setShown((n) => n + PROJECT_PAGE)}>{t('projects.showMore', { n: Math.min(PROJECT_PAGE, hidden) })}</button>}
       </section>
+
+      {sel && <ProjectTeam projectId={sel.id} />}
 
       {sel && (
         <section aria-labelledby="ms-h">
