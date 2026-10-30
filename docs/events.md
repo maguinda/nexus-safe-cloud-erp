@@ -173,6 +173,12 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 - Published by `technical-capacity` in the same transaction that deletes an allocation. Routing key `capacity.allocation.removed`; data `{ allocationId, projectName }`. Deleting something that does not exist publishes nothing.
 - Consumed by `projects` (the engineer leaves the project team) and `analytics` (the cost leaves the profitability). Both take a database lock per allocation id and keep a mark of the removed id, so **the order of arrival does not matter**: a removal that arrives before its allocation is remembered and the allocation never shows up.
 
+## Analytics consumer: audit log
+
+- `analytics` has a second queue, `q.analytics.audit` (dead-letter queue `q.analytics.audit.dlq`), bound to **`#`**: it sees every event on the exchange, including types that do not exist yet. It stores one row per event in `audit_entries`: event id, type, `occurredAt`, a short summary built only from known fields of each type, and the **actor** when the event says it (`approvedBy`, `issuedBy` or `registeredBy`; the last one was added to `PaymentReceived`).
+- Events that carry no actor (allocations, stock, thresholds) have `actor = null` and the screen says "the event does not say": it does **not** guess. Adding an actor to those events is a possible later change.
+- The key is the event id (a repeated event is one row and is acknowledged as a duplicate). The table is **append-only** (a trigger refuses UPDATE, DELETE and TRUNCATE; tests and the demo reset use the session flag `erp.allow_audit_delete`). `GET /audit?type=&limit=` (manager only).
+
 ## Analytics consumer: profitability
 
 - `GET /profitability` (manager only) = for each project, issued invoices **without VAT** minus the labor cost. Labor cost = `percent / 100 × working days (Monday to Friday) already elapsed × dailyCostCop`, for each allocation, counting only the days up to today.
@@ -181,6 +187,7 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 ## PaymentReceived
 
 - Published by: `billing-receivables`, in the **same transaction** that stores the payment (transactional outbox, relay to `erp.events`). Routing key: `billing.payment.received`. Consumed by: `analytics` (the dashboard shows what was collected and stops counting a fully paid invoice as overdue).
+- `registeredBy` (the email of the billing analyst, taken from the verified token) is only used by the audit log.
 - One event per payment (the outbox aggregate is the payment id, because an invoice can have several payments). Payments are append-only: the database refuses UPDATE, DELETE and TRUNCATE.
 - Only an **issued** invoice receives payments, and the sum can never pass the invoice total: the invoice row is locked and the paid total is read inside the lock, so two payments at the same time cannot add up above it (409 naming the balance).
 - `paidCop` is the total paid AFTER this payment (it only goes up), so a consumer can merge with a maximum and gets the same result in any order or when the event is repeated. `paidInFull` is true when `balanceCop` is 0.
@@ -197,7 +204,7 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 }
 ```
 
-No personal data: amounts and business names (the reference typed by the analyst and who registered the payment stay in billing's database).
+The only person in the event is `registeredBy` (the staff email of the analyst, as `approvedBy` and `issuedBy` in the invoice events); amounts and business names otherwise. The reference typed by the analyst stays in billing's database.
 
 ## Projects consumer (project team)
 

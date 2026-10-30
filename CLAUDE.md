@@ -239,7 +239,7 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Pruebas: 18 unitarias + 14 e2e (30 rondas cerrar/cancelar; 2 mutaciones hacen fallar la prueba), web 673 unitarias, 1 funcional en Chromium y WebKit.
 
 ## Equipo del proyecto FR-PRJ-05 (2026-10-30, 🟡)
-- Projects ahora CONSUME `EngineerAllocated` (cola `q.projects.team`, tabla `project_team`, idempotente por la clave de la asignación) y expone `GET /projects/:id/team` (líder, facturación, gerencia; ventas 403). Web: panel «Equipo del proyecto» bajo los hitos (se refresca solo cada 10 s). `setup-env` de projects fuerza `CONSUMER_ENABLED=false` (lección del jest colgado). `reset-demo.sh` borra `project_team`.
+- Projects ahora CONSUME `EngineerAllocated` (cola `q.projects.team`, tabla `project_team`, idempotente por la clave de la asignación) y expone `GET /projects/:id/team` (líder, facturación, gerencia; ventas 403). Web: panel «Equipo del proyecto» bajo los hitos (se pide de nuevo al volver a la pantalla o a la pestaña). `setup-env` de projects fuerza `CONSUMER_ENABLED=false` (lección del jest colgado). `reset-demo.sh` borra `project_team`.
 - Pruebas: 17 unitarias del evento + 5 e2e con RabbitMQ real (repetido no va a muertos, inválidos sí; 2 mutaciones fallan), projects 72 unit + 95 e2e, 1 funcional en Chromium y WebKit.
 
 ## Rentabilidad por proyecto FR-PRJ-04 (2026-10-30, 🟡)
@@ -247,6 +247,11 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Projects y Analytics consumen los dos eventos con candado por asignación y marca de quitada (el orden de llegada no importa). Analytics: tablas `allocation_facts` y `removed_allocation_marks`, `GET /profitability` (solo gerencia): ingresos = facturas emitidas sin IVA; costo = % × días hábiles (lun-vie) transcurridos × costo diario; las asignaciones sin costo se cuentan y la pantalla avisa que el margen se ve mejor de lo que es. Web: «Rentabilidad» (grupo Negocio) y «Costo diario» en cada tarjeta de Capacidad (solo gerencia). Gateway: `/profitability`.
 - Demo: `reset-demo.sh` pone costos de demostración (inventados) a los 6 ingenieros y copia las asignaciones sembradas a `project_team` y `allocation_facts` (no publicaron eventos). Límite honesto: los costos son de demostración; el cálculo cuenta días hábiles sin festivos.
 - Pruebas: capacity 86 unit + 30 e2e, projects 79 unit + 8 e2e (carrera 40 rondas; 2 mutaciones), analytics 119 unit + 25 e2e (2 mutaciones), web 682, funcional Chromium+WebKit.
+
+## Auditoría FR-SEC-03 (2026-10-30, 🟡)
+- Analytics tiene una SEGUNDA cola (`q.analytics.audit`, enlazada a `#`) que anota cada evento del bus en `audit_entries` (solo se agrega: triggers; bandera `erp.allow_audit_delete` para pruebas y reset). `GET /audit` solo gerencia. Web: «Auditoría» (grupo Administración). El resumen se arma solo con campos conocidos de cada tipo.
+- Límite honesto: «quién» aparece solo cuando el evento lo trae (aprobar, emitir y, desde hoy, registrar un pago: `registeredBy`); asignaciones, compras y alertas no dicen quién, y la pantalla lo dice en vez de adivinar. Tampoco registra lecturas ni inicios de sesión (esos no son eventos).
+- Pruebas: analytics 137 unit + e2e de auditoría (2 mutaciones: ON CONFLICT y guardar el mensaje completo, ambas fallan), web 682, funcional Chromium+WebKit.
 
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.

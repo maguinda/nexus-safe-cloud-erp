@@ -1379,9 +1379,10 @@ test('Project team: an allocation made in Capacity reaches the project through t
     await form.getByLabel('From (YYYY-MM-DD)').fill(iso(200)); await form.getByLabel('To (YYYY-MM-DD)').fill(iso(210));
     await form.getByRole('button', { name: 'Save allocation' }).click();
     await expect(lead.page.getByText('Ana Torres allocated to “Branch network upgrade” at 5%.')).toBeVisible();
-    await lead.page.getByRole('navigation').getByRole('button', { name: 'Projects' }).click();
-    await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
     await expect(async () => {
+      // Al volver a la pantalla de proyectos el equipo se pide de nuevo.
+      await lead.page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click();
+      await lead.page.getByRole('navigation').getByRole('button', { name: 'Projects' }).click();
       await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
       await expect(lead.page.locator('tr', { hasText: 'Ana Torres' }).filter({ hasText: '5 %' }).filter({ hasText: iso(200) })).toBeVisible({ timeout: 1500 });
     }).toPass({ timeout: 30_000 });
@@ -1431,6 +1432,36 @@ test('Profitability: the manager sees revenue minus labor cost and edits the dai
     }).toPass({ timeout: 30_000 });
     // Facturación no tiene esta pantalla y el líder no recibe el costo.
     await expect(billing.page.getByRole('navigation').getByRole('button', { name: 'Profitability' })).toHaveCount(0);
+  } finally { await manager.ctx.close(); await lead.ctx.close(); await billing.ctx.close(); }
+});
+
+test('Audit: the manager sees who did what and when from the events; the log is read-only; other roles have no audit screen', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'lead' | 'billing') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, lead, billing] = [await open('manager'), await open('lead'), await open('billing')];
+  try {
+    await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+    await lead.page.getByRole('button', { name: /Approve/ }).first().click();
+    await expect(lead.page.getByText(/approved/i).first()).toBeVisible();
+    await billing.page.getByRole('navigation').getByRole('button', { name: 'Invoices' }).click();
+    await expect(billing.page.getByRole('button', { name: /^Issue / }).first()).toBeVisible({ timeout: 30_000 });
+    await billing.page.getByRole('button', { name: /^Issue / }).first().click();
+    await manager.page.getByRole('navigation').getByRole('button', { name: 'Audit', exact: true }).click();
+    await expect(manager.page.getByRole('heading', { name: 'Audit', exact: true })).toBeVisible();
+    await expect(async () => {
+      await manager.page.getByRole('button', { name: 'Refresh' }).click();
+      await expect(manager.page.locator('[data-type="MilestoneApproved"]').first()).toContainText('laura.rios@nexus.example', { timeout: 1500 });
+      await expect(manager.page.locator('[data-type="InvoiceIssued"]').first()).toContainText('andres.mora@nexus.example', { timeout: 1500 });
+    }).toPass({ timeout: 40_000 });
+    await manager.page.getByRole('group', { name: 'Event type' }).getByRole('button', { name: 'InvoiceIssued', exact: true }).click();
+    await expect(manager.page.locator('tbody tr').first()).toHaveAttribute('data-type', 'InvoiceIssued');
+    await expect(manager.page.locator('tbody tr:not([data-type="InvoiceIssued"])')).toHaveCount(0);
+    // No hay forma de editar o borrar desde la pantalla, y los demás roles no tienen la opción.
+    await expect(manager.page.getByRole('button', { name: /delete|edit|remove/i })).toHaveCount(0);
+    await expect(lead.page.getByRole('navigation').getByRole('button', { name: 'Audit', exact: true })).toHaveCount(0);
+    await expect(billing.page.getByRole('navigation').getByRole('button', { name: 'Audit', exact: true })).toHaveCount(0);
   } finally { await manager.ctx.close(); await lead.ctx.close(); await billing.ctx.close(); }
 });
 
@@ -1554,9 +1585,9 @@ test('Menu: the manager\'s options are grouped under labels, with icons that onl
   await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts', 'Profitability']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
-  await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users']);
+  await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(8);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(9);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1594,7 +1625,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(8);
+  expect(edges.length).toBe(9);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

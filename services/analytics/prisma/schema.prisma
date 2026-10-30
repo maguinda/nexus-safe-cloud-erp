@@ -84,3 +84,17 @@ model RemovedAllocationMark {
 
   @@map("removed_allocation_marks")
 }
+
+/// Bitácora de auditoría (solo se agrega): quién, qué y cuándo de cada evento del bus.
+model AuditEntry {
+  eventId       String   @id @map("event_id") @db.Uuid
+  type          String
+  occurredAt    DateTime @map("occurred_at") @db.Timestamptz(6)
+  receivedAt    DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  actor         String?
+  summary       String
+  correlationId String   @map("correlation_id")
+
+  @@index([type])
+  @@map("audit_entries")
+}

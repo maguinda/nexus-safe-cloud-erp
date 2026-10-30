@@ -682,6 +682,36 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: It does not exist OR it is not for my role (the answer is the same, so other roles' notifications cannot be probed) }
+  /audit:
+    get:
+      tags: [Audit]
+      operationId: getAudit
+      summary: Audit log built from every event on the bus (role manager). Append-only; the actor appears only when the event carries it.
+      parameters:
+        - { name: type, in: query, required: false, schema: { type: string, pattern: '^[A-Za-z]{1,60}$' } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        '200':
+          description: Newest first, plus the event types present
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        eventId: { type: string, format: uuid }
+                        type: { type: string }
+                        occurredAt: { type: string, format: date-time }
+                        actor: { type: string, nullable: true }
+                        summary: { type: string }
+                  types: { type: array, items: { type: string } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /profitability:
     get:
       tags: [Profitability]

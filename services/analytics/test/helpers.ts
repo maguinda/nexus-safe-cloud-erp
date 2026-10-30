@@ -24,7 +24,12 @@ export const unsigned = (u: { id: string; email: string; role: string }) => `${b
 
 import { PrismaClient } from '@prisma/client';
 /** Deja solo los 2 hitos del seed (m1 y m4) y borra la bandeja de entrada y la actividad. */
+export async function wipeAudit(prisma: PrismaClient) {
+  await prisma.$transaction([prisma.$executeRaw`SELECT set_config('erp.allow_audit_delete', 'on', true)`, prisma.$executeRaw`DELETE FROM audit_entries`]);
+}
+
 export async function resetState(prisma: PrismaClient) {
+  await wipeAudit(prisma);
   await prisma.milestoneFact.deleteMany({ where: { milestoneId: { notIn: ['m1', 'm4'] } } });
   await prisma.processedEvent.deleteMany();
   await prisma.activityEntry.deleteMany();

@@ -89,10 +89,12 @@ describe('payments: rules, roles, concurrency and events (e2e, real PostgreSQL)'
     expect(ev).toHaveLength(2);
     expect(ev[0]).toMatchObject({ routingKey: 'billing.payment.received', publishedAt: null });
     const p0: any = ev[0].payload, p1: any = ev[1].payload;
-    expect(p0.data).toMatchObject({ invoiceNumber: n, totalCop: 1_190_000, paymentCop: 100_000, paidCop: 100_000, balanceCop: 1_090_000, paidInFull: false, method: 'transfer', clientName: 'Banco Andino (example)' });
+    expect(p0.data).toMatchObject({ invoiceNumber: n, totalCop: 1_190_000, paymentCop: 100_000, paidCop: 100_000, balanceCop: 1_090_000, paidInFull: false, method: 'transfer', clientName: 'Banco Andino (example)', registeredBy: USERS.billing.email });
     expect(p1.data).toMatchObject({ paidCop: 1_190_000, balanceCop: 0, paidInFull: true });
     expect(ev[0].aggregateId).toBe(p0.data.paymentId); expect(ev[0].aggregateId).not.toBe(ev[1].aggregateId);
-    expect(JSON.stringify(p0)).not.toMatch(/@/);
+    // La única persona en el evento es quien registró el pago (como approvedBy / issuedBy en los otros eventos): sin ella no hay ningún correo, y la referencia tecleada no viaja.
+    expect(JSON.stringify({ ...p0, data: { ...p0.data, registeredBy: undefined } })).not.toMatch(/@/);
+    expect(JSON.stringify(p0)).not.toContain('Bank');
   });
 
   it('a rejected payment leaves nothing: no payment and no event', async () => {

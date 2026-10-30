@@ -26,7 +26,7 @@ export type InvoiceIssuedEvent = Envelope<'InvoiceIssued', InvoiceEventData & { 
 /** Una factura emitida que ya pasó su día de vencimiento. Se publica UNA vez por factura (la base lo garantiza). Sin datos personales: solo montos y nombres de negocio. */
 export type OverdueDetectedEvent = Envelope<'OverdueDetected', InvoiceEventData & { clientName: string | null; dueDate: string; daysOverdue: number }>;
 /** Un pago registrado contra una factura emitida. `balanceCop` es lo que queda DESPUÉS de este pago; `paidInFull` dice si quedó en 0. Sin datos personales: montos y nombres de negocio. */
-export type PaymentReceivedEvent = Envelope<'PaymentReceived', { invoiceNumber: string; milestoneId: string; projectName: string; milestoneName: string; clientName: string | null; totalCop: number; paymentId: string; paymentCop: number; paidCop: number; balanceCop: number; paidInFull: boolean; method: string; paidAt: string }>;
+export type PaymentReceivedEvent = Envelope<'PaymentReceived', { invoiceNumber: string; milestoneId: string; projectName: string; milestoneName: string; clientName: string | null; totalCop: number; paymentId: string; paymentCop: number; paidCop: number; balanceCop: number; paidInFull: boolean; method: string; paidAt: string; registeredBy: string }>;
 export type BillingEvent = InvoiceDraftedEvent | InvoiceIssuedEvent | OverdueDetectedEvent | PaymentReceivedEvent;
 
 export const INVOICE_DRAFTED_ROUTING_KEY = 'billing.invoice.drafted';
@@ -58,10 +58,10 @@ export function invoiceOverdue(i: Invoice, days: number, correlationId: string, 
   };
 }
 
-export function paymentReceived(i: Invoice, p: { id: string; amountCop: number; method: string; paidAt: Date }, paidCop: number, correlationId: string, now: Date): PaymentReceivedEvent {
+export function paymentReceived(i: Invoice, p: { id: string; amountCop: number; method: string; paidAt: Date; registeredBy: string }, paidCop: number, correlationId: string, now: Date): PaymentReceivedEvent {
   const balanceCop = i.totalCop - paidCop;
   return {
     eventId: randomUUID(), type: 'PaymentReceived', occurredAt: now.toISOString(), correlationId,
-    data: { invoiceNumber: i.number, milestoneId: i.milestoneId, projectName: i.projectName, milestoneName: i.milestoneName, clientName: i.clientName, totalCop: i.totalCop, paymentId: p.id, paymentCop: p.amountCop, paidCop, balanceCop, paidInFull: balanceCop === 0, method: p.method, paidAt: p.paidAt.toISOString() },
+    data: { invoiceNumber: i.number, milestoneId: i.milestoneId, projectName: i.projectName, milestoneName: i.milestoneName, clientName: i.clientName, totalCop: i.totalCop, paymentId: p.id, paymentCop: p.amountCop, paidCop, balanceCop, paidInFull: balanceCop === 0, method: p.method, paidAt: p.paidAt.toISOString(), registeredBy: p.registeredBy },
   };
 }

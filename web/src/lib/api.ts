@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -100,6 +100,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     notificationRead: (id: string) => request<void>('POST', `/notifications/${encodeURIComponent(id)}/read`),
     notificationsReadAll: () => request<{ marked: number }>('POST', '/notifications/read-all'),
     invoices: () => request<Invoice[]>('GET', '/invoices'),
+    audit: (type?: string) => request<AuditResponse>('GET', type ? `/audit?type=${encodeURIComponent(type)}` : '/audit'),
     profitability: () => request<Profitability>('GET', '/profitability'),
     setDailyCost: (id: string, dailyCostCop: number | null) => request<void>('PATCH', `/engineers/${encodeURIComponent(id)}/cost`, { dailyCostCop }),
     projectTeam: (id: string) => request<TeamMember[]>('GET', `/projects/${encodeURIComponent(id)}/team`),

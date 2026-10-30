@@ -12,6 +12,7 @@ import { CapacityView } from './components/CapacityView';
 import { ProcurementView } from './components/ProcurementView';
 import { ContractsView } from './components/ContractsView';
 import { ProfitabilityView } from './components/ProfitabilityView';
+import { AuditView } from './components/AuditView';
 import { ProfileMenu } from './components/ProfileMenu';
 import { icon, type IconName } from './components/Icons';
 import { Toast } from './components/Toast';
@@ -22,7 +23,7 @@ import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
 type View = 'projects' | 'invoices' | 'contracts' | 'capacity' | 'procurement';
-type ManagerView = 'dashboard' | 'contracts' | 'profitability' | 'sensors' | 'network' | 'capacity' | 'procurement' | 'users';
+type ManagerView = 'dashboard' | 'contracts' | 'profitability' | 'audit' | 'sensors' | 'network' | 'capacity' | 'procurement' | 'users';
 interface NavItem { label: MsgKey; icon: IconName; on: boolean; go: () => void }
 interface NavGroup { label?: MsgKey; items: NavItem[] }
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
@@ -41,7 +42,7 @@ function Shell() {
       { label: 'nav.group.business', items: [{ label: 'nav.contracts', icon: 'receipt', on: managerView === 'contracts', go: () => setManagerView('contracts') }, { label: 'nav.profitability', icon: 'grid', on: managerView === 'profitability', go: () => setManagerView('profitability') }] },
       { label: 'nav.group.data', items: [{ label: 'nav.sensors', icon: 'pulse', on: managerView === 'sensors', go: () => setManagerView('sensors') }, { label: 'nav.network', icon: 'network', on: managerView === 'network', go: () => setManagerView('network') }] },
       { label: 'nav.group.team', items: [{ label: 'nav.capacity', icon: 'users', on: managerView === 'capacity', go: () => setManagerView('capacity') }, { label: 'nav.procurement', icon: 'layers', on: managerView === 'procurement', go: () => setManagerView('procurement') }] },
-      { label: 'nav.group.admin', items: [{ label: 'nav.users', icon: 'users', on: managerView === 'users', go: () => setManagerView('users') }] },
+      { label: 'nav.group.admin', items: [{ label: 'nav.users', icon: 'users', on: managerView === 'users', go: () => setManagerView('users') }, { label: 'nav.audit', icon: 'grid', on: managerView === 'audit', go: () => setManagerView('audit') }] },
     ]
     : [{ items: [{ label: 'nav.projects', icon: 'layers', on: view === 'projects', go: () => setView('projects') }, { label: 'nav.invoices', icon: 'receipt', on: view === 'invoices', go: () => setView('invoices') },
       // Ventas no ve los contratos (la API le responde 403).
@@ -83,7 +84,7 @@ function Shell() {
             </div>
           </nav>
           <main className={s.content}>
-            {isManager ? (managerView === 'profitability' ? <ProfitabilityView key="pf" /> : managerView === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): view === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : view === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? (managerView === 'audit' ? <AuditView key="au" /> : managerView === 'profitability' ? <ProfitabilityView key="pf" /> : managerView === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): view === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : view === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>
