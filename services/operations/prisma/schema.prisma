@@ -69,6 +69,9 @@ model NetworkDevice {
   /// Si el equipo vino de una compra (EquipmentPurchased): la orden «PO-0001» y el número de unidad dentro de ella.
   sourceOrder String?            @map("source_order")
   sourceUnit  Int?               @map("source_unit")
+  /// Solo equipos comprados: fin de la garantía y a quién (nombre) se asignó.
+  warrantyUntil DateTime?        @map("warranty_until") @db.Date
+  assignedTo  String?            @map("assigned_to")
   linksFrom   NetworkLink[]      @relation("LinkOrigin")
   linksTo     NetworkLink[]      @relation("LinkDestination")
   monitoring  NetworkMonitoring?
