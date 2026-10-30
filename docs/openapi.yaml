@@ -437,6 +437,15 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /network/purchased:
+    get:
+      tags: [Network]
+      operationId: listPurchasedDevices
+      summary: Devices that came from a purchase, with real serial, warranty and assignee (role manager)
+      responses:
+        '200': { description: Up to 500 units, newest order first }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /engineers:
     get:
       tags: [Capacity]

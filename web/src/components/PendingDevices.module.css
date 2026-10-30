@@ -1,0 +1,3 @@
+/* Series, nombres y personas pueden ser largos y sin espacios: bajan de línea y no ensanchan la página. */
+.list { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.unit { min-width: 0; overflow-wrap: anywhere; }

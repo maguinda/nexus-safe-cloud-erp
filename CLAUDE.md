@@ -269,6 +269,11 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Procurement: tabla `stock_movements` solo-agregar (triggers; bandera `erp.allow_movement_delete`), escrita en la MISMA transacción que mueve el stock (recibir pedido y ajuste manual) con el actor del token; la migración abre el saldo existente como «apertura». `GET /inventory/movements`. Web: tabla «Movimientos del inventario» al final de Compras (filtro por artículo). `reset-demo.sh` la reabre.
 - Invariante probada con 20 rondas simultáneas: la suma de movimientos de cada artículo = su stock. Dos mutaciones fallan (no anotar al recibir; delta equivocado).
 
+## Serie, garantía y a quién se asignó por unidad (opción C del inventario, 2026-10-30, 🟡)
+- Se hizo dentro de Operations (sin servicio nuevo) sobre las unidades de compra: `network_devices.warranty_until` y `assigned_to` (solo filas de compra, CHECK), serie real con índice único (sin importar mayúsculas) y `GET /network/purchased`; `PATCH …/configure` acepta `serial`, `warrantyUntil` y `assignedTo` (lo no enviado no se toca). Web: el panel de Red lista todas las unidades compradas (pendientes resaltadas), muestra serie/garantía/asignado y deja editarlas; avisa garantía vencida o por vencer (30 días).
+- Límites: «a quién» es solo un nombre (no una cuenta ni un correo: no se verifica que exista); sin historial de asignaciones ni acta de entrega; la garantía no genera avisos en la campana. Lo 🔴 que NO se hizo: nada de dinero ni permisos nuevos.
+- Pruebas: 34 unitarias nuevas, e2e con carrera de 30 rondas por la misma serie (la mutación de quitar el índice la hace fallar), web 699.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

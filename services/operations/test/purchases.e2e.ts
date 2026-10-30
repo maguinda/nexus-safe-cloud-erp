@@ -119,4 +119,54 @@ describe('completing a purchased device (e2e, real PostgreSQL)', () => {
     expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: boughtId } })).role).toBe('Pendiente de configurar');
   });
   it('a bad id is 400', async () => { expect((await request(app.getHttpServer()).patch('/network/devices/abc/configure').set('Authorization', bearer(token(USERS.manager))).send(body)).status).toBe(400); });
+
+  describe('serial, warranty and assignee per unit', () => {
+    const list = (u: any = USERS.manager) => request(app.getHttpServer()).get('/network/purchased').set('Authorization', bearer(token(u)));
+    const unit2 = async () => { await purchaseEventHandler(prisma)({ type: 'EquipmentPurchased', data: { orderNumber: 'PO-0556', itemName: 'Router edge', quantity: 1 } }); return (await prisma.networkDevice.findFirstOrThrow({ where: { sourceOrder: 'PO-0556' } })).id; };
+
+    it('only the manager lists the purchased units: 401 without token, 403 for other roles; the Excel devices are not in the list', async () => {
+      expect((await request(app.getHttpServer()).get('/network/purchased')).status).toBe(401);
+      for (const u of [USERS.lead, USERS.billing, USERS.sales]) expect((await list(u)).status).toBe(403);
+      const r = await list(); expect(r.status).toBe(200);
+      expect(r.body).toEqual([expect.objectContaining({ id: boughtId, order: 'PO-0555', unit: 1, serial: 'PO-0555-1', warrantyUntil: null, assignedTo: null })]);
+    });
+
+    it('sets the real serial, the warranty and the assignee; a later edit that does not send them keeps them; empty clears warranty and assignee', async () => {
+      expect((await patch(boughtId, USERS.manager, { ...body, serial: 'FOC2145X0AB', warrantyUntil: '2028-11-30', assignedTo: 'Laura Ríos' })).status).toBe(200);
+      expect((await list()).body[0]).toMatchObject({ serial: 'FOC2145X0AB', warrantyUntil: '2028-11-30', assignedTo: 'Laura Ríos' });
+      expect((await patch(boughtId, USERS.manager, { ...body, criticality: 'Crítica' })).status).toBe(200);
+      expect((await list()).body[0]).toMatchObject({ criticality: 'Crítica', serial: 'FOC2145X0AB', warrantyUntil: '2028-11-30', assignedTo: 'Laura Ríos' });
+      expect((await patch(boughtId, USERS.manager, { ...body, warrantyUntil: '', assignedTo: null })).status).toBe(200);
+      expect((await list()).body[0]).toMatchObject({ serial: 'FOC2145X0AB', warrantyUntil: null, assignedTo: null });
+    });
+
+    it.each<[string, object]>([['bad serial', { serial: 'a b' }], ['impossible date', { warrantyUntil: '2028-02-30' }], ['markup person', { assignedTo: '<script>' }]])('400 and nothing changes: %s', async (_n, over) => {
+      expect((await patch(boughtId, USERS.manager, { ...body, ...over })).status).toBe(400);
+      expect((await list()).body[0]).toMatchObject({ role: 'Pendiente de configurar', serial: 'PO-0555-1', warrantyUntil: null, assignedTo: null });
+    });
+
+    it('a serial number cannot belong to two purchased devices (any case): 409 and the second keeps its own', async () => {
+      const other = await unit2();
+      expect((await patch(boughtId, USERS.manager, { ...body, serial: 'SN-ABC-123' })).status).toBe(200);
+      expect((await patch(other, USERS.manager, { ...body, serial: 'sn-abc-123' })).status).toBe(409);
+      expect((await prisma.networkDevice.findUniqueOrThrow({ where: { id: other } })).serial).toBe('PO-0556-1');
+      expect((await patch(boughtId, USERS.manager, { ...body, serial: 'SN-ABC-123' })).status).toBe(200); // el mismo equipo puede repetir su propio serial
+    });
+
+    it('CONCURRENCY: 30 rounds of two devices taking the same serial at once → exactly one gets it', async () => {
+      const other = await unit2();
+      for (let r = 0; r < 30; r++) {
+        await prisma.networkDevice.update({ where: { id: boughtId }, data: { serial: `TMP-A-${r}-000` } }); await prisma.networkDevice.update({ where: { id: other }, data: { serial: `TMP-B-${r}-000` } });
+        const res = await Promise.all([patch(boughtId, USERS.manager, { ...body, serial: `RACE-${r}-0001` }), patch(other, USERS.manager, { ...body, serial: `race-${r}-0001` })]);
+        expect(res.filter((x) => x.status === 200)).toHaveLength(1); expect(res.filter((x) => x.status === 409)).toHaveLength(1);
+        expect(await prisma.networkDevice.count({ where: { serial: { equals: `RACE-${r}-0001`, mode: 'insensitive' } } })).toBe(1);
+      }
+    }, 120_000);
+
+    it('the database only lets purchased units carry a warranty or an assignee, and keeps names within limits', async () => {
+      await expect(prisma.networkDevice.update({ where: { id: excelId }, data: { assignedTo: 'Alguien' } })).rejects.toThrow();
+      await expect(prisma.networkDevice.update({ where: { id: excelId }, data: { warrantyUntil: new Date('2030-01-01') } })).rejects.toThrow();
+      await expect(prisma.networkDevice.update({ where: { id: boughtId }, data: { assignedTo: 'x' } })).rejects.toThrow();
+    });
+  });
 });

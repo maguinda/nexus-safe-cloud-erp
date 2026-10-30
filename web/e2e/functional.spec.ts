@@ -1529,6 +1529,24 @@ test('Purchased equipment: buying and receiving a network device adds its units 
   await cfg.getByLabel(/IPs \(optional/).fill('10.0.2.5'); await cfg.getByRole('button', { name: 'Save device' }).click();
   await expect(page.getByText(/completed\./)).toBeVisible();
   await expect(pending).toHaveCount(1);
+  // La unidad completa se puede editar: serie real, garantía y a quién se asignó; una serie repetida se rechaza.
+  const units = page.locator('[data-unit]');
+  const first = units.filter({ hasNotText: 'To configure' }).first();
+  await first.getByRole('button', { name: /^Edit the device/ }).click();
+  const ed = page.getByRole('form', { name: /^Edit the device/ });
+  await ed.getByLabel(/Real serial number/).fill('a b'); await ed.getByRole('button', { name: 'Save device' }).click();
+  await expect(ed.getByText(/Serial of 3 to 40 characters/)).toBeVisible();
+  await ed.getByLabel(/Real serial number/).fill('FOC2145X0AB'); await ed.getByLabel(/End of the warranty/).fill('2020-01-31'); await ed.getByLabel(/Assigned to/).fill('Laura Ríos');
+  await ed.getByRole('button', { name: 'Save device' }).click();
+  await expect(page.getByText(/completed\./)).toBeVisible();
+  await expect(units.filter({ hasText: 'FOC2145X0AB' })).toContainText('Laura Ríos');
+  await expect(units.filter({ hasText: 'FOC2145X0AB' })).toContainText('until 2020-01-31 (expired)');
+  const second = units.filter({ hasText: 'To configure' }).first();
+  await second.getByRole('button', { name: /^Complete the device/ }).click();
+  const f2 = page.getByRole('form', { name: /^Complete the device/ });
+  await f2.getByLabel(/What it is for/).fill('Switch piso 3'); await f2.getByRole('button', { name: 'Media' }).click(); await f2.getByLabel(/Real serial number/).fill('foc2145x0ab');
+  await f2.getByRole('button', { name: 'Save device' }).click();
+  await expect(f2.getByText('Another purchased device already has that serial number.')).toBeVisible();
 });
 
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {

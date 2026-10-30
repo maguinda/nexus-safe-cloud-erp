@@ -19,6 +19,7 @@ export interface AuditResponse { entries: { eventId: string; type: string; occur
 export interface ProfitabilityRow { projectName: string; revenueCop: number; laborCostCop: number; marginCop: number; marginPct: number | null; allocations: number; uncostedAllocations: number }
 export interface Profitability { asOf: string; projects: ProfitabilityRow[]; totals: { revenueCop: number; laborCostCop: number; marginCop: number; uncostedAllocations: number } }
 export interface TeamMember { engineerName: string; percent: number; periodStart: string; periodEnd: string }
+export interface PurchasedDevice { id: number; name: string; model: string; role: string; criticality: string; ips: string | null; serial: string; order: string; unit: number; warrantyUntil: string | null; assignedTo: string | null }
 export interface Contract { id: string; clientName: string; projectName: string; projectId: string | null; amountCop: number; startDate: string; endDate: string; status: 'active' | 'closed' | 'cancelled'; createdAt: string; billedCop: number; paidCop: number }
 export interface InvoicePayment { id: string; invoiceNumber: string; amountCop: number; method: 'transfer' | 'cash' | 'card' | 'other'; reference: string | null; paidAt: string }
 

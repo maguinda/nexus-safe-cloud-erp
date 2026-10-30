@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -126,7 +126,8 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     networkSummary: () => request<NetworkSummary>('GET', '/network/summary'),
     networkDevices: (q: DevicesQuery = {}) => request<Page<NetworkDeviceItem>>('GET', `/network/devices${queryString(q)}`),
     networkLinks: (q: LinksQuery = {}) => request<Page<NetworkLinkItem>>('GET', `/network/links${queryString(q)}`),
-    configureDevice: (id: number, b: { role: string; criticality: string; ips: string }) => request<{ id: number }>('PATCH', `/network/devices/${id}/configure`, b),
+    purchasedDevices: () => request<PurchasedDevice[]>('GET', '/network/purchased'),
+    configureDevice: (id: number, b: { role: string; criticality: string; ips: string; serial?: string; warrantyUntil?: string; assignedTo?: string }) => request<{ id: number }>('PATCH', `/network/devices/${id}/configure`, b),
     networkFacets: () => request<NetworkFacets>('GET', '/network/facets'),
     advisorBrief: (language: Lang, ai: boolean) => request<Advice>('POST', '/advisor/brief', { language, ai }),
     setLanguage: (language: Lang) => request<{ language: Lang }>('PATCH', '/me/language', { language }),
