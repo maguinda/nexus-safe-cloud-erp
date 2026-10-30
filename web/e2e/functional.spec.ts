@@ -1465,6 +1465,46 @@ test('Audit: the manager sees who did what and when from the events; the log is 
   } finally { await manager.ctx.close(); await lead.ctx.close(); await billing.ctx.close(); }
 });
 
+test('Cameras: the manager sees the IP cameras from IoT and the surveillance devices of the network inventory; other roles have no such screen', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const open = async (role: 'manager' | 'lead' | 'sales') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [manager, lead, sales] = [await open('manager'), await open('lead'), await open('sales')];
+  try {
+    await manager.page.getByRole('navigation').getByRole('button', { name: 'Cameras', exact: true }).click();
+    await expect(manager.page.getByRole('heading', { name: 'Cameras', exact: true })).toBeVisible();
+    for (const n of ['WEBCAM_OF1', 'WEBCAM_OF2', 'WEBCAM_OF3']) await expect(manager.page.locator(`[data-camera="${n}"]`)).toBeVisible();
+    await expect(manager.page.locator('[data-netcam]')).toHaveCount(9);
+    await expect(manager.page.getByText(/There is no video here/)).toBeVisible();
+    for (const w of [lead, sales]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Cameras', exact: true })).toHaveCount(0);
+  } finally { await manager.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
+});
+
+test('Purchased equipment: buying and receiving a network device adds its units to the network inventory, once', async ({ page }) => {
+  test.setTimeout(180_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  await openAs(page, 'manager');
+  await page.getByRole('navigation').getByRole('button', { name: 'Procurement', exact: true }).click();
+  const form = page.getByRole('form', { name: 'New order' });
+  await form.getByRole('button', { name: 'Redes del Norte (example)' }).click();
+  await form.getByRole('button', { name: 'Switch de acceso 24 puertos' }).click();
+  await form.getByLabel('Quantity (1 to 100,000)').fill('2'); await form.getByLabel('Price per unit in pesos').fill('900000');
+  await form.getByRole('button', { name: 'Create order' }).click();
+  await expect(page.getByText(/Order PO-\d+ created \(pending\)\./)).toBeVisible();
+  const order = page.locator('[data-order]').first();
+  await order.getByRole('button', { name: /^Receive order/ }).click();
+  await expect(page.locator('[data-order]').first()).toContainText('Received');
+  await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
+  await expect(async () => {
+    await page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true }).click();
+    await page.getByRole('navigation').getByRole('button', { name: 'Network', exact: true }).click();
+    await page.getByPlaceholder('Name, model, role or IP').fill('Switch de acceso 24 puertos (PO-');
+    await expect(page.getByText(/Switch de acceso 24 puertos \(PO-\d+-1\)/).first()).toBeVisible({ timeout: 2000 });
+    await expect(page.getByText(/Switch de acceso 24 puertos \(PO-\d+-2\)/).first()).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 40_000 });
+  await expect(page.getByText(/\(PO-\d+-3\)/)).toHaveCount(0);
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');
@@ -1583,11 +1623,11 @@ test('Menu: the manager\'s options are grouped under labels, with icons that onl
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Contracts', 'Profitability']);
-  await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network']);
+  await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(9);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(10);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1625,7 +1665,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(9);
+  expect(edges.length).toBe(10);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });

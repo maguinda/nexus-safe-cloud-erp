@@ -66,6 +66,9 @@ model NetworkDevice {
   /// Direcciones IP tal como las trae el inventario («10.0.0.2; 10.0.0.9»); solo los equipos de red y algunos servidores las tienen.
   ips         String?
   gateways    String?
+  /// Si el equipo vino de una compra (EquipmentPurchased): la orden «PO-0001» y el número de unidad dentro de ella.
+  sourceOrder String?            @map("source_order")
+  sourceUnit  Int?               @map("source_unit")
   linksFrom   NetworkLink[]      @relation("LinkOrigin")
   linksTo     NetworkLink[]      @relation("LinkDestination")
   monitoring  NetworkMonitoring?

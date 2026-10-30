@@ -253,6 +253,11 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Límite honesto: «quién» aparece solo cuando el evento lo trae (aprobar, emitir y, desde hoy, registrar un pago: `registeredBy`); asignaciones, compras y alertas no dicen quién, y la pantalla lo dice en vez de adivinar. Tampoco registra lecturas ni inicios de sesión (esos no son eventos).
 - Pruebas: analytics 137 unit + e2e de auditoría (2 mutaciones: ON CONFLICT y guardar el mensaje completo, ambas fallan), web 682, funcional Chromium+WebKit.
 
+## Equipo comprado → inventario de red FR-PRC-03 y Cámaras FR-OPS-05 (2026-10-30, 🟡/🟢)
+- Operations CONSUME `EquipmentPurchased` (cola `q.operations.purchases`) y crea una fila por unidad en `network_devices` (columnas nuevas `source_order`/`source_unit`, índice único): nombre «Item (PO-0001-1)», categoría «Equipo comprado», rol «Pendiente de configurar», criticidad Media, sin IP ni sede (versión reducida: no se inventan). Candado de la base para repartir ids; más de 100 unidades de un ítem va a la cola de muertos. `reset-demo.sh` borra las filas compradas. `setup-env` de operations fuerza `CONSUMER_ENABLED=false`.
+- Cámaras: pantalla del gerente (grupo «Datos de Nexus») armada con los endpoints existentes (3 cámaras IP `WEBCAM_OF*` de IoT y los 9 equipos «CCTV / IoT» de la red). No hay video. Sin servicio nuevo.
+- Pruebas: operations 246 unit + e2e de compras (carrera de 30 rondas, 2 mutaciones fallan), funcional de comprar→recibir→inventario y de Cámaras en Chromium y WebKit.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

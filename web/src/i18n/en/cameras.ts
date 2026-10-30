@@ -1,0 +1,26 @@
+import type { cameras as es } from '../es/cameras';
+
+export const cameras: Record<keyof typeof es, string> = {
+  'nav.cameras': 'Cameras',
+  'cam.title': 'Cameras',
+  'cam.intro': 'The cameras in the Nexus data: the IP ones that report through IoT and the video surveillance devices of the network inventory. There is no video here: only the status of the devices.',
+  'cam.iot.title': 'IP cameras reporting through IoT',
+  'cam.iot.empty': 'There are no cameras among the sensors.',
+  'cam.net.title': 'Video surveillance devices in the network inventory',
+  'cam.net.empty': 'There are no video surveillance devices in the inventory.',
+  'cam.col.name': 'Name',
+  'cam.col.location': 'Site',
+  'cam.col.connection': 'Connection',
+  'cam.col.state': 'State',
+  'cam.col.last': 'Last reading',
+  'cam.col.model': 'Model',
+  'cam.col.role': 'Role',
+  'cam.col.criticality': 'Criticality',
+  'cam.col.monitored': 'Monitored',
+  'cam.online': 'Online',
+  'cam.offline': 'Offline',
+  'cam.noReading': 'No readings',
+  'cam.yes': 'Yes',
+  'cam.no': 'No',
+  'cam.loadError': 'Could not load the cameras: {reason}',
+};

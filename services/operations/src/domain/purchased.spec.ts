@@ -1,0 +1,16 @@
+import { InvalidEventError } from './errors';
+import { parseEquipmentPurchased, unitName } from './purchased';
+
+const ev = (data: object = {}, over: object = {}) => ({ eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a01', type: 'EquipmentPurchased', occurredAt: '2026-10-30T10:00:00.000Z', correlationId: 'corr-12345678',
+  data: { orderNumber: 'PO-0007', orderId: 'x', supplierName: 'Proveedor', itemName: '  Router   edge  ', quantity: 2, unitPriceCop: 100, totalCop: 200, ...data }, ...over });
+describe('parseEquipmentPurchased', () => {
+  it('keeps only the order, the item (clean) and the quantity', () => { expect(parseEquipmentPurchased(ev())).toEqual({ orderNumber: 'PO-0007', itemName: 'Router edge', quantity: 2 }); });
+  it('accepts 1 and 100 units', () => { expect(parseEquipmentPurchased(ev({ quantity: 1 })).quantity).toBe(1); expect(parseEquipmentPurchased(ev({ quantity: 100 })).quantity).toBe(100); });
+  it.each<[string, unknown]>([['null', null], ['an array', []], ['another type', ev({}, { type: 'StockChanged' })], ['no data', ev({}, { data: undefined })], ['order without PO', ev({ orderNumber: 'X-1' })], ['order injection', ev({ orderNumber: "PO-1'; DROP" })],
+    ['quantity 0', ev({ quantity: 0 })], ['quantity 101', ev({ quantity: 101 })], ['decimal', ev({ quantity: 1.5 })], ['text', ev({ quantity: '2' })], ['markup in item', ev({ itemName: '<b>x</b>' })], ['empty item', ev({ itemName: '  ' })], ['long item', ev({ itemName: 'x'.repeat(101) })], ['control char', ev({ itemName: 'a\u0000b' })],
+  ])('refuses %s', (_n, raw) => { expect(() => parseEquipmentPurchased(raw)).toThrow(InvalidEventError); });
+  it('the unit name is unique per order and unit, and fits the name limit', () => {
+    expect(unitName('Router edge', 'PO-0007', 2)).toBe('Router edge (PO-0007-2)');
+    expect(unitName('x'.repeat(100), 'PO-0007', 100).length).toBeLessThanOrEqual(120);
+  });
+});

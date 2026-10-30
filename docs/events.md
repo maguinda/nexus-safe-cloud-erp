@@ -206,6 +206,12 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 
 The only person in the event is `registeredBy` (the staff email of the analyst, as `approvedBy` and `issuedBy` in the invoice events); amounts and business names otherwise. The reference typed by the analyst stays in billing's database.
 
+## Operations consumer (purchased equipment)
+
+- `operations` binds its own queue `q.operations.purchases` (dead-letter queue `q.operations.purchases.dlq`) to `procurement.equipment.purchased`. For each unit bought it inserts one row in `network_devices` named `<item> (<order>-<unit>)`, model = the item, category `Equipo comprado`, role `Pendiente de configurar`, criticality `Media`, serial `<order>-<unit>`, no IP.
+- **Reduced on purpose:** the purchase does not say the office, the IP, the criticality or what it connects to, so the row is a placeholder that a person completes later; it does not invent those values.
+- Idempotent by (order, unit) with a unique index: a repeated event adds nothing and is acknowledged as a duplicate. Ids are taken under a database lock, so purchases at the same time never collide. A purchase of more than 100 units of one item is rejected (dead-letter queue) for a person to decide. The name has no `#` because the inventory search does not accept it.
+
 ## Projects consumer (project team)
 
 - `projects` binds its own queue `q.projects.team` (dead-letter queue `q.projects.team.dlq`) to `capacity.engineer.allocated` and stores one row per allocation in `project_team` (engineer name, project name, percent, period). Nothing else of the event is kept (no costs, no personal data).
