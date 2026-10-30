@@ -4,7 +4,7 @@ import { errorText } from '../i18n/server';
 import { checkContract, STATUS_KEY } from '../lib/contracts';
 import type { ContractErrors } from '../lib/contracts';
 import { formatCop } from '../lib/format';
-import type { Contract } from '../lib/types';
+import type { Contract, Project } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 
@@ -21,6 +21,9 @@ export function ContractsView({ toast }: { toast: (m: string) => void }) {
   const [f, setF] = useState(EMPTY);
   const [errors, setErrors] = useState<ContractErrors & { form?: string }>({});
   const [busy, setBusy] = useState('');
+  // Los proyectos salen de Projects: se elige uno (queda enlazado por su id) y el cliente se completa solo.
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  useEffect(() => { let live = true; api.projects().then((p) => { if (live) setProjects(p); }).catch(() => { if (live) setProjects(null); }); return () => { live = false; }; }, [api]);
   const inflight = useRef(false);
 
   const load = useCallback(async () => {
@@ -31,7 +34,7 @@ export function ContractsView({ toast }: { toast: (m: string) => void }) {
   async function create(e: FormEvent) {
     e.preventDefault();
     if (inflight.current) return;
-    const { errors: errs, value } = checkContract(t, f);
+    const { errors: errs, value } = checkContract(t, f, projects);
     setErrors(errs);
     if (!value) return;
     inflight.current = true; setBusy('new');
@@ -57,7 +60,7 @@ export function ContractsView({ toast }: { toast: (m: string) => void }) {
         <form onSubmit={(e) => void create(e)} noValidate aria-label={t('con.new')} className={ui.formCard}>
           <div className={ui.formGrid}>
             <label className={ui.field}><span>{t('con.field.client')}</span><input type="text" autoComplete="off" maxLength={160} value={f.clientName} onChange={(x) => setF({ ...f, clientName: x.target.value })} aria-invalid={!!errors.clientName} />{errors.clientName && <span className={ui.err}>{errors.clientName}</span>}</label>
-            <label className={ui.field}><span>{t('con.field.project')}</span><input type="text" autoComplete="off" maxLength={160} value={f.projectName} onChange={(x) => setF({ ...f, projectName: x.target.value })} aria-invalid={!!errors.projectName} />{errors.projectName && <span className={ui.err}>{errors.projectName}</span>}</label>
+            <label className={ui.field}><span>{t('con.field.project')}</span><input type="text" autoComplete="off" maxLength={160} list={projects ? 'con-projects' : undefined} value={f.projectName} onChange={(x) => { const name = x.target.value; const p = projects?.find((q) => q.name === name); setF({ ...f, projectName: name, ...(p && !f.clientName ? { clientName: p.client } : {}) }); }} aria-invalid={!!errors.projectName} />{projects && <datalist id="con-projects">{projects.map((p) => <option key={p.id} value={p.name} />)}</datalist>}{projects && <span className={ui.muted}>{t('con.field.projectHint')}</span>}{errors.projectName && <span className={ui.err}>{errors.projectName}</span>}</label>
             <label className={ui.field}><span>{t('con.field.amount')}</span><input type="text" inputMode="numeric" autoComplete="off" maxLength={12} value={f.amountCop} onChange={(x) => setF({ ...f, amountCop: x.target.value })} aria-invalid={!!errors.amountCop} />{errors.amountCop && <span className={ui.err}>{errors.amountCop}</span>}</label>
             <label className={ui.field}><span>{t('con.field.start')}</span><input type="date" value={f.startDate} onChange={(x) => setF({ ...f, startDate: x.target.value })} aria-invalid={!!errors.startDate} />{errors.startDate && <span className={ui.err}>{errors.startDate}</span>}</label>
             <label className={ui.field}><span>{t('con.field.end')}</span><input type="date" value={f.endDate} onChange={(x) => setF({ ...f, endDate: x.target.value })} aria-invalid={!!errors.endDate} />{errors.endDate && <span className={ui.err}>{errors.endDate}</span>}</label>

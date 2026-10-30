@@ -32,7 +32,7 @@ describe('contracts: roles, rules, billed and paid by project (e2e, real Postgre
     const b = await call('post', '/contracts', USERS.billing, body({ clientName: 'Banco Andino (example)', projectName: 'Core migration' })); expect(b.status).toBe(201);
     for (const u of [USERS.manager, USERS.billing, USERS.lead]) {
       const l = await call('get', '/contracts', u); expect(l.status).toBe(200); expect(l.body).toHaveLength(2);
-      expect(Object.keys(l.body[0]).sort()).toEqual(['amountCop', 'billedCop', 'clientName', 'createdAt', 'endDate', 'id', 'paidCop', 'projectName', 'startDate', 'status']);
+      expect(Object.keys(l.body[0]).sort()).toEqual(['amountCop', 'billedCop', 'clientName', 'createdAt', 'endDate', 'id', 'paidCop', 'projectId', 'projectName', 'startDate', 'status']);
     }
     expect(a.body.status).toBe('active'); expect(await prisma.contract.count()).toBe(2);
     expect((await prisma.contract.findUnique({ where: { id: a.body.id } }))!.createdBy).toBe(USERS.manager.email);
@@ -54,6 +54,19 @@ describe('contracts: roles, rules, billed and paid by project (e2e, real Postgre
     const l = (await call('get', '/contracts', USERS.manager)).body;
     const mine = l.find((x: any) => x.id === c.body.id), other = l.find((x: any) => x.projectName === 'Other project');
     expect(mine).toMatchObject({ billedCop: 1_000_000, paidCop: 400_000 }); expect(other).toMatchObject({ billedCop: 0, paidCop: 0 });
+  });
+
+  it('the link is by project ID: two projects with the same name do not mix; an invoice without an id still links by name', async () => {
+    const inv = (number: string, projectId: string | null, amountCop: number) => prisma.invoice.create({ data: { number, milestoneId: number, projectName: 'Twin project', projectId, milestoneName: 'M', amountCop, taxCop: 0, totalCop: amountCop, status: 'issued', issuedAt: new Date(), issuedBy: 'andres.mora@nexus.example', dueDate: new Date('2026-12-30T15:00:00Z') } as any });
+    await inv('INV-0801', 'p-aaa', 1_000_000); await inv('INV-0802', 'p-bbb', 5_000_000); await inv('INV-0803', null, 300_000);
+    const a = await call('post', '/contracts', USERS.manager, body({ projectName: 'Twin project', projectId: 'p-aaa' })); expect(a.status).toBe(201); expect(a.body.projectId).toBe('p-aaa');
+    const b = await call('post', '/contracts', USERS.manager, body({ projectName: 'Twin project', projectId: 'p-bbb' }));
+    const l = (await call('get', '/contracts', USERS.manager)).body;
+    expect(l.find((x: any) => x.id === a.body.id)).toMatchObject({ projectId: 'p-aaa', billedCop: 1_000_000 });
+    expect(l.find((x: any) => x.id === b.body.id)).toMatchObject({ projectId: 'p-bbb', billedCop: 5_000_000 });
+    const byName = await call('post', '/contracts', USERS.manager, body({ projectName: 'Twin project' })); // sin id: enlace por nombre (todas las del nombre)
+    expect((await call('get', '/contracts', USERS.manager)).body.find((x: any) => x.id === byName.body.id)).toMatchObject({ projectId: null, billedCop: 6_300_000 });
+    for (const projectId of ['p 1', "p1'; DROP TABLE x", 'x'.repeat(65)]) expect((await call('post', '/contracts', USERS.manager, body({ projectId }))).status).toBe(400);
   });
 
   it('only an active contract can be closed or cancelled; 404 for an unknown id; 400 for a bad id or status', async () => {

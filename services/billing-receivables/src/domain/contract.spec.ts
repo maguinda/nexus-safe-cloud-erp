@@ -13,6 +13,10 @@ describe('validateContract', () => {
     ['over int32', { amountCop: 2_147_483_648 }], ['NaN', { amountCop: NaN }], ['bad date', { startDate: '2026-13-01' }], ['not a real day', { startDate: '2026-02-30' }], ['no dash', { endDate: '20270501' }],
     ['end before start', { endDate: '2026-10-31' }], ['null date', { startDate: null }],
   ])('refuses %s', (_n, over) => { expect(() => validateContract({ ...ok, ...over } as any)).toThrow(InvalidContractError); });
+  it('the project id is optional, trimmed to null when empty, and refuses strange values', () => {
+    expect(validateContract(ok).projectId).toBeNull(); expect(validateContract({ ...ok, projectId: '' }).projectId).toBeNull(); expect(validateContract({ ...ok, projectId: 'p1' }).projectId).toBe('p1');
+    for (const projectId of ['p 1', "p1'; DROP", '<b>', 'x'.repeat(65), 5]) expect(() => validateContract({ ...ok, projectId } as any)).toThrow(InvalidContractError);
+  });
   it('only an active contract can be closed or cancelled', () => {
     expect(canChangeStatus('active', 'closed')).toBe(true); expect(canChangeStatus('active', 'cancelled')).toBe(true);
     for (const f of ['closed', 'cancelled'] as const) for (const t of ['active', 'closed', 'cancelled'] as const) expect(canChangeStatus(f, t)).toBe(false);

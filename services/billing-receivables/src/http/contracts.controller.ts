@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiProperty, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { IsNumber, IsString, MaxLength } from 'class-validator';
+import { ApiBearerAuth, ApiOperation, ApiProperty, ApiPropertyOptional, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthUser, Roles } from '../auth/auth.guard';
@@ -12,6 +12,7 @@ export const PRISMA = 'PRISMA';
 class CreateContractDto {
   @ApiProperty({ example: 'Retail Norte (example)' }) @IsString() @MaxLength(300) clientName!: string;
   @ApiProperty({ example: 'Branch network upgrade' }) @IsString() @MaxLength(300) projectName!: string;
+  @ApiPropertyOptional({ example: 'p1', description: 'The id of the project in Projects (chosen from its list)' }) @IsOptional() @IsString() @MaxLength(64) projectId?: string;
   @ApiProperty({ example: 120000000, description: 'Whole pesos, before VAT' }) @IsNumber() amountCop!: number;
   @ApiProperty({ example: '2026-11-01' }) @IsString() @MaxLength(10) startDate!: string;
   @ApiProperty({ example: '2027-05-01' }) @IsString() @MaxLength(10) endDate!: string;
@@ -21,9 +22,9 @@ class StatusDto { @ApiProperty({ enum: ['closed', 'cancelled'] }) @IsString() @M
 const day = (d: Date) => d.toISOString().slice(0, 10);
 /** Facturado y cobrado salen de las facturas del MISMO proyecto (enlace por valor); sin quién creó el contrato. */
 const LIST_SQL = `
-  SELECT c.id, c.client_name AS "clientName", c.project_name AS "projectName", c.amount_cop AS "amountCop", c.start_date AS "startDate", c.end_date AS "endDate", c.status, c.created_at AS "createdAt",
-         COALESCE((SELECT SUM(i.amount_cop) FROM invoices i WHERE i.project_name = c.project_name AND i.status = 'issued'), 0)::int AS "billedCop",
-         COALESCE((SELECT SUM(p.amount_cop) FROM payments p JOIN invoices i ON i.number = p.invoice_number WHERE i.project_name = c.project_name), 0)::int AS "paidCop"
+  SELECT c.id, c.client_name AS "clientName", c.project_name AS "projectName", c.project_id AS "projectId", c.amount_cop AS "amountCop", c.start_date AS "startDate", c.end_date AS "endDate", c.status, c.created_at AS "createdAt",
+         COALESCE((SELECT SUM(i.amount_cop) FROM invoices i WHERE (CASE WHEN c.project_id IS NOT NULL THEN i.project_id = c.project_id ELSE i.project_name = c.project_name END) AND i.status = 'issued'), 0)::int AS "billedCop",
+         COALESCE((SELECT SUM(p.amount_cop) FROM payments p JOIN invoices i ON i.number = p.invoice_number WHERE (CASE WHEN c.project_id IS NOT NULL THEN i.project_id = c.project_id ELSE i.project_name = c.project_name END)), 0)::int AS "paidCop"
   FROM contracts c ORDER BY c.created_at DESC, c.id LIMIT 200`;
 
 @ApiTags('Contracts')

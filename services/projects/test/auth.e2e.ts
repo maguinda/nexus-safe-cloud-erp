@@ -69,13 +69,14 @@ describe('authentication and roles (e2e, real PostgreSQL)', () => {
       }
     });
 
-    it('the manager gets 403 on every route: the manager only reads the Analytics dashboard', async () => {
+    it('the manager may only LIST the projects (to pick one in other screens); milestones and approvals are 403', async () => {
       const t = bearer(token(USERS.manager));
-      for (const res of [await get('/projects', t), await get('/projects/p1/milestones', t), await post('/milestones/m2/approve', t)]) {
+      expect((await get('/projects', t)).status).toBe(200);
+      for (const res of [await get('/projects/p1/milestones', t), await post('/milestones/m2/approve', t)]) {
         expect(res.status).toBe(403);
         expect(res.body).toEqual(expect.objectContaining({ statusCode: 403, correlationId: expect.any(String) }));
       }
-      expect(JSON.stringify((await get('/projects', t)).body)).not.toMatch(/Retail|Branch/); // el 403 no deja ver ningún proyecto
+      expect(JSON.stringify((await get('/projects/p1/milestones', t)).body)).not.toMatch(/Retail|Branch|Site survey/); // el 403 no deja ver ningún hito
       expect((await prisma.milestone.findUnique({ where: { id: 'm2' } }))?.status).toBe('pending');
       expect(await prisma.outboxEvent.count()).toBe(0);
     });

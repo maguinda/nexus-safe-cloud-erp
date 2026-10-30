@@ -25,6 +25,7 @@ export const capacity: Record<keyof typeof es, string> = {
   'capacity.allocateFor': 'Allocate {name}',
   'capacity.allocated': '{name} allocated to “{project}” at {percent}%.',
   'capacity.allocatedOver': '{name} is now at {peak}% (authorized by management): management and sales were notified.',
+  'capacity.v.projectUnknown': 'Choose one of the projects in the list.',
   'capacity.field.project': 'The project',
   'capacity.field.percent': 'Percent (1 to 100)',
   'capacity.field.start': 'From (YYYY-MM-DD)',

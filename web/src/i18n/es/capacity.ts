@@ -24,6 +24,7 @@ export const capacity = {
   'capacity.allocateFor': 'Asignar a {name}',
   'capacity.allocated': '{name} asignado a «{project}» al {percent} %.',
   'capacity.allocatedOver': '{name} queda en {peak} % (autorizado por gerencia): se avisó a gerencia y ventas.',
+  'capacity.v.projectUnknown': 'Elige uno de los proyectos de la lista.',
   'capacity.field.project': 'El proyecto',
   'capacity.field.percent': 'Porcentaje (1 a 100)',
   'capacity.field.start': 'Desde (AAAA-MM-DD)',

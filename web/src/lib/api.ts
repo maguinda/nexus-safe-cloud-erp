@@ -106,7 +106,7 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     setDailyCost: (id: string, dailyCostCop: number | null) => request<void>('PATCH', `/engineers/${encodeURIComponent(id)}/cost`, { dailyCostCop }),
     projectTeam: (id: string) => request<TeamMember[]>('GET', `/projects/${encodeURIComponent(id)}/team`),
     contracts: () => request<Contract[]>('GET', '/contracts'),
-    createContract: (b: { clientName: string; projectName: string; amountCop: number; startDate: string; endDate: string }) => request<Contract>('POST', '/contracts', b),
+    createContract: (b: { clientName: string; projectName: string; projectId?: string; amountCop: number; startDate: string; endDate: string }) => request<Contract>('POST', '/contracts', b),
     setContractStatus: (id: string, status: 'closed' | 'cancelled') => request<{ id: string; status: string }>('PATCH', `/contracts/${encodeURIComponent(id)}/status`, { status }),
     payments: (n: string) => request<InvoicePayment[]>('GET', `/invoices/${encodeURIComponent(n)}/payments`),
     registerPayment: (n: string, b: { amountCop: number; method: string; reference?: string }) => request<InvoicePayment & { paidCop: number; balanceCop: number; paymentStatus: string }>('POST', `/invoices/${encodeURIComponent(n)}/payments`, b),

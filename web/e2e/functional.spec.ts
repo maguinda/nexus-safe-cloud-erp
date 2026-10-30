@@ -1162,6 +1162,10 @@ test('Capacity: the 100% rule end to end — a second allocation is refused with
     let form = await fill(lead.page, '150', iso(0), iso(10));
     await form.getByRole('button', { name: 'Save allocation' }).click();
     await expect(form.getByText('The percent must be a whole number from 1 to 100.')).toBeVisible();
+    // El proyecto sale de la lista de Projects: uno que no existe se rechaza sin enviar.
+    await form.getByLabel('The project').fill('Proyecto inventado'); await form.getByLabel('Percent (1 to 100)').fill('50');
+    await form.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(form.getByText('Choose one of the projects in the list.')).toBeVisible();
     form = await fill(lead.page, '100', iso(0), iso(10));
     await form.getByRole('button', { name: 'Save allocation' }).click();
     await expect(lead.page.getByText('Playwright Engineer allocated to “Branch network upgrade” at 100%.')).toBeVisible();
@@ -1347,21 +1351,21 @@ test('Contracts: manager creates one (the form warns first), billing closes it, 
     await form.getByRole('button', { name: 'Save contract' }).click();
     await expect(form.getByText('Write 2 to 120 characters, without < > or control characters.').first()).toBeVisible();
     await expect(form.getByText('The amount must be a whole number of pesos greater than 0 (no dots or commas).')).toBeVisible();
-    await form.getByLabel('Client').fill('Retail Norte (example)'); await form.getByLabel('Project').fill('Contract demo project');
+    await form.getByLabel('Client').fill('Retail Norte (example)'); await form.getByLabel('Project').fill('Branch network upgrade');
     await form.getByLabel(/Amount in pesos/).fill('50000000'); await form.getByLabel('Start').fill('2026-11-10'); await form.getByLabel('End').fill('2026-11-01');
     await form.getByRole('button', { name: 'Save contract' }).click();
     await expect(form.getByText('The end cannot be before the start.')).toBeVisible();
     await form.getByLabel('End').fill('2027-05-10'); await form.getByRole('button', { name: 'Save contract' }).click();
     await expect(manager.page.getByText('Contract of Retail Norte (example) saved.')).toBeVisible();
-    const row = manager.page.locator('[data-contract="Contract demo project"]');
+    const row = manager.page.locator('[data-contract="Branch network upgrade"]');
     await expect(row).toContainText('Active'); await expect(row).toContainText('2026-11-10 → 2027-05-10');
     // Facturación lo cierra; el líder solo lee; ventas no ve la opción.
     await billing.page.getByRole('navigation').getByRole('button', { name: 'Contracts' }).click();
-    const brow = billing.page.locator('[data-contract="Contract demo project"]');
+    const brow = billing.page.locator('[data-contract="Branch network upgrade"]');
     await brow.getByRole('button', { name: /Close the contract of Retail Norte/ }).click();
     await expect(brow).toContainText('Closed'); await expect(brow.getByRole('button')).toHaveCount(0);
     await lead.page.getByRole('navigation').getByRole('button', { name: 'Contracts' }).click();
-    await expect(lead.page.locator('[data-contract="Contract demo project"]')).toBeVisible();
+    await expect(lead.page.locator('[data-contract="Branch network upgrade"]')).toBeVisible();
     await expect(lead.page.getByRole('button', { name: 'New contract' })).toHaveCount(0);
     await expect(sales.page.getByRole('navigation').getByRole('button', { name: 'Contracts' })).toHaveCount(0);
   } finally { await manager.ctx.close(); await billing.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
