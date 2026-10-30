@@ -330,6 +330,12 @@ Planteamiento original (ya implementado): Hoy una orden de mantenimiento (preven
 - La cuenta está dos veces y la base lo vigila: funciones SQL `employer_daily_cost` (migración `0006_loaded_cost`) y `employerCost()` en TypeScript, con aritmética entera por cien mil; el CHECK de `engineers` exige que el costo guardado sea el de la función SQL, y una prueba compara las dos en 400 pares sueldo/cargo (incluidos los bordes del auxilio). El seed y `reset-demo.sh` usan la función SQL.
 - Ejemplos: ingeniero de redes 5.000.000 → cuesta 6.917.600 al mes, 314.436 por día (antes 227.273); técnico de campo 2.400.000 → 3.768.045 al mes, 171.275 por día (antes 109.091). `GET /position-rates` devuelve además el desglose (`cost`). Las asignaciones ya hechas conservan el costo que tenían; las cotizaciones nuevas y las asignaciones nuevas usan el nuevo.
 
+## Finanzas F2: nómina mensual y rol de finanzas (🔴, 2026-10-31)
+- **Rol nuevo `finance`** (Identity, migración `0003`; los 7 servicios aceptan su token — si se agrega otro rol hay que tocar el `ROLES` de TODOS, si no el token da 401 en ese servicio). Usuario de demostración: Fernanda Gil (`fernanda.gil@nexus.example`); `reset-demo.sh` lo conserva. En la web solo ve **Nómina**.
+- **Nómina** (Capacidad, migración `0007`; `/payroll`, gerencia y finanzas): una corrida por mes con una FOTO de cada persona con sueldo y lo que cuesta a la empresa; se paga una sola vez y publica `PayrollPaid` (para el flujo de caja, F4). Solo-agregar y sin borrar, vigilado por triggers de la base. `reset-demo.sh` hace `TRUNCATE` de las corridas (los triggers impiden borrarlas fila por fila).
+- Pruebas: capacity 105 unit + 62 e2e (nómina: 9 pruebas; carreras ×15: 8 «generar» a la vez = 1, 8 pagos = 1 y un solo evento; generar mientras cambia un sueldo; 3 mutaciones fallan), identity 142 + 222, web 761, navegador (Nómina con finanzas), auditoría en 6 perfiles (incluido el login con 5 cuentas).
+- Límites: no es la nómina legal (PILA, DIAN, liquidaciones, descuentos al empleado): registra lo que cuesta a la empresa.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

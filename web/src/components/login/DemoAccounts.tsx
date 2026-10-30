@@ -7,9 +7,10 @@ export const DEMO: { email: string; label: MsgKey }[] = [
   { email: 'andres.mora@nexus.example', label: 'role.billing_analyst' },
   { email: 'camila.soto@nexus.example', label: 'role.sales' },
   { email: 'diana.vega@nexus.example', label: 'role.manager' },
+  { email: 'fernanda.gil@nexus.example', label: 'role.finance' },
 ];
 
-const AVATARS = [s.avatar1, s.avatar2, s.avatar3, s.avatar4];
+const AVATARS = [s.avatar1, s.avatar2, s.avatar3, s.avatar4, s.avatar1];
 
 /** Cuentas de demostración: cada botón rellena el correo de ese rol. */
 export function DemoAccounts({ onPick, t }: { onPick: (email: string) => void; t: TFn }) {

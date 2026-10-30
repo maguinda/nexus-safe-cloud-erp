@@ -11,7 +11,7 @@ import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import s from './UsersView.module.css';
 
-const ROLES: Role[] = ['project_lead', 'billing_analyst', 'sales', 'manager'];
+const ROLES: Role[] = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance'];
 const failMessage = (e: unknown, t: TFn) => (e instanceof ApiError && e.status === 403 ? t('users.form.forbidden') : errorText(e, t, 'users.form.saveFailed'));
 
 /** Grupo de botones para elegir un rol (no es un <select> nativo: en WebKit mide menos de 32 px y la auditoría lo rechaza). */

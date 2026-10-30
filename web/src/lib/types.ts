@@ -1,5 +1,5 @@
 /** Tipos según docs/openapi.yaml. */
-export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager';
+export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager' | 'finance';
 
 import type { Lang } from '../i18n/core';
 
@@ -181,3 +181,6 @@ export interface Quote {
 export interface EmployerCost { salaryCop: number; transportAidCop: number; prestacionesCop: number; pensionCop: number; cajaCop: number; arlCop: number; monthlyCop: number; dailyCop: number }
 export interface PositionRate { position: StaffPosition; kind: 'engineer' | 'technician'; label: string; monthlySalaryCop: number; cost: EmployerCost; dailyCostCop: number; note: string; updatedAt: string; updatedBy: string | null }
 export interface QuoteCatalogItem { itemId: string; name: string; kind: 'equipment' | 'spare'; supplier: string; refPriceCop: number; leadDays: number }
+
+export interface PayrollRun { id: string; period: string; status: 'generated' | 'paid'; totalCop: number; headcount: number; generatedBy: string; generatedAt: string; paidBy: string | null; paidAt: string | null }
+export interface PayrollLine { engineerId: string; name: string; position: StaffPosition; kind: 'engineer' | 'technician'; salaryCop: number; transportAidCop: number; prestacionesCop: number; pensionCop: number; cajaCop: number; arlCop: number; employerCostCop: number }

@@ -528,6 +528,32 @@ paths:
       operationId: quoteCatalog
       summary: Items some supplier sells, with the lowest reference price (roles sales, manager, project_lead)
       responses: { '200': { description: The catalog } }
+  /payroll:
+    get:
+      tags: [Payroll]
+      operationId: listPayroll
+      summary: Payroll runs, newest month first (roles manager, finance)
+      responses: { '200': { description: The runs }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [Payroll]
+      operationId: generatePayroll
+      summary: Generate the payroll of a month - a snapshot of everyone with a salary and what each costs the company. One per month (roles manager, finance)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [period], properties: { period: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' } } } } } }
+      responses: { '201': { description: Generated }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { description: That month already has a payroll } }
+  /payroll/{id}:
+    get:
+      tags: [Payroll]
+      operationId: getPayroll
+      summary: One payroll run with the snapshot line of each person
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: The run }, '404': { $ref: '#/components/responses/NotFound' } }
+  /payroll/{id}/pay:
+    post:
+      tags: [Payroll]
+      operationId: payPayroll
+      summary: Mark a payroll as paid, once (roles manager, finance)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: Paid }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Already paid } }
   /work-orders:
     get:
       tags: [Work orders]

@@ -7,6 +7,8 @@ import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { RatesController, RATES_PRISMA } from './http/rates.controller';
 import { MaintenanceController, MAINTENANCE } from './http/maintenance.controller';
+import { PayrollController, PAYROLL } from './http/payroll.controller';
+import { PayrollService } from './infrastructure/prisma-payroll';
 import { MaintenanceService } from './infrastructure/prisma-maintenance';
 import { WorkOrderClosedConsumer } from './infrastructure/work-order-closed-consumer';
 import { parseWorkOrderClosed } from './domain/work-order-closed';
@@ -23,7 +25,7 @@ let consumer: WorkOrderClosedConsumer | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [CapacityController, RatesController, MaintenanceController, HealthController],
+  controllers: [CapacityController, RatesController, MaintenanceController, PayrollController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -31,6 +33,7 @@ let consumer: WorkOrderClosedConsumer | undefined;
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
     { provide: LIST_CAPACITY, useFactory: () => new ListCapacityUseCase(new PrismaCapacity(prisma)) },
     { provide: RATES_PRISMA, useValue: prisma },
+    { provide: PAYROLL, useFactory: () => new PayrollService(prisma) },
     { provide: MAINTENANCE, useFactory: () => new MaintenanceService(prisma) },
     { provide: SET_SALARY, useFactory: () => new SetSalaryUseCase(new PrismaCapacity(prisma)) },
     { provide: CREATE_ENGINEER, useFactory: () => new CreateEngineerUseCase(new PrismaCapacity(prisma)) },

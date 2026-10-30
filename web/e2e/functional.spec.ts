@@ -1873,12 +1873,12 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
 test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
-  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Contracts', 'Profitability']);
+  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Payroll', 'Contracts', 'Profitability']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras', 'Work orders']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(12);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(13);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1916,7 +1916,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(12);
+  expect(edges.length).toBe(13);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });
@@ -2308,4 +2308,44 @@ test('Quotes: sales builds a quote with materials, supplies and labor, the manag
     await expect(sales.page.getByText(`Quote ${number2} sent to the manager.`)).toBeVisible();
     await expect(sales.page.locator(`[data-quote="${number2}"]`)).toContainText('Waiting for approval');
   } finally { for (const w of [sales, manager, lead]) await w.ctx.close(); }
+});
+
+test('Payroll: the manager and finance generate the month with a snapshot of what each person costs the company, mark it paid once; finance sees only this screen; other roles have no payroll', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'finance' | 'sales' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const [manager, finance, sales, lead] = [await open('manager'), await open('finance'), await open('sales'), await open('lead')];
+  try {
+    for (const w of [sales, lead]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Payroll', exact: true })).toHaveCount(0);
+    // Finanzas solo ve la nómina: es su única opción y ya está abierta.
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll']);
+    await expect(finance.page.getByRole('heading', { name: 'Monthly payroll' })).toBeVisible();
+    // Gerencia genera: un mes mal escrito avisa sin enviar.
+    await nav(manager.page, 'Payroll');
+    const f = manager.page.getByRole('form', { name: 'Generate payroll' });
+    await f.getByLabel('Month (YYYY-MM)').fill('2026-13'); await f.getByRole('button', { name: 'Generate payroll' }).click();
+    await expect(f.getByText(/Write the month like 2026-11/)).toBeVisible();
+    await f.getByLabel('Month (YYYY-MM)').fill('2026-06'); await f.getByRole('button', { name: 'Generate payroll' }).click();
+    await expect(manager.page.getByText(/Payroll of 2026-06 generated: 8 people, [\d.]+ COP\./)).toBeVisible();
+    const row = manager.page.locator('[data-payroll="2026-06"]');
+    await expect(row).toContainText('Generated, not paid');
+    // El detalle: la foto de cada persona con lo que cuesta a la empresa (Ana: 9.900.000 de sueldo → 13.696.848 con prestaciones).
+    await row.getByRole('button', { name: 'See the detail of the payroll of 2026-06' }).click();
+    await expect(row.locator('[data-person="Ana Torres"]')).toContainText('13.696.848 COP');
+    await expect(row.locator('[data-person="Nelly Ortiz"]')).toContainText('aid 249.095'); await expect(row.locator('[data-person="Hugo Salazar"]')).toContainText('aid 0');
+    // Repetir el mes no se puede; finanzas lo ve y lo paga una sola vez.
+    await f.getByRole('button', { name: 'Generate payroll' }).click();
+    await expect(manager.page.getByText(/The payroll of 2026-06 already exists/)).toBeVisible();
+    await finance.page.reload();
+    const frow = finance.page.locator('[data-payroll="2026-06"]');
+    await expect(frow).toContainText('Generated, not paid');
+    await frow.getByRole('button', { name: 'Mark the payroll of 2026-06 as paid' }).click();
+    await expect(finance.page.getByText('Payroll of 2026-06 paid.')).toBeVisible();
+    await expect(frow).toContainText('Paid'); await expect(frow).toContainText('fernanda.gil@nexus.example');
+    await expect(frow.getByRole('button', { name: /Mark the payroll/ })).toHaveCount(0);
+    await manager.page.reload(); await nav(manager.page, 'Payroll');
+    await expect(manager.page.locator('[data-payroll="2026-06"]')).toContainText('Paid');
+  } finally { for (const w of [manager, finance, sales, lead]) await w.ctx.close(); }
 });

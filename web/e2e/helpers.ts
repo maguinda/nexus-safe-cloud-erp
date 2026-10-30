@@ -6,10 +6,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export type RoleKey = 'lead' | 'billing' | 'sales' | 'manager';
+export type RoleKey = 'lead' | 'billing' | 'sales' | 'manager' | 'finance';
 
 /** Abre la app con la sesión de ese rol ya iniciada (se inyecta en sessionStorage, como la guarda la app). */
-const ACCOUNTS: Record<RoleKey, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example' };
+const ACCOUNTS: Record<RoleKey, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example', finance: 'fernanda.gil@nexus.example' };
 const secondsLeft = (t: string): number => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString()).exp - Date.now() / 1000;
 
 /** Sesiones guardadas por el setup. Los tokens duran 15 min y una corrida completa dura más: si a uno le quedan menos de 5 min se inicia sesión de nuevo

@@ -2,7 +2,7 @@ import { ApiError } from '../lib/api';
 import { MsgKey, TFn } from './index';
 
 type Rule = [RegExp | string, MsgKey] | [RegExp | string, MsgKey, (m: RegExpMatchArray) => Record<string, string>];
-const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager'];
+const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance'];
 
 /** Los avisos de los servicios, tal como los escriben en inglés. Lo que no está aquí se muestra sin traducir. */
 const RULES: Rule[] = [

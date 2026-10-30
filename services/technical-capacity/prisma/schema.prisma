@@ -75,3 +75,39 @@ model PositionRate {
 
   @@map("position_rates")
 }
+
+/// Corrida de nómina de un mes: una por periodo (AAAA-MM), con una foto de cada persona. generated → paid, una sola vez.
+model PayrollRun {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  period      String   @unique
+  status      String   @default("generated")
+  totalCop    BigInt   @map("total_cop")
+  headcount   Int
+  generatedBy String   @map("generated_by")
+  generatedAt DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
+  paidBy      String?  @map("paid_by")
+  paidAt      DateTime? @map("paid_at") @db.Timestamptz(6)
+  lines       PayrollLine[]
+
+  @@map("payroll_runs")
+}
+
+model PayrollLine {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  runId           String     @map("run_id") @db.Uuid
+  engineerId      String     @map("engineer_id") @db.Uuid
+  name            String
+  position        String
+  kind            String
+  salaryCop       Int        @map("salary_cop")
+  transportAidCop Int        @map("transport_aid_cop")
+  prestacionesCop Int        @map("prestaciones_cop")
+  pensionCop      Int        @map("pension_cop")
+  cajaCop         Int        @map("caja_cop")
+  arlCop          Int        @map("arl_cop")
+  employerCostCop Int        @map("employer_cost_cop")
+  run             PayrollRun @relation(fields: [runId], references: [id])
+
+  @@unique([runId, engineerId])
+  @@map("payroll_lines")
+}
