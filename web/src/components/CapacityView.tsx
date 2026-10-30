@@ -6,6 +6,7 @@ import type { CapacityEngineer, CapacityResponse } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { AllocateForm, NewEngineerForm } from './CapacityForms';
+import { DailyCost } from './DailyCost';
 import s from './CapacityView.module.css';
 
 /** Capacidad técnica (US-07): ventas, líderes de proyecto y gerencia ven quién está libre; líder y gerente asignan; gerencia agrega ingenieros. */
@@ -51,6 +52,7 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
               <p className={s.nums}>{t('capacity.summary', { load: e.loadToday, free: e.freeToday, peak: e.peakNext30 })}</p>
               <p className={s.tags}><strong>{t('capacity.skills')}:</strong> {e.skills.length ? e.skills.join(', ') : t('capacity.none')}</p>
               <p className={s.tags}><strong>{t('capacity.certs')}:</strong> {e.certifications.length ? e.certifications.join(', ') : t('capacity.none')}</p>
+              {isManager && <DailyCost engineer={e} onSaved={() => void load()} toast={toast} />}
               <h4 className={s.sub}>{t('capacity.allocations')}</h4>
               {e.allocations.length === 0 ? <p className={ui.muted}>{t('capacity.noAllocations')}</p> : (
                 <ul className={s.allocs}>

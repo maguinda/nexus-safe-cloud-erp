@@ -72,6 +72,36 @@ describe('project team from EngineerAllocated (e2e, real PostgreSQL and RabbitMQ
     publish(ev()); expect(await until(async () => (await count()) === 1)).toBe(true);
   });
 
+  const removed = (allocationId: string) => ({ eventId: randomUUID(), type: 'AllocationRemoved', occurredAt: new Date().toISOString(), correlationId: 'corr-12345678', data: { allocationId, projectName: 'Branch network upgrade' } });
+
+  it('a removal event takes the engineer out of the team; a repeated removal is a duplicate and does not go to the dead-letter queue', async () => {
+    const a = ev(); publish(a);
+    expect(await until(async () => (await count()) === 1)).toBe(true);
+    const dead = await dlq();
+    publish(removed(a.data.allocationId)); publish(removed(a.data.allocationId));
+    expect(await until(async () => (await count()) === 0)).toBe(true);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect((await get('/projects/p1/team', USERS.lead)).body).toEqual([]);
+    expect(await dlq()).toBe(dead);
+  }, 20_000);
+
+  it('a removal that arrives BEFORE the allocation is remembered: the allocation never shows up', async () => {
+    const a = ev(); const h = teamEventHandler(prisma);
+    expect(await h(removed(a.data.allocationId))).toBe('marked');
+    expect(await h(a)).toBe('ignored (already removed)');
+    expect(await count()).toBe(0);
+  });
+
+  it('CONCURRENCY: 40 rounds of allocation and removal at the same time, in random order: the removed allocation is never left in the team', async () => {
+    const h = teamEventHandler(prisma);
+    for (let r = 0; r < 40; r++) {
+      const a = ev(); const jobs = [() => h(a), () => h(removed(a.data.allocationId)), () => h(a)];
+      if (r % 2) jobs.reverse();
+      await Promise.all(jobs.map((j) => j()));
+      expect(await prisma.projectTeamMember.count({ where: { allocationId: a.data.allocationId } })).toBe(0);
+    }
+  });
+
   it('the database refuses an impossible row by itself (CHECK)', async () => {
     await expect(prisma.$executeRawUnsafe(`INSERT INTO project_team VALUES (gen_random_uuid(),'Ana','P',0,'2026-11-01','2026-12-01',now())`)).rejects.toThrow();
     await expect(prisma.$executeRawUnsafe(`INSERT INTO project_team VALUES (gen_random_uuid(),'Ana','P',50,'2026-12-01','2026-11-01',now())`)).rejects.toThrow();

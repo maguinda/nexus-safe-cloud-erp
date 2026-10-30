@@ -1,5 +1,5 @@
 import { InvalidEventError } from './errors';
-import { parseEngineerAllocated } from './team';
+import { parseAllocationRemoved, parseEngineerAllocated } from './team';
 
 const ev = (data: object = {}, over: object = {}) => ({ eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a01', type: 'EngineerAllocated', occurredAt: '2026-10-30T10:00:00.000Z', correlationId: 'corr-12345678',
   data: { allocationId: '5a1c0e2f-1111-4b2c-8d3e-9f0a1b2c3d4e', engineerName: 'Camila Torres (example)', projectName: 'Branch network upgrade', percent: 50, periodStart: '2026-11-01', periodEnd: '2026-12-15', ...data }, ...over });
@@ -16,4 +16,12 @@ describe('parseEngineerAllocated', () => {
     ['name with <', ev({ engineerName: '<b>x</b>' })], ['empty project', ev({ projectName: '  ' })], ['long name', ev({ engineerName: 'x'.repeat(121) })], ['control char', ev({ engineerName: 'a\u0000b' })],
     ['impossible date', ev({ periodStart: '2026-02-30' })], ['end before start', ev({ periodEnd: '2026-10-01' })], ['date as text', ev({ periodEnd: 'mañana' })],
   ])('refuses %s', (_n, raw) => { expect(() => parseEngineerAllocated(raw)).toThrow(InvalidEventError); });
+});
+
+describe('parseAllocationRemoved', () => {
+  const rem = (data: object = {}, over: object = {}) => ({ eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a02', type: 'AllocationRemoved', occurredAt: '2026-10-30T10:00:00.000Z', correlationId: 'corr-12345678', data: { allocationId: '5A1C0E2F-1111-4B2C-8D3E-9F0A1B2C3D4E', projectName: 'P', ...data }, ...over });
+  it('keeps only the id (lowercase) and ignores the rest', () => { expect(parseAllocationRemoved(rem({ extra: 1 }))).toEqual({ allocationId: '5a1c0e2f-1111-4b2c-8d3e-9f0a1b2c3d4e' }); });
+  it.each<[string, unknown]>([['null', null], ['an array', []], ['another type', rem({}, { type: 'EngineerAllocated' })], ['no data', rem({}, { data: undefined })], ['bad id', rem({ allocationId: '1; DROP' })], ['no id', rem({ allocationId: undefined })]])('refuses %s', (_n, raw) => {
+    expect(() => parseAllocationRemoved(raw)).toThrow(InvalidEventError);
+  });
 });

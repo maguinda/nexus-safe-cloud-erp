@@ -18,5 +18,6 @@ import { procurement } from './procurement';
 import { payments } from './payments';
 import { contracts } from './contracts';
 import { team } from './team';
+import { profitability } from './profitability';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability };

@@ -3,6 +3,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
 import { GetDashboardUseCase } from './application/get-dashboard.use-case';
+import { GetProfitabilityUseCase } from './application/get-profitability.use-case';
+import { ProfitabilityController, GET_PROFITABILITY } from './http/profitability.controller';
+import { allocationEventHandler } from './infrastructure/prisma-allocation-store';
 import { HandleEventUseCase } from './application/handle-event.use-case';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
@@ -18,12 +21,13 @@ let consumer: EventConsumer | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [DashboardController, HealthController],
+  controllers: [DashboardController, ProfitabilityController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: AUTH_OPTIONS, useFactory: () => { const c = cfg(); return { publicKey: c.publicKey, issuer: c.issuer, audience: c.audience }; } },
+    { provide: GET_PROFITABILITY, useFactory: () => new GetProfitabilityUseCase(new PrismaDashboardQueries(prisma), prisma) },
     { provide: GET_DASHBOARD, useFactory: () => new GetDashboardUseCase(new PrismaDashboardQueries(prisma)) },
   ],
 })
@@ -31,7 +35,7 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
   onApplicationBootstrap() {
     const c = cfg();
     if (c.consumerEnabled) {
-      consumer = new EventConsumer(new HandleEventUseCase(new PrismaEventUnitOfWork(prisma)), c.rabbitUrl);
+      consumer = new EventConsumer(new HandleEventUseCase(new PrismaEventUnitOfWork(prisma), allocationEventHandler(prisma)), c.rabbitUrl);
       consumer.start();
     }
   }

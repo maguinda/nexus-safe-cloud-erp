@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Channel, ChannelModel, ConsumeMessage, connect } from 'amqplib';
 import { InvalidEventError } from '../domain/errors';
-import { ENGINEER_ALLOCATED_ROUTING_KEY } from '../domain/team';
+import { ALLOCATION_REMOVED_ROUTING_KEY, ENGINEER_ALLOCATED_ROUTING_KEY } from '../domain/team';
 
 export const EXCHANGE = 'erp.events';
 export const DLX = 'erp.events.dlx';
@@ -11,7 +11,7 @@ export const DLQ = 'q.projects.team.dlq';
 const MAX_BYTES = 16 * 1024;
 
 /**
- * Consume EngineerAllocated con una cola propia (q.projects.team).
+ * Consume EngineerAllocated y AllocationRemoved con una cola propia (q.projects.team).
  * Ack solo cuando el miembro del equipo quedó guardado (o era un duplicado).
  * Mensaje inválido -> cola de mensajes muertos (no se reintenta, no bloquea a los demás).
  * Fallo pasajero (p. ej. la base cae unos segundos) -> se reintenta con espera creciente (0,5 s a 8 s, unos 15 s en total) CON el mensaje sin confirmar; solo si sigue
@@ -55,6 +55,7 @@ export class TeamConsumer {
       await ch.bindQueue(DLQ, DLX, QUEUE);
       await ch.assertQueue(QUEUE, { durable: true, arguments: { 'x-dead-letter-exchange': DLX, 'x-dead-letter-routing-key': QUEUE } });
       await ch.bindQueue(QUEUE, EXCHANGE, ENGINEER_ALLOCATED_ROUTING_KEY);
+      await ch.bindQueue(QUEUE, EXCHANGE, ALLOCATION_REMOVED_ROUTING_KEY);
       await ch.prefetch(10);
       // Se pasa el canal al manejador: RabbitMQ entrega el backlog en cuanto se registra el consumo, ANTES de que this.ch esté asignado.
       // Un error del canal (p. ej. un ack repetido) o la cancelación del consumo cierran todo y se reconecta: sin esto el servicio quedaba sin consumir y sin avisar.

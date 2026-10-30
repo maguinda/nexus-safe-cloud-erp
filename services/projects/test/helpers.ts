@@ -27,6 +27,7 @@ import { PrismaClient } from '@prisma/client';
 export async function resetState(prisma: PrismaClient) {
   await prisma.outboxEvent.deleteMany();
   await prisma.projectTeamMember.deleteMany();
+  await prisma.removedAllocation.deleteMany();
   // Lo creado por la API (ids generados m-xxxxxxxx / p-xxxxxxxx); el seed usa m1..m6 y p1..p3.
   await prisma.milestone.deleteMany({ where: { id: { startsWith: 'm-' } } });
   await prisma.project.deleteMany({ where: { id: { startsWith: 'p-' } } });

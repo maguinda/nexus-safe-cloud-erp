@@ -21,7 +21,7 @@ export interface OverdueDetectedEvent extends Envelope { type: 'OverdueDetected'
 export interface PaymentReceivedEvent extends Envelope { type: 'PaymentReceived'; data: { invoiceNumber: string; milestoneId: string; projectName: string; milestoneName: string; totalCop: number; paymentCop: number; paidCop: number; balanceCop: number; paidInFull: boolean; method: string } }
 export type AnalyticsEvent = MilestoneCreatedEvent | MilestoneApprovedEvent | InvoiceDraftedEvent | InvoiceIssuedEvent | OverdueDetectedEvent | PaymentReceivedEvent;
 
-export const ROUTING_KEYS = ['project.milestone.created', 'project.milestone.approved', 'billing.invoice.drafted', 'billing.invoice.issued', 'billing.invoice.overdue', 'billing.payment.received'] as const;
+export const ROUTING_KEYS = ['project.milestone.created', 'project.milestone.approved', 'billing.invoice.drafted', 'billing.invoice.issued', 'billing.invoice.overdue', 'billing.payment.received', 'capacity.engineer.allocated', 'capacity.allocation.removed'] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;

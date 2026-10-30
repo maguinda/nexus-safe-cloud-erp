@@ -1,7 +1,15 @@
 import { randomUUID } from 'crypto';
 import { ValidationError } from './errors';
 
-export interface Engineer { id: string; name: string; role: string; skills: string[]; certifications: string[] }
+export interface Engineer { id: string; name: string; role: string; skills: string[]; certifications: string[]; dailyCostCop: number | null }
+
+export const MAX_DAILY_COST_COP = 50_000_000;
+/** Costo diario en pesos enteros de 1 a 50.000.000; vacío o null = todavía sin costo. */
+export function dailyCost(v: unknown): number | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > MAX_DAILY_COST_COP) throw new ValidationError(`dailyCostCop must be a whole number of pesos from 1 to ${MAX_DAILY_COST_COP}`);
+  return v;
+}
 
 function text(v: unknown, field: string, min: number, max: number): string {
   if (typeof v !== 'string') throw new ValidationError(`${field} must be text`);
@@ -20,6 +28,6 @@ function tags(v: unknown, field: string, max: number): string[] {
   return out;
 }
 
-export function newEngineer(name: unknown, role: unknown, skills: unknown, certifications: unknown): Engineer {
-  return { id: randomUUID(), name: text(name, 'name', 2, 80), role: text(role, 'role', 2, 60), skills: tags(skills, 'skills', 40), certifications: tags(certifications, 'certifications', 60) };
+export function newEngineer(name: unknown, role: unknown, skills: unknown, certifications: unknown, cost?: unknown): Engineer {
+  return { id: randomUUID(), name: text(name, 'name', 2, 80), role: text(role, 'role', 2, 60), skills: tags(skills, 'skills', 40), certifications: tags(certifications, 'certifications', 60), dailyCostCop: dailyCost(cost) };
 }

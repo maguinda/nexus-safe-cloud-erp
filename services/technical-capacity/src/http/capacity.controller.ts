@@ -1,15 +1,16 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase } from '../application/capacity.use-cases';
+import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetDailyCostUseCase } from '../application/capacity.use-cases';
 import { AuthUser, Roles } from '../auth/auth.guard';
 import { dayString } from '../domain/dates';
-import { AllocateDto, CreateEngineerDto } from './capacity.dto';
+import { AllocateDto, CreateEngineerDto, SetCostDto } from './capacity.dto';
 
 export const LIST_CAPACITY = 'LIST_CAPACITY';
 export const CREATE_ENGINEER = 'CREATE_ENGINEER';
 export const ALLOCATE = 'ALLOCATE';
 export const DELETE_ALLOCATION = 'DELETE_ALLOCATION';
+export const SET_COST = 'SET_COST';
 
 @ApiTags('Capacity')
 @ApiBearerAuth()
@@ -20,17 +21,30 @@ export class CapacityController {
     @Inject(CREATE_ENGINEER) private readonly createEngineer: CreateEngineerUseCase,
     @Inject(ALLOCATE) private readonly allocate: AllocateEngineerUseCase,
     @Inject(DELETE_ALLOCATION) private readonly deleteAllocation: DeleteAllocationUseCase,
+    @Inject(SET_COST) private readonly setCost: SetDailyCostUseCase,
   ) {}
 
   @Get('engineers')
   @Roles('project_lead', 'sales', 'manager')
   @ApiOperation({ summary: 'Engineers with skills, certifications, load today, the peak of the next 30 days and their upcoming allocations (US-07)' })
-  engineers() { return this.list.execute(); }
+  async engineers(@Req() req: Request & { user: AuthUser }) {
+    const r = await this.list.execute();
+    // El costo diario es dato de gerencia: los demás roles no lo reciben.
+    if (req.user.role === 'manager') return r;
+    return { ...r, engineers: r.engineers.map(({ dailyCostCop: _cost, ...rest }) => rest) };
+  }
 
   @Post('engineers')
   @Roles('manager')
   @ApiOperation({ summary: 'Add an engineer to the catalog (role manager)' })
   create(@Body() dto: CreateEngineerDto) { return this.createEngineer.execute(dto); }
+
+  @Patch('engineers/:id/cost')
+  @HttpCode(204)
+  @Roles('manager')
+  @ApiOperation({ summary: 'Write or clear the daily cost of an engineer (role manager). Applies to allocations made after the change.' })
+  @ApiResponse({ status: 404, description: 'Engineer not found' })
+  async cost(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: SetCostDto) { await this.setCost.execute(id, dto.dailyCostCop); }
 
   @Post('engineers/:id/allocations')
   @Roles('project_lead', 'manager')
@@ -47,5 +61,5 @@ export class CapacityController {
   @Roles('project_lead', 'manager')
   @ApiOperation({ summary: 'Remove an allocation' })
   @ApiResponse({ status: 404, description: 'Allocation not found' })
-  async remove(@Param('id', new ParseUUIDPipe()) id: string) { await this.deleteAllocation.execute(id); }
+  async remove(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request & { correlationId?: string }) { await this.deleteAllocation.execute(id, req.correlationId ?? 'no-correlation'); }
 }

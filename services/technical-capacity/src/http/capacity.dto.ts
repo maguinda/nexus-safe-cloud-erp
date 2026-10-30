@@ -7,6 +7,11 @@ export class CreateEngineerDto {
   @ApiProperty({ example: 'Network engineer', maxLength: 60 }) @IsString() @MaxLength(120) role!: string;
   @ApiPropertyOptional({ example: ['Cisco', 'Terraform'], description: 'Up to 20 items' }) @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(120, { each: true }) skills?: string[];
   @ApiPropertyOptional({ example: ['CCNP'], description: 'Up to 20 items' }) @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(120, { each: true }) certifications?: string[];
+  @ApiPropertyOptional({ example: 450000, description: 'Manager only: daily cost in whole pesos' }) @IsOptional() dailyCostCop?: number;
+}
+
+export class SetCostDto {
+  @ApiProperty({ example: 450000, nullable: true, description: 'Daily cost in whole pesos (1 to 50.000.000) or null to clear it. Applies to allocations made after the change.' }) @IsOptional() dailyCostCop?: number | null;
 }
 
 export class AllocateDto {

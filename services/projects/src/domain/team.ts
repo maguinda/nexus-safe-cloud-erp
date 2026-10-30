@@ -1,6 +1,7 @@
 import { InvalidEventError } from './errors';
 
 export const ENGINEER_ALLOCATED_ROUTING_KEY = 'capacity.engineer.allocated';
+export const ALLOCATION_REMOVED_ROUTING_KEY = 'capacity.allocation.removed';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const NAME = /^[^<>\u0000-\u001f]{1,120}$/u;
@@ -31,4 +32,15 @@ export function parseEngineerAllocated(raw: unknown): TeamMember {
   const periodStart = day(d.periodStart, 'periodStart'), periodEnd = day(d.periodEnd, 'periodEnd');
   if (periodEnd < periodStart) throw new InvalidEventError('periodEnd cannot be before periodStart');
   return { allocationId: d.allocationId.toLowerCase(), engineerName: text(d.engineerName, 'engineerName'), projectName: text(d.projectName, 'projectName'), percent: d.percent, periodStart, periodEnd, occurredAt: new Date(e.occurredAt) };
+}
+
+/** El aviso de que se quitó una asignación: solo importa su id. */
+export function parseAllocationRemoved(raw: unknown): { allocationId: string } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new InvalidEventError('event must be an object');
+  const e = raw as Record<string, any>;
+  if (e.type !== 'AllocationRemoved') throw new InvalidEventError('unexpected type');
+  const d = e.data;
+  if (typeof d !== 'object' || d === null || Array.isArray(d)) throw new InvalidEventError('data must be an object');
+  if (typeof d.allocationId !== 'string' || !UUID.test(d.allocationId)) throw new InvalidEventError('allocationId must be a UUID');
+  return { allocationId: d.allocationId.toLowerCase() };
 }

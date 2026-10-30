@@ -152,7 +152,7 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 ## EngineerAllocated and OverAllocationDetected
 
 - Published by: `technical-capacity`, in the **same transaction** that saves the allocation (transactional outbox, relay to `erp.events`)
-- `EngineerAllocated` → routing key `capacity.engineer.allocated` (nobody consumes it yet; it is there for Projects and Analytics)
+- `EngineerAllocated` → routing key `capacity.engineer.allocated` (consumed by `projects` for the project team and by `analytics` for the profitability)
 - `OverAllocationDetected` → routing key `capacity.overallocation.detected`, consumed by `notifications` (manager and sales see it in the bell). It is published ONLY when the manager accepts, on purpose, an allocation that takes an engineer over 100% on some day (`allowOverallocation`); without that, the API answers 409 and nothing is saved or published.
 - One event of each type per allocation (the outbox has a unique key on allocation + type). No personal data: the engineer's name is a business name, never an email.
 
@@ -166,7 +166,17 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 }
 ```
 
-`allocationPercent` is the **highest load** the engineer reaches (an integer over 100) and the period is the one of the new allocation. `EngineerAllocated` data: `allocationId`, `engineerName`, `projectName`, `percent`, `periodStart`, `periodEnd`.
+`allocationPercent` is the **highest load** the engineer reaches (an integer over 100) and the period is the one of the new allocation. `EngineerAllocated` data: `allocationId`, `engineerName`, `projectName`, `percent`, `periodStart`, `periodEnd`, `dailyCostCop`. `dailyCostCop` is the daily cost the manager had written for the engineer **when the allocation was made** (whole pesos, or `null` if there was none); it is a snapshot, so changing the cost later does not rewrite old allocations. Only `analytics` uses it; `projects` ignores it. It is the one field of salary nature: the REST API shows it only to the manager.
+
+### AllocationRemoved
+
+- Published by `technical-capacity` in the same transaction that deletes an allocation. Routing key `capacity.allocation.removed`; data `{ allocationId, projectName }`. Deleting something that does not exist publishes nothing.
+- Consumed by `projects` (the engineer leaves the project team) and `analytics` (the cost leaves the profitability). Both take a database lock per allocation id and keep a mark of the removed id, so **the order of arrival does not matter**: a removal that arrives before its allocation is remembered and the allocation never shows up.
+
+## Analytics consumer: profitability
+
+- `GET /profitability` (manager only) = for each project, issued invoices **without VAT** minus the labor cost. Labor cost = `percent / 100 × working days (Monday to Friday) already elapsed × dailyCostCop`, for each allocation, counting only the days up to today.
+- Allocations without a daily cost add 0 and are counted in `uncostedAllocations`, so the screen warns that the margin looks better than it is. The link with the project is by value (project name).
 
 ## PaymentReceived
 
