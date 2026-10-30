@@ -1,5 +1,6 @@
 #!/bin/sh
 # Copia los datos de telemetría y de red de la base de ANALYTICS a la de OPERATIONS (el servicio Operations & Telemetry salió de Analytics el 2026-10-29).
+# NOTA: tras la migración 0007 de analytics (que elimina esas tablas) este script ya no sirve; úsalo SOLO antes de aplicarla.
 #
 # - Es seguro repetirlo: los INSERT llevan ON CONFLICT DO NOTHING, así que lo que ya está copiado (o ingerido después en operations) no se toca ni se duplica.
 # - NO borra nada de analytics: las tablas viejas se quedan como copia de seguridad hasta que un PR posterior las elimine.
