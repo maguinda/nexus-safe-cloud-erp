@@ -148,6 +148,11 @@ model WorkOrder {
   assignedTo  String?   @map("assigned_to")
   /// Id de la persona en Technical Capacity (se elige de su lista; no se verifica entre servicios).
   assignedToId String?  @map("assigned_to_id") @db.Uuid
+  /// La orden gasta capacidad de la persona: porcentaje y fechas; capacityState: none, pending (confirmando con Capacidad) o reserved.
+  capacityPercent Int?  @map("capacity_percent")
+  capacityStart DateTime? @map("capacity_start") @db.Date
+  capacityEnd   DateTime? @map("capacity_end") @db.Date
+  capacityState String  @default("none") @map("capacity_state")
   createdBy   String?   @map("created_by")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   closedBy    String?   @map("closed_by")

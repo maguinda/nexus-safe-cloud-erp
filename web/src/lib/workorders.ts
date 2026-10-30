@@ -25,3 +25,21 @@ export function checkWorkOrder(t: TFn, f: WoForm, today: string): { errors: WoEr
   if (Object.keys(errors).length) return { errors };
   return { errors, value: { type: f.type, priority: f.priority, description: d, ...(due ? { dueDate: due } : {}), ...(who ? { assignedTo: who } : {}) } };
 }
+
+export interface CapForm { percent: string; start: string; end: string; allowOver: boolean }
+export const MAX_CAPACITY_DAYS = 1095;
+/** Mismos criterios que el servidor: con un responsable de la lista, porcentaje entero de 1 a 100 y fechas reales (el fin no antes del inicio, hasta 1.095 días). */
+export function checkCapacity(t: TFn, f: CapForm): { error?: string; value?: { capacityPercent: number; capacityStart: string; capacityEnd: string; allowOverallocation?: true } } {
+  const p = f.percent.trim();
+  if (!/^\d{1,3}$/.test(p) || Number(p) < 1 || Number(p) > 100) return { error: t('wo.v.capPercent') };
+  const real = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d && d >= '2000-01-01' && d <= '2100-12-31';
+  if (!real(f.start) || !real(f.end)) return { error: t('wo.v.capDates') };
+  if (f.end < f.start) return { error: t('wo.v.capOrder') };
+  if ((Date.parse(`${f.end}T00:00:00Z`) - Date.parse(`${f.start}T00:00:00Z`)) / 86_400_000 + 1 > MAX_CAPACITY_DAYS) return { error: t('wo.v.capSpan') };
+  return { value: { capacityPercent: Number(p), capacityStart: f.start, capacityEnd: f.end, ...(f.allowOver ? { allowOverallocation: true as const } : {}) } };
+}
+/** Fechas por omisión de la reserva: desde hoy hasta la fecha límite de la orden (o 5 días). */
+export function defaultCapacity(today: string, due?: string): CapForm {
+  const plus = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  return { percent: '25', start: today, end: due && due >= today ? due : plus(today, 4), allowOver: false };
+}

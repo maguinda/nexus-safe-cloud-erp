@@ -1,8 +1,9 @@
-import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiPropertyOptional, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IsDefined, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Request } from 'express';
 import { AuthUser, Roles } from '../auth/auth.guard';
+import { CapacityRejectedError, CapacityUnavailableError } from '../infrastructure/capacity-client';
 import { InvalidWorkOrderError, validateNewWorkOrder, WO_STATUSES, WorkOrderStateError } from '../domain/work-order';
 import { WorkOrderDuplicateError, WorkOrderNotFoundError, WorkOrderTargetMissingError, WorkOrdersService } from '../infrastructure/prisma-work-orders';
 
@@ -17,6 +18,10 @@ class CreateWorkOrderDto {
   @ApiPropertyOptional({ example: '2026-11-10', description: 'Due date, not in the past' }) @IsOptional() @IsString() @MaxLength(12) dueDate?: string;
   @ApiPropertyOptional({ example: 'Laura Ríos', description: 'Name of the person responsible' }) @IsOptional() @IsString() @MaxLength(100) assignedTo?: string;
   @ApiPropertyOptional({ description: 'Id of the person in Technical Capacity (chosen from its staff list); needs assignedTo' }) @IsOptional() @IsString() @MaxLength(40) assignedToId?: string;
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, description: 'Share of the working day the order takes from the person (required with assignedToId)' }) @IsOptional() capacityPercent?: number;
+  @ApiPropertyOptional({ example: '2026-11-03', description: 'First day the person works on it (required with assignedToId)' }) @IsOptional() @IsString() @MaxLength(10) capacityStart?: string;
+  @ApiPropertyOptional({ example: '2026-11-07', description: 'Last day (required with assignedToId)' }) @IsOptional() @IsString() @MaxLength(10) capacityEnd?: string;
+  @ApiPropertyOptional({ description: 'Accept going over 100% of the person on purpose (role manager)' }) @IsOptional() allowOverallocation?: boolean;
   @ApiPropertyOptional({ example: 'ALERT 41.2 °C', description: 'The alert or finding the order comes from' }) @IsOptional() @IsString() @MaxLength(300) sourceNote?: string;
 }
 class StatusDto {
@@ -26,6 +31,10 @@ class StatusDto {
 class AssignDto {
   @ApiPropertyOptional({ nullable: true, description: 'Name of the person responsible; empty clears it' }) @IsOptional() @IsString() @MaxLength(100) assignedTo?: string | null;
   @ApiPropertyOptional({ nullable: true, description: 'Id of the person in Technical Capacity' }) @IsOptional() @IsString() @MaxLength(40) assignedToId?: string | null;
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, description: 'Required with assignedToId' }) @IsOptional() capacityPercent?: number;
+  @ApiPropertyOptional({ description: 'Required with assignedToId' }) @IsOptional() @IsString() @MaxLength(10) capacityStart?: string;
+  @ApiPropertyOptional({ description: 'Required with assignedToId' }) @IsOptional() @IsString() @MaxLength(10) capacityEnd?: string;
+  @ApiPropertyOptional() @IsOptional() allowOverallocation?: boolean;
 }
 
 /** Traduce los errores del servicio a respuestas HTTP con un mensaje claro. */
@@ -33,6 +42,9 @@ function http(e: unknown): never {
   if (e instanceof InvalidWorkOrderError) throw new BadRequestException(e.message);
   if (e instanceof WorkOrderNotFoundError || e instanceof WorkOrderTargetMissingError) throw new NotFoundException(e.message);
   if (e instanceof WorkOrderStateError || e instanceof WorkOrderDuplicateError) throw new ConflictException(e.message);
+  // Capacidad dijo que no: se devuelve SU mensaje y su tipo de error (409 por pasarse de 100 %, 404 persona inexistente, 400 datos). Si no contestó, 502.
+  if (e instanceof CapacityRejectedError) { if (e.status === 409) throw new ConflictException(e.message); if (e.status === 404) throw new NotFoundException(e.message); throw new BadRequestException(e.message); }
+  if (e instanceof CapacityUnavailableError) throw new BadGatewayException(e.message);
   throw e;
 }
 
@@ -47,7 +59,7 @@ export class WorkOrdersController {
   @ApiOperation({ summary: 'Create a work order (inspection, preventive or corrective maintenance) on a sensor or a network device (role manager)' })
   @ApiResponse({ status: 409, description: 'There is already an open work order of that type for that equipment' })
   async create(@Body() dto: CreateWorkOrderDto, @Req() req: Request & { user: AuthUser; correlationId?: string }) {
-    try { return await this.svc.create(validateNewWorkOrder(dto as any, new Date().toISOString().slice(0, 10)), req.user.email, req.correlationId ?? 'no-correlation'); } catch (e) { return http(e); }
+    try { return await this.svc.create(validateNewWorkOrder(dto as any, new Date().toISOString().slice(0, 10)), req.user.email, req.correlationId ?? 'no-correlation', req.headers.authorization ?? ''); } catch (e) { return http(e); }
   }
 
   @Get()
@@ -76,7 +88,7 @@ export class WorkOrdersController {
   @Patch(':id/assign')
   @Roles('manager')
   @ApiOperation({ summary: 'Set or clear the person responsible (a name) while the order is open (role manager)' })
-  async assign(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: AssignDto, @Req() req: Request & { user: AuthUser }) {
-    try { return await this.svc.assign(id, dto.assignedTo, req.user.email, dto.assignedToId); } catch (e) { return http(e); }
+  async assign(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: AssignDto, @Req() req: Request & { user: AuthUser; correlationId?: string }) {
+    try { return await this.svc.assign(id, dto as unknown as Record<string, unknown>, req.user.email, req.correlationId ?? 'no-correlation', req.headers.authorization ?? ''); } catch (e) { return http(e); }
   }
 }

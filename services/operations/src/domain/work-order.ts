@@ -15,7 +15,11 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export interface NewWorkOrder {
   type: WoType; priority: (typeof WO_PRIORITIES)[number]; targetKind: (typeof WO_TARGETS)[number]; targetRef: string; description: string;
   sourceNote: string | null; dueDate: string | null; assignedTo: string | null; assignedToId: string | null;
+  /** Obligatorio si hay responsable de la lista (assignedToId); null si no. */
+  capacity: CapacityRequest | null;
 }
+/** Cuánta jornada de la persona gasta la orden y entre qué días (los dos incluidos). */
+export interface CapacityRequest { percent: number; startDate: string; endDate: string; allowOverallocation: boolean }
 
 function text(v: unknown, field: string, min: number, max: number): string {
   if (typeof v !== 'string') throw new InvalidWorkOrderError(`${field} must be text`);
@@ -44,6 +48,7 @@ export function validateNewWorkOrder(i: Record<string, unknown>, today: string):
     type: oneOf(i.type, WO_TYPES, 'type'), priority: empty(i.priority) ? 'normal' : oneOf(i.priority, WO_PRIORITIES, 'priority'), targetKind, targetRef: ref,
     description: text(i.description, 'description', 3, 300), sourceNote: empty(i.sourceNote) ? null : text(i.sourceNote, 'sourceNote', 1, 200), dueDate,
     assignedTo: empty(i.assignedTo) ? null : text(i.assignedTo, 'assignedTo', 2, 80), assignedToId: validateAssigneeId(i.assignedToId, i.assignedTo),
+    capacity: validateCapacity(i, validateAssigneeId(i.assignedToId, i.assignedTo)),
   };
 }
 
@@ -61,6 +66,26 @@ export function validateAssigneeId(id: unknown, name: unknown): string | null {
   if (typeof id !== 'string' || !UUID.test(id)) throw new InvalidWorkOrderError('assignedToId must be a UUID');
   if (empty(name)) throw new InvalidWorkOrderError('assignedToId needs the name of the person (assignedTo)');
   return id.toLowerCase();
+}
+export const MAX_CAPACITY_DAYS = 1095;
+/**
+ * Una orden con responsable de la lista GASTA capacidad: el porcentaje (1 a 100) y las fechas son OBLIGATORIOS. Sin responsable (o con un nombre escrito sin id) no
+ * hay reserva y mandar porcentaje o fechas es un error (no se aceptan datos que no se van a usar). `allowOverallocation` solo lo puede usar gerencia (la orden ya es solo de gerencia).
+ */
+export function validateCapacity(i: Record<string, unknown>, assigneeId: string | null): CapacityRequest | null {
+  const given = [i.capacityPercent, i.capacityStart, i.capacityEnd].some((v) => !empty(v));
+  if (assigneeId === null) {
+    if (given || i.allowOverallocation === true) throw new InvalidWorkOrderError('capacityPercent, capacityStart and capacityEnd only make sense with a responsible person (assignedToId)');
+    return null;
+  }
+  const p = i.capacityPercent;
+  if (typeof p !== 'number' || !Number.isInteger(p) || p < 1 || p > 100) throw new InvalidWorkOrderError('capacityPercent must be a whole number from 1 to 100');
+  const day = (v: unknown, f: string) => { if (typeof v !== 'string' || !DAY.test(v) || new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) !== v) throw new InvalidWorkOrderError(`${f} must be a real date (YYYY-MM-DD)`); if (v < '2000-01-01' || v > '2100-12-31') throw new InvalidWorkOrderError(`${f} is out of range`); return v; };
+  const startDate = day(i.capacityStart, 'capacityStart'), endDate = day(i.capacityEnd, 'capacityEnd');
+  if (endDate < startDate) throw new InvalidWorkOrderError('capacityEnd cannot be before capacityStart');
+  if ((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000 + 1 > MAX_CAPACITY_DAYS) throw new InvalidWorkOrderError(`the capacity period can cover at most ${MAX_CAPACITY_DAYS} days`);
+  if (i.allowOverallocation !== undefined && typeof i.allowOverallocation !== 'boolean') throw new InvalidWorkOrderError('allowOverallocation must be true or false');
+  return { percent: p, startDate, endDate, allowOverallocation: i.allowOverallocation === true };
 }
 export function validateAssignee(v: unknown): string | null { return empty(v) ? null : text(v, 'assignedTo', 2, 80); }
 

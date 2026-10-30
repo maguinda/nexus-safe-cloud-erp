@@ -69,9 +69,9 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
                 <ul className={s.allocs}>
                   {e.allocations.map((a) => (
                     <li key={a.id} className={s.alloc}>
-                      <span>{t('capacity.allocLine', { project: a.projectName, percent: a.percent, from: formatDay(`${a.startDate}T00:00:00Z`, lang), to: formatDay(`${a.endDate}T00:00:00Z`, lang) })}</span>
+                      <span data-kind={a.kind}>{a.kind === 'maintenance' ? `${t('capacity.maintenance')} · ` : ''}{t('capacity.allocLine', { project: a.projectName, percent: a.percent, from: formatDay(`${a.startDate}T00:00:00Z`, lang), to: formatDay(`${a.endDate}T00:00:00Z`, lang) })}</span>
                       {a.overAllocated && <strong className={s.overTag}>{t('capacity.over')}</strong>}
-                      {canAllocate && <button type="button" className={ui.btnGhost} disabled={busyRemove === a.id} aria-label={t('capacity.removeLabel', { project: a.projectName, name: e.name })} onClick={() => void remove(e, a.id, a.projectName)}>{t('capacity.remove')}</button>}
+                      {canAllocate && a.kind !== 'maintenance' && <button type="button" className={ui.btnGhost} disabled={busyRemove === a.id} aria-label={t('capacity.removeLabel', { project: a.projectName, name: e.name })} onClick={() => void remove(e, a.id, a.projectName)}>{t('capacity.remove')}</button>}
                     </li>
                   ))}
                 </ul>

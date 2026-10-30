@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { errorText } from '../i18n/server';
 import { StaffPicker, type StaffChoice } from './StaffPicker';
-import { checkWorkOrder, WO_PRIORITIES, WO_TYPES } from '../lib/workorders';
+import { CapacityFields } from './CapacityFields';
+import { checkCapacity, checkWorkOrder, defaultCapacity, WO_PRIORITIES, WO_TYPES } from '../lib/workorders';
+import type { CapForm } from '../lib/workorders';
 import type { WoErrors } from '../lib/workorders';
 import type { WorkOrder } from '../lib/types';
 import { useSession } from '../session';
@@ -16,6 +18,8 @@ export function WorkOrderDialog({ target, onClose, onCreated }: { target: WoTarg
   const today = new Date().toISOString().slice(0, 10);
   const [f, setF] = useState({ type: target.suggest ?? '', priority: 'normal', description: target.note ? target.note : '', dueDate: '', assignedTo: '' });
   const [assignee, setAssignee] = useState<StaffChoice | null>(null);
+  const [cap, setCap] = useState<CapForm>(() => defaultCapacity(today));
+  const [capError, setCapError] = useState('');
   const [errors, setErrors] = useState<WoErrors & { form?: string }>({});
   const [busy, setBusy] = useState(false);
   const inflight = useRef(false);
@@ -34,9 +38,11 @@ export function WorkOrderDialog({ target, onClose, onCreated }: { target: WoTarg
     if (inflight.current) return;
     const { errors: errs, value } = checkWorkOrder(t, { ...f, assignedTo: assignee?.name ?? '' }, today);
     setErrors(errs);
-    if (!value) return;
+    const capCheck = assignee ? checkCapacity(t, cap) : null;
+    setCapError(capCheck?.error ?? '');
+    if (!value || (capCheck && !capCheck.value)) return;
     inflight.current = true; setBusy(true);
-    try { onCreated(await api.createWorkOrder({ ...value, ...(assignee ? { assignedToId: assignee.id } : {}), targetKind: target.kind, targetRef: target.ref, ...(target.note ? { sourceNote: target.note.slice(0, 200) } : {}) })); }
+    try { onCreated(await api.createWorkOrder({ ...value, ...(assignee ? { assignedToId: assignee.id, ...capCheck!.value } : {}), targetKind: target.kind, targetRef: target.ref, ...(target.note ? { sourceNote: target.note.slice(0, 200) } : {}) })); }
     catch (err) { setErrors({ form: t('wo.failed', { reason: errorText(err, t, 'server.unexpected') }) }); }
     finally { inflight.current = false; setBusy(false); }
   }
@@ -57,7 +63,8 @@ export function WorkOrderDialog({ target, onClose, onCreated }: { target: WoTarg
           <label className={ui.field}><span>{t('wo.field.description')}</span><textarea rows={3} maxLength={320} value={f.description} onChange={(x) => setF({ ...f, description: x.target.value })} aria-invalid={!!errors.description} className={s.area} />{errors.description && <span className={ui.err}>{errors.description}</span>}</label>
           <div className={ui.formGrid}>
             <label className={ui.field}><span>{t('wo.field.due')}</span><input type="date" min={today} value={f.dueDate} onChange={(x) => setF({ ...f, dueDate: x.target.value })} aria-invalid={!!errors.dueDate} />{errors.dueDate && <span className={ui.err}>{errors.dueDate}</span>}</label>
-            <StaffPicker label={t('wo.field.assigned')} value={assignee} onChange={setAssignee} />
+            <StaffPicker label={t('wo.field.assigned')} value={assignee} onChange={(v) => { setAssignee(v); if (v) setCap(defaultCapacity(today, f.dueDate || undefined)); }} />
+            {assignee && <CapacityFields value={cap} onChange={setCap} error={capError} today={today} />}
           </div>
           {errors.form && <p className={ui.err} role="alert">{errors.form}</p>}
           <div className={ui.formActions}>

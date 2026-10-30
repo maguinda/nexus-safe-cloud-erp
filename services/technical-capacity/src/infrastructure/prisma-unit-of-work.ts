@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { Allocation } from '../domain/allocation';
 import { dayNumber, MS_DAY } from '../domain/dates';
 import { Engineer } from '../domain/engineer';
+import { MaintenanceAllocationError } from '../domain/errors';
 import { CapacityEvent, routingKeyOf } from '../domain/events';
 import { TransactionScope, UnitOfWork } from '../domain/ports';
 
@@ -37,6 +38,8 @@ class PrismaTransactionScope implements TransactionScope {
   }
 
   async deleteAllocation(id: string): Promise<{ projectName: string } | null> {
+    const kind = (await this.tx.$queryRaw<{ kind: string }[]>`SELECT kind FROM allocations WHERE id = ${id}::uuid FOR UPDATE`)[0]?.kind;
+    if (kind === 'maintenance') throw new MaintenanceAllocationError();
     const rows = await this.tx.$queryRaw<{ project_name: string }[]>`DELETE FROM allocations WHERE id = ${id}::uuid RETURNING project_name`;
     return rows[0] ? { projectName: rows[0].project_name } : null;
   }

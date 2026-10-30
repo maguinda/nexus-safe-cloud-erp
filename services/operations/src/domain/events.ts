@@ -26,13 +26,13 @@ export interface WorkOrderCreatedEvent {
 /** La orden terminó (hecha o cancelada). */
 export interface WorkOrderClosedEvent {
   eventId: string; type: 'WorkOrderClosed'; occurredAt: string; correlationId: string;
-  data: { orderNumber: string; orderType: string; outcome: 'done' | 'cancelled'; targetName: string };
+  data: { orderId: string; orderNumber: string; orderType: string; outcome: 'done' | 'cancelled'; targetName: string };
 }
 export const WORK_ORDER_CREATED_ROUTING_KEY = 'ops.workorder.created';
 export const WORK_ORDER_CLOSED_ROUTING_KEY = 'ops.workorder.closed';
 export function workOrderCreated(o: { orderNumber: string; orderType: string; priority: string; targetKind: string; targetName: string; dueDate: string | null }, correlationId: string, now: Date): WorkOrderCreatedEvent {
   return { eventId: randomUUID(), type: 'WorkOrderCreated', occurredAt: now.toISOString(), correlationId, data: o };
 }
-export function workOrderClosed(o: { orderNumber: string; orderType: string; outcome: 'done' | 'cancelled'; targetName: string }, correlationId: string, now: Date): WorkOrderClosedEvent {
+export function workOrderClosed(o: { orderId: string; orderNumber: string; orderType: string; outcome: 'done' | 'cancelled'; targetName: string }, correlationId: string, now: Date): WorkOrderClosedEvent {
   return { eventId: randomUUID(), type: 'WorkOrderClosed', occurredAt: now.toISOString(), correlationId, data: o };
 }
