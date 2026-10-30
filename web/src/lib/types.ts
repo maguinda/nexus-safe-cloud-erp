@@ -15,6 +15,7 @@ export interface Project { id: string; name: string; client: string; milestonesA
 export interface Milestone { id: string; projectId: string; name: string; amountCop: number; status: 'pending' | 'approved' }
 export interface ApproveResponse { milestone: Milestone; eventId: string }
 export interface Invoice { number: string; projectName: string; milestoneName: string; amountCop: number; taxCop: number; totalCop: number; status: 'draft' | 'issued'; createdAt: string; dueDate: string | null; clientName: string | null; electronicStatus: EInvoiceListStatus; paidCop?: number; balanceCop?: number; paymentStatus?: 'unpaid' | 'partial' | 'paid' }
+export interface AuditResponse { entries: { eventId: string; type: string; occurredAt: string; actor: string | null; summary: string }[]; types: string[] }
 export interface ProfitabilityRow { projectName: string; revenueCop: number; laborCostCop: number; marginCop: number; marginPct: number | null; allocations: number; uncostedAllocations: number }
 export interface Profitability { asOf: string; projects: ProfitabilityRow[]; totals: { revenueCop: number; laborCostCop: number; marginCop: number; uncostedAllocations: number } }
 export interface TeamMember { engineerName: string; percent: number; periodStart: string; periodEnd: string }

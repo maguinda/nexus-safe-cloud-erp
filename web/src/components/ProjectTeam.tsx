@@ -20,9 +20,10 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
       if (e instanceof ApiError && e.status === 403) setHidden(true); else setError(errorText(e, t, 'server.unexpected'));
     });
     void load();
-    // El equipo llega por eventos: se vuelve a pedir cada 10 s mientras la pestaña está a la vista, para que una asignación nueva aparezca sin recargar.
-    const timer = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 10_000);
-    return () => { live = false; clearInterval(timer); };
+    // El equipo llega por eventos: se vuelve a pedir al volver a la pestaña (y cada vez que se abre la pantalla), sin un temporizador que pida en segundo plano.
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { live = false; document.removeEventListener('visibilitychange', onVisible); };
   }, [api, projectId, t]);
 
   if (hidden) return null;

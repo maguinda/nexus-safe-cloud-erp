@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
 import { Channel, ChannelModel, ConsumeMessage, connect } from 'amqplib';
-import { HandleEventUseCase } from '../application/handle-event.use-case';
 import { InvalidEventError } from '../domain/errors';
 import { ROUTING_KEYS } from '../domain/events';
 
@@ -10,6 +9,10 @@ export const QUEUE = 'q.analytics';
 export const DLQ = 'q.analytics.dlq';
 const MAX_BYTES = 16 * 1024;
 
+export interface ConsumerOptions { queue: string; dlq: string; keys: readonly string[]; name: string }
+export const DEFAULT_OPTIONS: ConsumerOptions = { queue: QUEUE, dlq: DLQ, keys: ROUTING_KEYS, name: 'AnalyticsConsumer' };
+export const AUDIT_OPTIONS: ConsumerOptions = { queue: 'q.analytics.audit', dlq: 'q.analytics.audit.dlq', keys: ['#'], name: 'AuditConsumer' };
+
 /**
  * Consume los tres eventos de negocio con UNA cola propia (q.analytics), enlazada a tres routing keys.
  * Ack solo cuando el modelo de lectura quedó actualizado (o era un duplicado).
@@ -17,14 +20,14 @@ const MAX_BYTES = 16 * 1024;
  * Fallo pasajero (p. ej. la base cae) -> se reintenta una vez; si vuelve a fallar, también va a la cola de mensajes muertos.
  */
 export class EventConsumer {
-  private readonly log = new Logger('AnalyticsConsumer');
+  private readonly log: Logger;
   private conn?: ChannelModel;
   private ch?: Channel;
   private timer?: NodeJS.Timeout;
   private stopped = true;
   private retryMs = 500;
 
-  constructor(private readonly useCase: HandleEventUseCase, private readonly url: string) {}
+  constructor(private readonly useCase: { execute(raw: unknown): Promise<string> }, private readonly url: string, private readonly opts: ConsumerOptions = DEFAULT_OPTIONS) { this.log = new Logger(opts.name); }
 
   start() {
     this.stopped = false;
@@ -49,15 +52,15 @@ export class EventConsumer {
       const ch = await conn.createChannel();
       await ch.assertExchange(EXCHANGE, 'topic', { durable: true });
       await ch.assertExchange(DLX, 'direct', { durable: true });
-      await ch.assertQueue(DLQ, { durable: true });
-      await ch.bindQueue(DLQ, DLX, QUEUE);
-      await ch.assertQueue(QUEUE, { durable: true, arguments: { 'x-dead-letter-exchange': DLX, 'x-dead-letter-routing-key': QUEUE } });
-      for (const key of ROUTING_KEYS) await ch.bindQueue(QUEUE, EXCHANGE, key);
+      await ch.assertQueue(this.opts.dlq, { durable: true });
+      await ch.bindQueue(this.opts.dlq, DLX, this.opts.queue);
+      await ch.assertQueue(this.opts.queue, { durable: true, arguments: { 'x-dead-letter-exchange': DLX, 'x-dead-letter-routing-key': this.opts.queue } });
+      for (const key of this.opts.keys) await ch.bindQueue(this.opts.queue, EXCHANGE, key);
       await ch.prefetch(10);
       // Se pasa el canal al manejador: RabbitMQ entrega el backlog en cuanto se registra el consumo, ANTES de que this.ch esté asignado.
-      await ch.consume(QUEUE, (m) => void this.onMessage(m, ch));
+      await ch.consume(this.opts.queue, (m) => void this.onMessage(m, ch));
       this.conn = conn; this.ch = ch; this.retryMs = 500;
-      this.log.log(`consuming ${QUEUE}`);
+      this.log.log(`consuming ${this.opts.queue}`);
     } catch (e) {
       this.log.warn(`cannot connect to RabbitMQ, retrying: ${e instanceof Error ? e.message : e}`);
       this.scheduleReconnect();

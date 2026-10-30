@@ -19,3 +19,4 @@ export { payments } from './payments';
 export { contracts } from './contracts';
 export { team } from './team';
 export { profitability } from './profitability';
+export { audit } from './audit';
