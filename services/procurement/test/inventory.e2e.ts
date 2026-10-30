@@ -137,4 +137,75 @@ describe('supplier catalog and equipment installation (e2e, real PostgreSQL)', (
       await expect(prisma.$executeRawUnsafe(`INSERT INTO equipment_installs (number, item_id, item_name) VALUES (9001, gen_random_uuid(), 'y')`)).rejects.toThrow();
     });
   });
+
+  describe('taking an installed unit out of service', () => {
+    const retire = (id: string, destination: unknown = 'storage', who: any = M) => call('post', `/installs/${id}/retire`, who, { destination });
+    const installs = async () => (await call('get', '/installs', M)).body as any[];
+
+    it('lists the installs (readers) with their status; sales does not read; bad filters are 400', async () => {
+      await install(); await install();
+      for (const u of [M, USERS.lead, USERS.billing]) { const r = await call('get', '/installs', u); expect(r.status).toBe(200); expect(r.body.map((x: any) => x.status)).toEqual(['installed', 'installed']); }
+      expect((await call('get', '/installs', USERS.sales)).status).toBe(403); expect((await call('get', '/installs')).status).toBe(401);
+      expect((await call('get', `/installs?itemId=${SWITCH}`, M)).body).toHaveLength(2); expect((await call('get', `/installs?itemId=${SENSOR}`, M)).body).toHaveLength(0);
+      for (const q of ['?itemId=x', '?limit=0', '?limit=201', '?limit=abc']) expect((await call('get', `/installs${q}`, M)).status).toBe(400);
+    });
+
+    it('returning to storage raises the stock by one, writes the movement and publishes StockChanged (return) and EquipmentRetired; the history still adds up', async () => {
+      const i = await install(); const [inst] = await installs(); expect(await stock(SWITCH)).toBe(1);
+      const r = await retire(inst.id, 'storage'); expect(r.status).toBe(200); expect(r.body).toMatchObject({ installNumber: i.body.installNumber, destination: 'storage', onHand: 2 });
+      expect(await stock(SWITCH)).toBe(2);
+      expect(await prisma.stockMovement.findFirstOrThrow({ where: { source: 'return' } })).toMatchObject({ delta: 1, onHandAfter: 2, actor: M.email, reason: `Devolución ${i.body.installNumber}` });
+      const ev = await prisma.outboxEvent.findFirstOrThrow({ where: { type: 'EquipmentRetired' } });
+      expect(ev.routingKey).toBe('procurement.equipment.retired'); expect((ev.payload as any).data).toEqual({ installNumber: i.body.installNumber, itemId: SWITCH, itemName: 'Switch de acceso 24 puertos', destination: 'storage' });
+      expect((await prisma.outboxEvent.findMany({ where: { type: 'StockChanged' } })).some((e: any) => e.payload.data.reason === 'return' && e.payload.data.delta === 1)).toBe(true);
+      expect((await installs())[0]).toMatchObject({ status: 'returned', endedBy: M.email });
+      for (const id of SEED_ITEMS) expect(await sumMov(id)).toBe(await stock(id));
+    });
+
+    it('retiring (out of service) does not touch the stock and publishes only EquipmentRetired', async () => {
+      await install(); const [inst] = await installs(); const before = await prisma.outboxEvent.count({ where: { type: 'StockChanged' } });
+      expect((await retire(inst.id, 'retired')).body).toMatchObject({ destination: 'retired', onHand: 1 });
+      expect(await stock(SWITCH)).toBe(1); expect(await prisma.outboxEvent.count({ where: { type: 'StockChanged' } })).toBe(before); expect(await prisma.stockMovement.count({ where: { source: 'return' } })).toBe(0);
+      expect((await installs())[0].status).toBe('retired');
+    });
+
+    it('only the manager (401/403); a unit that is not installed any more is 409; unknown 404; bad destination or id 400; nothing is left by a refusal', async () => {
+      await install(); const [inst] = await installs();
+      expect((await call('post', `/installs/${inst.id}/retire`, undefined, { destination: 'storage' })).status).toBe(401);
+      for (const u of [USERS.lead, USERS.billing, USERS.sales]) expect((await retire(inst.id, 'storage', u)).status).toBe(403);
+      for (const d of ['bodega', '', null, 5]) expect((await retire(inst.id, d)).status).toBe(400);
+      expect((await retire(randomUUID())).status).toBe(404); expect((await call('post', '/installs/zz/retire', M, { destination: 'storage' })).status).toBe(400);
+      expect((await installs())[0].status).toBe('installed'); expect(await stock(SWITCH)).toBe(1);
+      expect((await retire(inst.id, 'retired')).status).toBe(200);
+      for (const d of ['storage', 'retired']) expect((await retire(inst.id, d)).status).toBe(409); // ya no está instalada
+      expect(await stock(SWITCH)).toBe(1);
+    });
+
+    it('CONCURRENCY: 20 rounds of 8 simultaneous returns of the same unit → exactly one wins, the stock rises once, one EquipmentRetired', async () => {
+      for (let r = 0; r < 20; r++) {
+        await resetState(prisma); await install(); const [inst] = await installs();
+        const res = await Promise.all(Array.from({ length: 8 }, (_, k) => retire(inst.id, k % 2 ? 'storage' : 'retired')));
+        expect(res.filter((x) => x.status === 200)).toHaveLength(1); expect(res.filter((x) => x.status === 409)).toHaveLength(7);
+        expect(await prisma.outboxEvent.count({ where: { type: 'EquipmentRetired' } })).toBe(1);
+        const final = (await installs())[0].status; expect(await stock(SWITCH)).toBe(final === 'returned' ? 2 : 1);
+        for (const id of SEED_ITEMS) expect(await sumMov(id)).toBe(await stock(id));
+      }
+    }, 180_000);
+
+    it('CONCURRENCY: installs and returns at once never deadlock and the history always adds up to the stock', async () => {
+      for (let r = 0; r < 15; r++) {
+        await resetState(prisma); await install(); await install(); const list = await installs();
+        const res = await Promise.all([install(), install(), retire(list[0].id, 'storage'), retire(list[1].id, 'storage'), call('post', `/inventory/items/${SWITCH}/adjust`, M, { delta: 1, reason: 'Return from site' })]);
+        for (const x of res) expect([200, 409]).toContain(x.status);
+        expect(await stock(SWITCH)).toBeGreaterThanOrEqual(0); for (const id of SEED_ITEMS) expect(await sumMov(id)).toBe(await stock(id));
+      }
+    }, 240_000);
+
+    it('the database refuses an install that is closed without a date or open with one', async () => {
+      await install(); const [inst] = await installs();
+      await expect(prisma.$executeRawUnsafe(`UPDATE equipment_installs SET status = 'returned' WHERE id = '${inst.id}'`)).rejects.toThrow();
+      await expect(prisma.$executeRawUnsafe(`UPDATE equipment_installs SET ended_at = now() WHERE id = '${inst.id}'`)).rejects.toThrow();
+      await expect(prisma.$executeRawUnsafe(`UPDATE equipment_installs SET status = 'lost', ended_at = now() WHERE id = '${inst.id}'`)).rejects.toThrow();
+    });
+  });
 });

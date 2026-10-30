@@ -748,6 +748,32 @@ paths:
         '200': { description: Installed (installNumber INS-0001, itemName, onHand left) }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: No stock, or the item is a spare part }
+  /installs:
+    get:
+      tags: [Procurement]
+      operationId: listInstalls
+      summary: Installed equipment units (INS-0001…) with their status, newest first (roles manager, project_lead, billing_analyst)
+      parameters:
+        - { name: itemId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        '200': { description: The installs }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /installs/{id}/retire:
+    post:
+      tags: [Procurement]
+      operationId: retireInstalledUnit
+      summary: Take an installed unit out of service - back to storage (stock +1) or retired (role manager)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [destination], properties: { destination: { type: string, enum: [storage, retired] } } }
+      responses:
+        '200': { description: Done }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The unit is not installed any more }
   /inventory/suggestions:
     get:
       tags: [Procurement]

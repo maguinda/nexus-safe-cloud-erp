@@ -20,7 +20,7 @@ export function StockHistory({ items, refreshKey }: { items: StockItem[]; refres
   }, [api, alive, itemId, t]);
   useEffect(() => { void load(); }, [load, refreshKey]);
 
-  const source = (s: string) => (s === 'opening' ? t('hist.src.opening') : s === 'purchase_received' ? t('hist.src.purchase') : s === 'count' ? t('hist.src.count') : s === 'install' ? t('hist.src.install') : t('hist.src.adjustment'));
+  const source = (s: string) => (s === 'opening' ? t('hist.src.opening') : s === 'purchase_received' ? t('hist.src.purchase') : s === 'count' ? t('hist.src.count') : s === 'install' ? t('hist.src.install') : s === 'return' ? t('hist.src.return') : t('hist.src.adjustment'));
   return (
     <section aria-labelledby="hist-h">
       <h3 id="hist-h" className={ui.h2}>{t('hist.title')}</h3>

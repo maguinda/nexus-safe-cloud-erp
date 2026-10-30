@@ -291,6 +291,12 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Límites: «responsable» es un nombre libre; no hay fecha de vencimiento que genere avisos ni órdenes programadas (el preventivo se crea a mano); no se enlaza una orden con una compra de repuestos.
 - Pruebas: 21 unitarias y 22 e2e de operations (20 rondas de 8 clics a la vez, 30 rondas de cerrar/cancelar/iniciar; 2 mutaciones fallan), notifications con los 2 tipos nuevos, web 724, funcional en Chromium y WebKit, diseño en 6 perfiles.
 
+## Instalados en Compras y retirar un equipo (Etapa 1, PR 1, 🔴, 2026-10-31)
+- Pedido de Marlon: que el inventario concuerde (equipo instalado visible en Compras y una salida para lo instalado). Procurement: `equipment_installs.status` (installed, returned, retired), `GET /installs`, `POST /installs/:id/retire` (a bodega: stock +1 con movimiento `return`; baja: el stock no cambia) y el evento `EquipmentRetired`; Operations quita el activo de Red de esa instalación (si tuviera enlaces o monitoreo lo marca «Retirado de servicio»). Web: cada equipo muestra «instaladas desde aquí: N», la lista de unidades y los botones «Devolver a bodega» y «Dar de baja».
+- Gateway: `/installs`. **Nuevo:** `scripts/check-gateway-routes.py` (y un paso en `stack-e2e.yml`) falla si un servicio expone una ruta que el gateway no declara (se olvidó 3 veces: contratos, conteos e instalaciones).
+- Pruebas: procurement 28 e2e en el archivo de inventario (devolver 8 a la vez ×20 rondas = una vez; instalar/devolver/ajustar a la vez ×15; 2 mutaciones fallan), operations 27 e2e de compras (carrera de instalar y retirar; 1 mutación falla), web y funcional en Chromium y WebKit.
+- Límites: los 76 equipos del Excel no se pueden retirar desde aquí; no hay «reinstalar» una unidad devuelta (se instala otra unidad de la bodega).
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

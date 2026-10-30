@@ -45,9 +45,10 @@ export interface AllocationInput { projectName: string; percent: number; startDa
 
 export interface CatalogEntry { itemId: string; itemName: string; itemKind: 'equipment' | 'spare'; refPriceCop: number; leadDays: number }
 export interface Supplier { id: string; name: string; kind: 'fixed' | 'tender'; terms: string; tenderRef?: string | null; validUntil?: string | null; catalog?: CatalogEntry[] }
-export interface StockMovement { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'opening' | 'purchase_received' | 'adjustment' | 'count' | 'install'; reason: string; actor: string | null; at: string }
+export interface StockMovement { id: string; itemId: string; itemName: string; delta: number; onHandAfter: number; source: 'opening' | 'purchase_received' | 'adjustment' | 'count' | 'install' | 'return'; reason: string; actor: string | null; at: string }
 export interface StockCount { id: string; number: number; status: 'open' | 'closed' | 'cancelled'; openedBy: string | null; openedAt: string; closedBy: string | null; closedAt: string | null; lines: number; counted: number; differences: number }
 export interface StockCountLine { itemId: string; itemName: string; expected: number; counted: number | null; variance: number | null; appliedDelta: number | null }
+export interface EquipmentInstall { id: string; number: string; itemId: string; itemName: string; status: 'installed' | 'returned' | 'retired'; installedAt: string; installedBy: string | null; endedAt: string | null; endedBy: string | null }
 export interface StockItem { id: string; name: string; kind: 'equipment' | 'spare'; forKinds: string[]; onHand: number }
 export interface PurchaseOrder {
   id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string;

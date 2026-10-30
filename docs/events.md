@@ -225,6 +225,11 @@ The only person in the event is `registeredBy` (the staff email of the analyst, 
 - Consumed by `notifications` (a bell notice for the manager: warning for high or critical priority, info otherwise) and, through the `#` queue, by the audit log of `analytics`.
 - Rules: the manager creates from an alert (Sensors) or a device (Network) with `POST /work-orders`; **only one open order per equipment and type** (409 naming the existing one); the equipment name is read from the database, never from the client; status `open → in_progress → done` or `cancelled` (done and cancelled are final; the row is locked and the status read again inside the lock); every change leaves a line in the history; manager and project lead read, only the manager writes.
 
+## EquipmentRetired (procurement)
+
+- `POST /installs/:id/retire` (manager) takes an installed unit out of service: `destination: storage` (the stock goes up by one, movement `return`, `StockChanged` reason `return`) or `retired` (out of service, the stock does not change). Published in the same transaction: `EquipmentRetired` (`procurement.equipment.retired`, data `installNumber`, `itemId`, `itemName`, `destination`). The install row is locked first and the item second, and the status is read again inside the lock: returning the same unit twice returns it once (409 the second time). `GET /installs` lists the units with their status; Procurement shows «installed from here» per equipment item.
+- `operations` consumes it and removes the network device of that installation (`source_order` = `INS-0001`). If the device had links or monitoring it is **not deleted**: its role becomes «Retirado de servicio». The 76 devices of the teacher’s Excel are never touched. Idempotent by the install number.
+
 ## Supplier catalog and equipment installation (procurement)
 
 - **Catalog:** `supplier_items` says what each supplier sells, with a reference price and a delivery time in days (`PUT/DELETE /suppliers/:id/catalog/:itemId`, manager). `GET /suppliers` returns each supplier with its `catalog` and, for suppliers by tender, `tenderRef` and `validUntil` (only a tender supplier may carry them: CHECK). **An order only accepts what the supplier sells** (409 `That supplier does not sell that item`); without `unitPriceCop` the order takes the supplier's reference price.

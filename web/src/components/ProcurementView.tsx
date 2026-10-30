@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAlive } from '../hooks/useAlive';
 import { errorText } from '../i18n/server';
-import { formatCop } from '../lib/format';
-import type { PurchaseOrder, RestockSuggestion, StockItem, Supplier } from '../lib/types';
+import { formatCop, formatDay } from '../lib/format';
+import type { EquipmentInstall, PurchaseOrder, RestockSuggestion, StockItem, Supplier } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { StockCountPanel } from './StockCountPanel';
@@ -10,23 +10,24 @@ import { StockHistory } from './StockHistory';
 import { AdjustForm, CatalogForm, NewItemForm, NewOrderForm, NewSupplierForm } from './ProcurementForms';
 import s from './ProcurementView.module.css';
 
-interface Data { suppliers: Supplier[]; items: StockItem[]; orders: PurchaseOrder[]; suggestions: RestockSuggestion[] }
+interface Data { suppliers: Supplier[]; items: StockItem[]; orders: PurchaseOrder[]; suggestions: RestockSuggestion[]; installs: EquipmentInstall[] }
 
 /** Compras e inventario (US-08): lo consultan gerencia, líder de proyecto y facturación; solo gerencia compra, recibe y ajusta. */
 export function ProcurementView({ toast }: { toast: (m: string) => void }) {
-  const { api, user, t } = useSession();
+  const { api, user, t, lang } = useSession();
   const alive = useAlive();
   const isManager = user?.role === 'manager';
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [editingCatalog, setEditingCatalog] = useState<string | null>(null);
+  const [showUnits, setShowUnits] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [suppliers, items, orders, suggestions] = await Promise.all([api.suppliers(), api.inventory(), api.orders(), api.suggestions()]);
-      if (alive.current) { setData({ suppliers, items, orders, suggestions }); setError(''); }
+      const [suppliers, items, orders, suggestions, installs] = await Promise.all([api.suppliers(), api.inventory(), api.orders(), api.suggestions(), api.installs()]);
+      if (alive.current) { setData({ suppliers, items, orders, suggestions, installs }); setError(''); }
     } catch (e) { if (alive.current) setError(errorText(e, t, 'server.unexpected')); }
   }, [api, alive, t]);
   useEffect(() => { void load(); }, [load]);
@@ -70,8 +71,22 @@ export function ProcurementView({ toast }: { toast: (m: string) => void }) {
                     <span className={s.sub}>{t(i.kind === 'equipment' ? 'proc.kind.equipment' : 'proc.kind.spare')} · {t('proc.stock.col.for')}: {i.forKinds.length ? i.forKinds.join(', ') : t('proc.none')}</span>
                   </span>
                   <span className={i.onHand === 0 ? s.low : undefined}>{t('proc.stock.col.onHand')}: {i.onHand}</span>
-                  {i.kind === 'equipment' && <span className={s.sub}>{t('inst.hint')}</span>}
+                  {i.kind === 'equipment' && <span className={s.sub}>{t('inst.hint')} · {t('inst.count', { n: data.installs.filter((x) => x.itemId === i.id && x.status === 'installed').length })}</span>}
                   {isManager && i.kind === 'equipment' && <button type="button" className={ui.btnGhost} disabled={!!busy || i.onHand === 0} aria-label={t('inst.buttonFor', { name: i.name })} onClick={() => void act(`i:${i.id}`, async () => { const r = await api.installUnit(i.id); return t('inst.done', { number: r.installNumber, onHand: r.onHand }); })}>{t('inst.button')}</button>}
+                  {i.kind === 'equipment' && <button type="button" className={ui.btnGhost} aria-expanded={showUnits === i.id} aria-label={t('inst.showFor', { name: i.name })} onClick={() => setShowUnits(showUnits === i.id ? null : i.id)}>{showUnits === i.id ? t('inst.hide') : t('inst.show')}</button>}
+                  {showUnits === i.id && (
+                    <ul className={s.list} data-units={i.name}>
+                      {data.installs.filter((x) => x.itemId === i.id).length === 0 ? <li className={s.sub}>{t('inst.none')}</li> : data.installs.filter((x) => x.itemId === i.id).map((u) => (
+                        <li key={u.id} className={s.row} data-install={u.number} data-status={u.status}>
+                          <span className={s.grow}>{t('inst.line', { number: u.number, status: t(`inst.status.${u.status}` as 'inst.status.installed'), date: formatDay(u.installedAt, lang) })}</span>
+                          {isManager && u.status === 'installed' && <>
+                            <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('inst.returnFor', { number: u.number })} onClick={() => void act(`r:${u.id}`, async () => { const r = await api.retireUnit(u.id, 'storage'); return t('inst.returned', { number: r.installNumber, onHand: r.onHand }); })}>{t('inst.return')}</button>
+                            <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('inst.retireFor', { number: u.number })} onClick={() => void act(`b:${u.id}`, async () => { const r = await api.retireUnit(u.id, 'retired'); return t('inst.retired', { number: r.installNumber }); })}>{t('inst.retire')}</button>
+                          </>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {isManager && adjusting !== i.id && <button type="button" className={ui.btnGhost} aria-label={t('proc.adjustFor', { name: i.name })} onClick={() => setAdjusting(i.id)}>{t('proc.adjust')}</button>}
                   {isManager && adjusting === i.id && <AdjustForm api={api} item={i} onCancel={() => setAdjusting(null)} onDone={(m) => { setAdjusting(null); toast(m); void load(); }} />}
                 </li>

@@ -28,6 +28,10 @@ export class CountedDto {
   @ApiProperty({ example: 7, description: 'What was physically counted, whole number from 0 to 1.000.000' }) @IsDefined() counted!: number;
 }
 
+export class RetireDto {
+  @ApiProperty({ enum: ['storage', 'retired'], description: 'storage = back to the storage (stock +1); retired = taken out of service' }) @IsString() @MaxLength(20) destination!: string;
+}
+
 export class AdjustDto {
   @ApiProperty({ example: -2, description: 'Whole number other than 0, up to 100000 either way' }) @IsInt() delta!: number;
   @ApiProperty({ example: 'Stock count', maxLength: 120 }) @IsString() @MaxLength(200) reason!: string;

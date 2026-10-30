@@ -157,6 +157,10 @@ model EquipmentInstall {
   itemName    String   @map("item_name")
   installedBy String?  @map("installed_by")
   installedAt DateTime @default(now()) @map("installed_at") @db.Timestamptz(6)
+  /// installed, returned (volvió a bodega) o retired (dada de baja).
+  status      String   @default("installed")
+  endedAt     DateTime? @map("ended_at") @db.Timestamptz(6)
+  endedBy     String?  @map("ended_by")
 
   @@map("equipment_installs")
 }
