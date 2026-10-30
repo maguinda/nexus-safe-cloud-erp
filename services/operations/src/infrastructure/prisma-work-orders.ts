@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 
 import { WORK_ORDER_CLOSED_ROUTING_KEY, WORK_ORDER_CREATED_ROUTING_KEY, workOrderClosed, workOrderCreated } from '../domain/events';
-import { canTransition, isClosing, NewWorkOrder, orderLabel, validateAssignee, validateStatusChange, WorkOrderStateError, WoStatus } from '../domain/work-order';
+import { canTransition, isClosing, NewWorkOrder, orderLabel, validateAssignee, validateAssigneeId, validateStatusChange, WorkOrderStateError, WoStatus } from '../domain/work-order';
 
 const TX = { timeout: 15_000, maxWait: 15_000 };
 type Tx = Prisma.TransactionClient;
@@ -11,10 +11,10 @@ export class WorkOrderDuplicateError extends Error { constructor(public readonly
 
 export interface WorkOrderView {
   id: string; number: string; type: string; status: string; priority: string; targetKind: string; targetRef: string; targetName: string; description: string; sourceNote: string | null;
-  dueDate: string | null; assignedTo: string | null; createdBy: string | null; createdAt: string; closedBy: string | null; closedAt: string | null;
+  dueDate: string | null; assignedTo: string | null; assignedToId: string | null; createdBy: string | null; createdAt: string; closedBy: string | null; closedAt: string | null;
 }
 const view = (r: any): WorkOrderView => ({ id: r.id, number: orderLabel(r.number), type: r.type, status: r.status, priority: r.priority, targetKind: r.targetKind ?? r.target_kind, targetRef: r.targetRef ?? r.target_ref, targetName: r.targetName ?? r.target_name,
-  description: r.description, sourceNote: r.sourceNote ?? r.source_note ?? null, dueDate: (r.dueDate ?? r.due_date) ? new Date(r.dueDate ?? r.due_date).toISOString().slice(0, 10) : null, assignedTo: r.assignedTo ?? r.assigned_to ?? null,
+  description: r.description, sourceNote: r.sourceNote ?? r.source_note ?? null, dueDate: (r.dueDate ?? r.due_date) ? new Date(r.dueDate ?? r.due_date).toISOString().slice(0, 10) : null, assignedTo: r.assignedTo ?? r.assigned_to ?? null, assignedToId: r.assignedToId ?? r.assigned_to_id ?? null,
   createdBy: r.createdBy ?? r.created_by ?? null, createdAt: new Date(r.createdAt ?? r.created_at).toISOString(), closedBy: r.closedBy ?? r.closed_by ?? null, closedAt: (r.closedAt ?? r.closed_at) ? new Date(r.closedAt ?? r.closed_at).toISOString() : null });
 
 /**
@@ -33,8 +33,8 @@ export class WorkOrdersService {
       let row: any;
       try {
         row = (await tx.$queryRaw<any[]>`
-          INSERT INTO work_orders (type, priority, target_kind, target_ref, target_name, description, source_note, due_date, assigned_to, created_by)
-          VALUES (${input.type}, ${input.priority}, ${input.targetKind}, ${input.targetRef}, ${name}, ${input.description}, ${input.sourceNote}, ${input.dueDate}::date, ${input.assignedTo}, ${actor}) RETURNING *`)[0];
+          INSERT INTO work_orders (type, priority, target_kind, target_ref, target_name, description, source_note, due_date, assigned_to, assigned_to_id, created_by)
+          VALUES (${input.type}, ${input.priority}, ${input.targetKind}, ${input.targetRef}, ${name}, ${input.description}, ${input.sourceNote}, ${input.dueDate}::date, ${input.assignedTo}, ${input.assignedToId}::uuid, ${actor}) RETURNING *`)[0];
       } catch (e: any) {
         if (/work_orders_one_open_key|duplicate key|unique/i.test(String(e?.message)) || e?.code === 'P2010' || e?.code === 'P2002') {
           // La transacción abortó: el número de la orden abierta se busca con otra consulta (fuera de ella).
@@ -73,13 +73,14 @@ export class WorkOrdersService {
     }, TX);
   }
 
-  async assign(id: string, raw: unknown, actor: string | null): Promise<WorkOrderView> {
+  async assign(id: string, raw: unknown, actor: string | null, rawId?: unknown): Promise<WorkOrderView> {
     const who = validateAssignee(raw);
+    const whoId = validateAssigneeId(rawId, who);
     return this.prisma.$transaction(async (tx) => {
       const cur = (await tx.$queryRaw<any[]>`SELECT status FROM work_orders WHERE id = ${id}::uuid FOR UPDATE`)[0];
       if (!cur) throw new WorkOrderNotFoundError('Work order not found');
       if (cur.status === 'done' || cur.status === 'cancelled') throw new WorkOrderStateError(`The work order is ${cur.status}: it cannot be reassigned`);
-      const row = (await tx.$queryRaw<any[]>`UPDATE work_orders SET assigned_to = ${who} WHERE id = ${id}::uuid RETURNING *`)[0];
+      const row = (await tx.$queryRaw<any[]>`UPDATE work_orders SET assigned_to = ${who}, assigned_to_id = ${whoId}::uuid WHERE id = ${id}::uuid RETURNING *`)[0];
       await tx.$executeRaw`INSERT INTO work_order_log (order_id, from_status, to_status, actor, note) VALUES (${id}::uuid, ${cur.status}, ${cur.status}, ${actor}, ${who ? `Asignada a ${who}` : 'Sin responsable'})`;
       return view(row);
     }, TX);

@@ -5,7 +5,7 @@ const ok = { type: 'corrective', targetKind: 'sensor', targetRef: 'WEBCAM_OF1', 
 
 describe('validateNewWorkOrder', () => {
   it('accepts a complete order and cleans the texts', () => {
-    expect(validateNewWorkOrder(ok, TODAY)).toEqual({ type: 'corrective', priority: 'high', targetKind: 'sensor', targetRef: 'WEBCAM_OF1', description: 'Cámara sin señal', sourceNote: 'ALERT 41,2 °C', dueDate: '2026-11-10', assignedTo: 'Laura Ríos' });
+    expect(validateNewWorkOrder(ok, TODAY)).toEqual({ type: 'corrective', priority: 'high', targetKind: 'sensor', targetRef: 'WEBCAM_OF1', description: 'Cámara sin señal', sourceNote: 'ALERT 41,2 °C', dueDate: '2026-11-10', assignedTo: 'Laura Ríos', assignedToId: null });
   });
   it('priority defaults to normal; due date, assignee and source note are optional; a device ref may be a number', () => {
     expect(validateNewWorkOrder({ type: 'inspection', targetKind: 'device', targetRef: 12, description: 'Revisar puertos' }, TODAY)).toMatchObject({ priority: 'normal', targetRef: '12', dueDate: null, assignedTo: null, sourceNote: null });
@@ -35,4 +35,15 @@ describe('status rules', () => {
     expect(validateAssignee('  Ana  Gil ')).toBe('Ana Gil'); expect(validateAssignee(null)).toBeNull(); expect(validateAssignee('')).toBeNull(); expect(() => validateAssignee('A')).toThrow(InvalidWorkOrderError);
     expect(orderLabel(7)).toBe('OT-0007'); expect(orderLabel(12345)).toBe('OT-12345');
   });
+});
+
+describe('validateAssigneeId', () => {
+  const { validateAssigneeId } = require('./work-order');
+  const id = '11111111-1111-4111-8111-111111111107';
+  it('is optional, lowercases a UUID and needs the name', () => {
+    expect(validateAssigneeId(undefined, 'Ana Gil')).toBeNull(); expect(validateAssigneeId('', undefined)).toBeNull(); expect(validateAssigneeId(null, null)).toBeNull();
+    expect(validateAssigneeId(id.toUpperCase(), 'Ana Gil')).toBe(id);
+    expect(() => validateAssigneeId(id, undefined)).toThrow(InvalidWorkOrderError); expect(() => validateAssigneeId(id, '')).toThrow(InvalidWorkOrderError);
+  });
+  it.each(['zz', 5, {}, [], "1'; DROP", id + 'x'])('refuses %p', (v) => { expect(() => validateAssigneeId(v, 'Ana Gil')).toThrow(InvalidWorkOrderError); });
 });

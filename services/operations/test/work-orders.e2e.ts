@@ -143,4 +143,18 @@ describe('work orders from the monitoring screens (e2e, real PostgreSQL)', () =>
     await expect(prisma.$executeRawUnsafe(`INSERT INTO work_orders (type, status, target_kind, target_ref, target_name, description) VALUES ('corrective', 'done', 'sensor', 'X3', 'n', 'desc')`)).rejects.toThrow();
     await expect(prisma.$executeRawUnsafe(`INSERT INTO work_orders (type, status, target_kind, target_ref, target_name, description) VALUES ('inspection', 'open', 'sensor', 'X4', 'n', 'ab')`)).rejects.toThrow();
   });
+
+  it('the responsible can be chosen from the staff list: the id travels with the name, it needs the name, it must be a UUID, and reassigning or clearing keeps both in step', async () => {
+    const id1 = randomUUID(), id2 = randomUUID();
+    const a = await create({ assignedTo: 'Hugo Salazar', assignedToId: id1.toUpperCase() }); expect(a.status).toBe(201);
+    expect(a.body).toMatchObject({ assignedTo: 'Hugo Salazar', assignedToId: id1 }); // el id se guarda en minúsculas
+    expect((await call('get', '/work-orders', M)).body.find((x: any) => x.id === a.body.id)).toMatchObject({ assignedToId: id1 });
+    for (const bad of [{ assignedToId: 'zz', assignedTo: 'Ana Gil' }, { assignedToId: id1 }, { assignedToId: id1, assignedTo: '' }, { assignedToId: 5, assignedTo: 'Ana Gil' }, { assignedToId: "x'; DROP TABLE work_orders", assignedTo: 'Ana Gil' }]) expect((await create(bad)).status).toBe(400);
+    const patch = (b: object) => call('patch', `/work-orders/${a.body.id}/assign`, M, b);
+    expect((await patch({ assignedTo: 'Nelly Ortiz', assignedToId: id2 })).body).toMatchObject({ assignedTo: 'Nelly Ortiz', assignedToId: id2 });
+    expect((await patch({ assignedTo: 'Ana Gil' })).body).toMatchObject({ assignedTo: 'Ana Gil', assignedToId: null }); // un nombre escrito sin id borra el id viejo
+    expect((await patch({ assignedToId: id1 })).status).toBe(400);
+    expect((await patch({ assignedTo: '' })).body).toMatchObject({ assignedTo: null, assignedToId: null });
+    await expect(prisma.$executeRawUnsafe(`UPDATE work_orders SET assigned_to = NULL, assigned_to_id = '${id1}' WHERE id = '${a.body.id}'`)).rejects.toThrow(); // CHECK en la base
+  });
 });

@@ -146,6 +146,8 @@ model WorkOrder {
   sourceNote  String?   @map("source_note")
   dueDate     DateTime? @map("due_date") @db.Date
   assignedTo  String?   @map("assigned_to")
+  /// Id de la persona en Technical Capacity (se elige de su lista; no se verifica entre servicios).
+  assignedToId String?  @map("assigned_to_id") @db.Uuid
   createdBy   String?   @map("created_by")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   closedBy    String?   @map("closed_by")

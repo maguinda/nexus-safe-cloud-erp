@@ -1687,7 +1687,7 @@ test('Work orders: from an alert in Sensors and from a device in Network the man
     await expect(dlg.getByRole('button', { name: 'Corrective maintenance' })).toHaveAttribute('aria-pressed', 'true'); // una alerta sugiere el correctivo
     await dlg.getByLabel('What has to be done').fill('x'); await dlg.getByRole('button', { name: 'Create order' }).click(); // el formulario avisa sin enviar
     await expect(dlg.getByText(/Write 3 to 300 characters/)).toBeVisible();
-    await dlg.getByLabel('What has to be done').fill('Revisar el sensor y cambiar la fuente si hace falta'); await dlg.getByRole('button', { name: 'High', exact: true }).click(); await dlg.getByLabel('Responsible (optional)').fill('Julián Pardo');
+    await dlg.getByLabel('What has to be done').fill('Revisar el sensor y cambiar la fuente si hace falta'); await dlg.getByRole('button', { name: 'High', exact: true }).click(); await dlg.getByRole('button', { name: 'Hugo Salazar · Technician' }).click(); await dlg.getByRole('button', { name: 'Julián Pardo · Engineer' }).click(); // elegir y volver a elegir: la última persona queda
     await dlg.getByRole('button', { name: 'Create order' }).click();
     await expect(manager.page.getByText(/Order OT-\d+ created\./)).toBeVisible();
     await expect(manager.page.getByRole('dialog')).toHaveCount(0);
@@ -1709,6 +1709,10 @@ test('Work orders: from an alert in Sensors and from a device in Network the man
     await expect(cards).toHaveCount(2);
     const corrective = cards.filter({ hasText: 'Corrective maintenance' }), inspection = cards.filter({ hasText: 'Inspection' });
     await expect(corrective).toContainText('Julián Pardo'); await expect(corrective).toContainText('High');
+    // En Capacidad técnica la persona muestra sus órdenes abiertas.
+    await nav(manager.page, 'Capacity');
+    await expect(manager.page.locator('[data-orders="Julián Pardo"]')).toContainText(/OT-\d{4}/); await expect(manager.page.locator('[data-orders="Hugo Salazar"]')).toContainText('none');
+    await nav(manager.page, 'Work orders');
     await corrective.getByRole('button', { name: /^Start order/ }).click(); await expect(corrective).toContainText('In progress');
     await corrective.getByRole('button', { name: /^Mark order .* as done/ }).click();
     await expect(manager.page.getByText(/Order OT-\d+: Done\./)).toBeVisible();

@@ -303,6 +303,11 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Web: el formulario de alta pide el cargo (fichas que bajan de línea), título propio opcional y sueldo; la tarjeta muestra cargo, insignia Ingeniero/Técnico, sueldo mensual y costo por día hábil; filtro Todos/Ingenieros/Técnicos. Nuevas piezas compartidas `.chips/.chip/.chipOn` en `ui.module.css` (el `.seg` de una sola fila se salía de la pantalla con 7 opciones largas).
 - No hecho a propósito (Etapa 2 y finanzas): las órdenes de trabajo aún no usan este personal (PR 3) ni gastan capacidad; no hay nómina (prestaciones, seguridad social, pagos), solo el sueldo base.
 
+## Órdenes de trabajo con el personal (Etapa 1, PR 3, 🟡, 2026-10-31)
+- El responsable de una orden ya no se teclea: se **elige del personal de Capacidad** (ingenieros y técnicos) con el componente `StaffPicker`. Operations guarda además `assigned_to_id` (migración `0007`; la base exige nombre si hay id; **no verifica** entre servicios que la persona exista: lo garantiza la lista de la pantalla, igual que `project_id` en Billing). Reasignar con un nombre escrito sin id borra el id viejo. En Capacidad, cada tarjeta muestra las **órdenes abiertas** de esa persona (se leen de Operations desde la pantalla; ventas no las ve porque no puede leer órdenes).
+- Pruebas: operations 333 unitarias y 23 e2e de órdenes (1 mutación falla), web 730, Chromium y WebKit, auditoría de capacidad y órdenes en 6 perfiles.
+- **No se hizo (Etapa 2):** que una orden gaste capacidad (porcentaje y fechas, regla del 100 %). Hoy un técnico puede estar al 100 % en un proyecto y además tener órdenes abiertas sin que la capacidad lo avise.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

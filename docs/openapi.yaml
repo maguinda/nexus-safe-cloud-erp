@@ -468,6 +468,7 @@ paths:
                 priority: { type: string, enum: [low, normal, high, critical], default: normal }
                 dueDate: { type: string, format: date, description: Not in the past }
                 assignedTo: { type: string, description: Name of the person responsible }
+                assignedToId: { type: string, format: uuid, description: 'Id of the person in Technical Capacity, chosen from its staff list (needs assignedTo). Operations does not check it exists in the other service' }
                 sourceNote: { type: string, maxLength: 200 }
       responses:
         '201': { description: Created (OT-0001) }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAlive } from '../hooks/useAlive';
 import { errorText } from '../i18n/server';
 import { formatDay } from '../lib/format';
-import { POSITION_DEFAULT_TITLE, type CapacityEngineer, type CapacityResponse } from '../lib/types';
+import { POSITION_DEFAULT_TITLE, type CapacityEngineer, type CapacityResponse, type WorkOrder } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import { AllocateForm, NewEngineerForm } from './CapacityForms';
@@ -16,6 +16,7 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
   const [data, setData] = useState<CapacityResponse | null>(null);
   const [error, setError] = useState('');
   const [openFor, setOpenFor] = useState<string | null>(null);
+  const [orders, setOrders] = useState<WorkOrder[] | null>(null);
   const [kindFilter, setKindFilter] = useState<'all' | 'engineer' | 'technician'>('all');
   const [busyRemove, setBusyRemove] = useState('');
   const canAllocate = user?.role === 'project_lead' || user?.role === 'manager';
@@ -25,6 +26,9 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
     try { const r = await api.capacity(); if (alive.current) { setData(r); setError(''); } } catch (e) { if (alive.current) setError(errorText(e, t, 'server.unexpected')); }
   }, [api, alive, t]);
   useEffect(() => { void load(); }, [load]);
+  // Las órdenes abiertas por persona vienen de Operations (solo gerencia y líder pueden leerlas): si no se pueden traer, la tarjeta no las muestra.
+  const canSeeOrders = user?.role === 'manager' || user?.role === 'project_lead';
+  useEffect(() => { if (!canSeeOrders) return; let live = true; api.workOrders().then((r) => { if (live) setOrders(r.filter((o) => o.status === 'open' || o.status === 'in_progress')); }).catch(() => { if (live) setOrders(null); }); return () => { live = false; }; }, [api, canSeeOrders]);
 
   const remove = async (engineer: CapacityEngineer, id: string, project: string) => {
     if (busyRemove) return;
@@ -58,6 +62,7 @@ export function CapacityView({ toast }: { toast: (m: string) => void }) {
               <p className={s.nums}>{t('capacity.summary', { load: e.loadToday, free: e.freeToday, peak: e.peakNext30 })}</p>
               <p className={s.tags}><strong>{t('capacity.skills')}:</strong> {e.skills.length ? e.skills.join(', ') : t('capacity.none')}</p>
               <p className={s.tags}><strong>{t('capacity.certs')}:</strong> {e.certifications.length ? e.certifications.join(', ') : t('capacity.none')}</p>
+              {orders !== null && <p className={s.tags} data-orders={e.name}><strong>{t('capacity.openOrders')}:</strong> {orders.filter((o) => o.assignedToId === e.id).map((o) => o.number).join(', ') || t('capacity.none')}</p>}
               {isManager && <DailyCost engineer={e} onSaved={() => void load()} toast={toast} />}
               <h4 className={s.sub}>{t('capacity.allocations')}</h4>
               {e.allocations.length === 0 ? <p className={ui.muted}>{t('capacity.noAllocations')}</p> : (

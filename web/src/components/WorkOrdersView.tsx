@@ -3,6 +3,7 @@ import { useAlive } from '../hooks/useAlive';
 import { errorText } from '../i18n/server';
 import { formatInstant } from '../lib/format';
 import type { WorkOrder, WorkOrderLogLine } from '../lib/types';
+import { StaffPicker, type StaffChoice } from './StaffPicker';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import s from './WorkOrdersView.module.css';
@@ -22,7 +23,7 @@ export function WorkOrdersView({ toast }: { toast: (m: string) => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const [log, setLog] = useState<WorkOrderLogLine[] | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
-  const [who, setWho] = useState('');
+  const [who, setWho] = useState<StaffChoice | null>(null);
   const inflight = useRef(false);
 
   const load = useCallback(async () => {
@@ -72,12 +73,12 @@ export function WorkOrdersView({ toast }: { toast: (m: string) => void }) {
                   {isManager && o.status === 'open' && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('wo.startFor', { n: o.number })} onClick={() => void status(o, 'in_progress')}>{t('wo.start')}</button>}
                   {isManager && active && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('wo.markDoneFor', { n: o.number })} onClick={() => void status(o, 'done')}>{t('wo.markDone')}</button>}
                   {isManager && active && <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('wo.cancelOrderFor', { n: o.number })} onClick={() => void status(o, 'cancelled')}>{t('wo.cancelOrder')}</button>}
-                  {isManager && active && assigning !== o.id && <button type="button" className={ui.btnGhost} aria-label={t('wo.assignFor', { n: o.number })} onClick={() => { setAssigning(o.id); setWho(o.assignedTo ?? ''); }}>{t('wo.assign')}</button>}
+                  {isManager && active && assigning !== o.id && <button type="button" className={ui.btnGhost} aria-label={t('wo.assignFor', { n: o.number })} onClick={() => { setAssigning(o.id); setWho(o.assignedToId && o.assignedTo ? { id: o.assignedToId, name: o.assignedTo } : null); }}>{t('wo.assign')}</button>}
                   <button type="button" className={ui.btnGhost} aria-expanded={open === o.id} aria-label={t('wo.historyFor', { n: o.number })} onClick={() => void history(o)}>{open === o.id ? t('wo.hide') : t('wo.history')}</button>
                 </div>
                 {assigning === o.id && (
-                  <form className={s.assign} noValidate onSubmit={(e) => { e.preventDefault(); void act(`${o.id}:assign`, async () => { const r = await api.assignWorkOrder(o.id, who.trim()); setAssigning(null); return t('wo.changed', { n: r.number, status: r.assignedTo ?? t('wo.noAssigned') }); }); }}>
-                    <label className={ui.field}><span>{t('wo.assignField', { n: o.number })}</span><input type="text" autoComplete="off" maxLength={100} value={who} onChange={(x) => setWho(x.target.value)} /></label>
+                  <form className={s.assign} noValidate onSubmit={(e) => { e.preventDefault(); void act(`${o.id}:assign`, async () => { const r = await api.assignWorkOrder(o.id, who?.name ?? '', who?.id); setAssigning(null); return t('wo.changed', { n: r.number, status: r.assignedTo ?? t('wo.noAssigned') }); }); }}>
+                    <StaffPicker label={t('wo.assignField', { n: o.number })} value={who} onChange={setWho} />
                     <button type="submit" className={ui.btn} disabled={!!busy}>{t('wo.assignSave')}</button>
                     <button type="button" className={ui.btnGhost} onClick={() => setAssigning(null)}>{t('wo.cancel')}</button>
                   </form>
