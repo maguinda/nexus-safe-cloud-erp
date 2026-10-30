@@ -34,6 +34,8 @@ model Invoice {
   /// A lo sumo una factura por hito: invariante a nivel de base de datos.
   milestoneId   String             @unique @map("milestone_id")
   projectName   String             @map("project_name")
+  /// El id del proyecto en Projects (lo trae MilestoneApproved); NULL en las facturas anteriores.
+  projectId     String?            @map("project_id")
   milestoneName String             @map("milestone_name")
   /// Subtotal (el monto del hito). IVA y total se calculan con la regla de dominio y la base verifica que cuadren.
   amountCop     Int                @map("amount_cop")
@@ -162,6 +164,8 @@ model Contract {
   id          String   @id @default(uuid()) @db.Uuid
   clientName  String   @map("client_name")
   projectName String   @map("project_name")
+  /// El proyecto del contrato, elegido de la lista de Projects.
+  projectId   String?  @map("project_id")
   amountCop   Int      @map("amount_cop")
   startDate   DateTime @map("start_date") @db.Date
   endDate     DateTime @map("end_date") @db.Date

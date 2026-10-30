@@ -6,7 +6,7 @@ export const MAX_CONTRACT_COP = 2_147_483_647;
 const NAME = /^[^<>\u0000-\u001f]{2,120}$/u;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-export interface ContractInput { clientName: string; projectName: string; amountCop: number; startDate: string; endDate: string }
+export interface ContractInput { clientName: string; projectName: string; projectId: string | null; amountCop: number; startDate: string; endDate: string }
 export interface Contract extends ContractInput { id: string; status: ContractStatus; createdAt: Date; createdBy: string }
 
 const clean = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
@@ -20,11 +20,13 @@ export function validateContract(i: Partial<Record<keyof ContractInput, unknown>
   const clientName = clean(i.clientName), projectName = clean(i.projectName);
   if (!NAME.test(clientName)) throw new InvalidContractError('clientName must be 2 to 120 characters without < > or control characters');
   if (!NAME.test(projectName)) throw new InvalidContractError('projectName must be 2 to 120 characters without < > or control characters');
+  const projectId = i.projectId === undefined || i.projectId === null || i.projectId === '' ? null : i.projectId;
+  if (projectId !== null && (typeof projectId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(projectId))) throw new InvalidContractError('projectId must be an id of Projects (letters, numbers, - and _)');
   const a = i.amountCop;
   if (typeof a !== 'number' || !Number.isInteger(a) || a < 1 || a > MAX_CONTRACT_COP) throw new InvalidContractError(`amountCop must be a whole number between 1 and ${MAX_CONTRACT_COP}`);
   const startDate = day(i.startDate, 'startDate'), endDate = day(i.endDate, 'endDate');
   if (endDate < startDate) throw new InvalidContractError('endDate cannot be before startDate');
-  return { clientName, projectName, amountCop: a, startDate, endDate };
+  return { clientName, projectName, projectId, amountCop: a, startDate, endDate };
 }
 
 /** Solo un contrato vigente puede cerrarse o cancelarse; los demás estados son finales. */

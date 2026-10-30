@@ -10,8 +10,8 @@ const customers: { name: string; key: string; nit: string; dv: number; email: st
 // Los hitos de la demo nacen de projects con estos mismos nombres de cliente; el cliente de cada factura sembrada va aquí porque ese seed tampoco publica eventos.
 const clientOf: Record<string, string> = { 'INV-0101': 'Banco Andino (example)', 'INV-0102': 'Retail Norte (example)' };
 const seeded = [
-  { number: 'INV-0101', milestoneId: 'm1', projectName: 'Branch network upgrade', milestoneName: 'Site survey', amountCop: 12_000_000, taxCop: 2_280_000, totalCop: 14_280_000, createdAt: new Date('2026-10-12T15:00:00Z') },
-  { number: 'INV-0102', milestoneId: 'm4', projectName: 'Retail POS integration', milestoneName: 'API contract', amountCop: 9_800_000, taxCop: 1_862_000, totalCop: 11_662_000, createdAt: new Date('2026-10-15T15:00:00Z') },
+  { number: 'INV-0101', milestoneId: 'm1', projectId: 'p1', projectName: 'Branch network upgrade', milestoneName: 'Site survey', amountCop: 12_000_000, taxCop: 2_280_000, totalCop: 14_280_000, createdAt: new Date('2026-10-12T15:00:00Z') },
+  { number: 'INV-0102', milestoneId: 'm4', projectId: 'p2', projectName: 'Retail POS integration', milestoneName: 'API contract', amountCop: 9_800_000, taxCop: 1_862_000, totalCop: 11_662_000, createdAt: new Date('2026-10-15T15:00:00Z') },
 ];
 
 async function main() {

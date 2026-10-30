@@ -33,7 +33,7 @@ export class ProjectsController {
   ) {}
 
   @Get('projects')
-  @Roles('project_lead', 'billing_analyst', 'sales')
+  @Roles('project_lead', 'billing_analyst', 'sales', 'manager')
   @ApiOperation({ summary: 'List projects with their approval progress' })
   projects() {
     return this.listProjects.execute();

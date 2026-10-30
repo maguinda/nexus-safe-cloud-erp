@@ -44,7 +44,7 @@ class PrismaInboxScope implements InboxScope {
 
   async insertInvoice(i: Invoice): Promise<void> {
     await this.tx.invoice.create({
-      data: { number: i.number, milestoneId: i.milestoneId, projectName: i.projectName, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt, sourceEventId: i.sourceEventId, approvedBy: i.approvedBy, approvedAt: i.approvedAt, clientName: i.clientName },
+      data: { number: i.number, milestoneId: i.milestoneId, projectName: i.projectName, projectId: i.projectId ?? null, milestoneName: i.milestoneName, amountCop: i.amountCop, taxCop: i.taxCop, totalCop: i.totalCop, status: i.status, createdAt: i.createdAt, sourceEventId: i.sourceEventId, approvedBy: i.approvedBy, approvedAt: i.approvedAt, clientName: i.clientName },
     });
   }
 }

@@ -7,6 +7,8 @@ export interface Invoice {
   number: string;
   milestoneId: string;
   projectName: string;
+  /** El id del proyecto (viene en MilestoneApproved); ausente o null en las facturas anteriores. */
+  projectId?: string | null;
   milestoneName: string;
   /** Subtotal (monto del hito, antes de IVA). */
   amountCop: number;

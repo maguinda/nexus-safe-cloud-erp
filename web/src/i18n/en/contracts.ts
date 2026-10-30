@@ -32,6 +32,8 @@ export const contracts: Record<keyof typeof es, string> = {
   'con.saved': 'Contract of {client} saved.',
   'con.changed': 'Contract updated.',
   'con.failed': 'Could not save the contract: {reason}',
+  'con.v.projectUnknown': 'Choose one of the projects in the list.',
+  'con.field.projectHint': 'Pick it from the list: that links the contract to the project.',
   'con.v.name': 'Write 2 to {max} characters, without < > or control characters.',
   'con.v.amount': 'The amount must be a whole number of pesos greater than 0 (no dots or commas).',
   'con.v.date': 'Choose a real date.',

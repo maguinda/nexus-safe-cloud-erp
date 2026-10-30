@@ -31,6 +31,8 @@ export const contracts = {
   'con.saved': 'Contrato de {client} guardado.',
   'con.changed': 'Contrato actualizado.',
   'con.failed': 'No se pudo guardar el contrato: {reason}',
+  'con.v.projectUnknown': 'Elige uno de los proyectos de la lista.',
+  'con.field.projectHint': 'Elígelo de la lista: así queda enlazado al proyecto.',
   'con.v.name': 'Escribe de 2 a {max} caracteres, sin < > ni caracteres de control.',
   'con.v.amount': 'El monto debe ser un número entero de pesos mayor que 0 (sin puntos ni comas).',
   'con.v.date': 'Elige una fecha real.',

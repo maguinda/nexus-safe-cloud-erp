@@ -24,6 +24,7 @@ export class HandleMilestoneApprovedUseCase {
         number: await tx.nextInvoiceNumber(),
         milestoneId: event.data.milestoneId,
         projectName: event.data.projectName,
+        projectId: event.data.projectId,
         milestoneName: event.data.milestoneName,
         amountCop: event.data.amountCop,
         taxCop,

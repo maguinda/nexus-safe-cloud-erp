@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import type { Api } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { errorText } from '../i18n/server';
@@ -64,12 +64,16 @@ export function AllocateForm({ api, engineer, isManager, onDone, onCancel }: { a
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value }));
   const id = `al-${engineer.id}`;
+  // Los proyectos salen de Projects (nada de teclear el nombre): si la lista no se pudo traer, se deja escribir.
+  const [projects, setProjects] = useState<string[] | null>(null);
+  useEffect(() => { let live = true; api.projects().then((p) => { if (live) setProjects(p.map((x) => x.name)); }).catch(() => { if (live) setProjects(null); }); return () => { live = false; }; }, [api]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const { errors: errs, value } = checkAllocation(t, f);
+    if (!errs.project && projects && !projects.includes(f.project.replace(/\s+/g, ' ').trim())) errs.project = t('capacity.v.projectUnknown');
     setErrors(errs);
-    if (!value) return;
+    if (!value || errs.project) return;
     setBusy(true);
     try {
       const r = await api.allocate(engineer.id, { ...value, ...(isManager && allowOver ? { allowOverallocation: true } : {}) });
@@ -83,7 +87,7 @@ export function AllocateForm({ api, engineer, isManager, onDone, onCancel }: { a
   const input = (k: 'project' | 'percent' | 'start' | 'end', label: Parameters<typeof t>[0], extra: object = {}) => (
     <label className={ui.field}>
       <span>{t(label)}</span>
-      <input type="text" autoComplete="off" value={f[k]} onChange={set(k)} aria-invalid={!!errors[k]} aria-describedby={errors[k] ? `${id}-${k}-err` : undefined} {...extra} />
+      <input type="text" autoComplete="off" list={k === 'project' && projects ? `${id}-projects` : undefined} value={f[k]} onChange={set(k)} aria-invalid={!!errors[k]} aria-describedby={errors[k] ? `${id}-${k}-err` : undefined} {...extra} />
       {errors[k] && <span id={`${id}-${k}-err`} className={ui.err}>{errors[k]}</span>}
     </label>
   );
@@ -91,6 +95,7 @@ export function AllocateForm({ api, engineer, isManager, onDone, onCancel }: { a
     <form onSubmit={submit} noValidate aria-label={t('capacity.allocateFor', { name: engineer.name })} className={ui.formCard}>
       <div className={ui.formGrid}>
         {input('project', 'capacity.field.project', { maxLength: 100 })}
+        {projects && <datalist id={`${id}-projects`}>{projects.map((p) => <option key={p} value={p} />)}</datalist>}
         {input('percent', 'capacity.field.percent', { inputMode: 'numeric', maxLength: 4 })}
         {input('start', 'capacity.field.start', { maxLength: 12, placeholder: '2026-11-02' })}
         {input('end', 'capacity.field.end', { maxLength: 12, placeholder: '2026-11-30' })}

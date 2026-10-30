@@ -262,6 +262,10 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - `PATCH /network/devices/:id/configure` (gerente): rol (no vale «pendiente»), criticidad e IP (hasta 4, IPv4 distintas). Una sola sentencia que solo toca filas con `source_order` (los 76 equipos del Excel no se editan por aquí). Web: panel «Equipos comprados por configurar» arriba de la pantalla Red (desaparece cuando no hay pendientes). Sin campo de sede (la tabla no lo tiene).
 - Pruebas: 17 unitarias + 10 e2e nuevos de operations (una mutación falla), 9 de web, el funcional de compras ahora completa un equipo, auditoría de diseño de Red con un nombre largo en 6 perfiles.
 
+## Proyectos elegidos de una lista y contratos enlazados por id (2026-10-30, 🟡)
+- Pedido de Marlon: al asignar un técnico no se traían los proyectos, y contratos/proyectos debían estar enlazados. Ahora el formulario de asignación (Capacidad) y el de contrato (Contratos) piden el proyecto de la lista de Projects (un nombre inventado se rechaza en el navegador). `GET /projects` también lo puede leer el gerente (solo la lista; hitos y aprobación siguen en 403).
+- Billing: `contracts.project_id` (el elegido) e `invoices.project_id` (lo trae `MilestoneApproved`); con id en el contrato, facturado y cobrado se suman SOLO por id (dos proyectos con el mismo nombre no se mezclan); sin id, por nombre como antes. Límite: Billing no puede comprobar que el id exista (no llama a Projects); lo garantiza la lista de la pantalla, y las facturas anteriores al cambio quedan sin id (las sembradas se ajustan en el seed y en `reset-demo.sh`). Capacity sigue guardando el NOMBRE del proyecto en las asignaciones (sin id): el enlace de ese lado sigue siendo por nombre.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 
