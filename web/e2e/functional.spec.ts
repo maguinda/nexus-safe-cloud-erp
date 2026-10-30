@@ -1360,6 +1360,36 @@ test('Contracts: manager creates one (the form warns first), billing closes it, 
   } finally { await manager.ctx.close(); await billing.ctx.close(); await lead.ctx.close(); await sales.ctx.close(); }
 });
 
+test('Project team: an allocation made in Capacity reaches the project through the event; sales does not see the team', async ({ browser }) => {
+  test.setTimeout(120_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'lead' | 'sales') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [lead, sales] = [await open('lead'), await open('sales')];
+  const iso = (offset: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
+  try {
+    await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+    await expect(lead.page.getByRole('heading', { name: 'Project team' })).toBeVisible();
+    await expect(lead.page.getByText('No engineers are allocated to this project yet in Technical Capacity.')).toBeVisible();
+    await lead.page.getByRole('navigation').getByRole('button', { name: 'Capacity', exact: true }).click();
+    await lead.page.getByRole('button', { name: 'Allocate Ana Torres' }).click();
+    const form = lead.page.getByRole('form', { name: 'Allocate Ana Torres' });
+    await form.getByLabel('The project').fill('Branch network upgrade'); await form.getByLabel('Percent (1 to 100)').fill('5');
+    await form.getByLabel('From (YYYY-MM-DD)').fill(iso(200)); await form.getByLabel('To (YYYY-MM-DD)').fill(iso(210));
+    await form.getByRole('button', { name: 'Save allocation' }).click();
+    await expect(lead.page.getByText('Ana Torres allocated to “Branch network upgrade” at 5%.')).toBeVisible();
+    await lead.page.getByRole('navigation').getByRole('button', { name: 'Projects' }).click();
+    await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+    await expect(async () => {
+      await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+      await expect(lead.page.locator('tr', { hasText: 'Ana Torres' }).filter({ hasText: '5 %' }).filter({ hasText: iso(200) })).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout: 30_000 });
+    await sales.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+    await expect(sales.page.getByRole('heading', { name: /^Milestones/ })).toBeVisible();
+    await expect(sales.page.getByRole('heading', { name: 'Project team' })).toHaveCount(0);
+  } finally { await lead.ctx.close(); await sales.ctx.close(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');

@@ -238,6 +238,10 @@ Las lecturas (`iot_readings`) solo crecían. Operations ahora borra, cada hora y
 - Billing: tabla `contracts` (cliente, proyecto, monto, vigencia, estado vigente/cerrado/cancelado; CHECK en la base), `POST/GET /contracts` y `PATCH /contracts/:id/status`. Crean y cierran gerencia y facturación; lee también el líder; ventas no. Facturado y cobrado salen de las facturas del MISMO proyecto (enlace por valor). El cambio de estado es un solo `UPDATE ... WHERE status='active'`: dos cambios a la vez, uno solo gana. Gateway: ruta `/contracts`. Web: pantalla «Contratos» (grupo «Negocio» para gerencia).
 - Pruebas: 18 unitarias + 14 e2e (30 rondas cerrar/cancelar; 2 mutaciones hacen fallar la prueba), web 673 unitarias, 1 funcional en Chromium y WebKit.
 
+## Equipo del proyecto FR-PRJ-05 (2026-10-30, 🟡)
+- Projects ahora CONSUME `EngineerAllocated` (cola `q.projects.team`, tabla `project_team`, idempotente por la clave de la asignación) y expone `GET /projects/:id/team` (líder, facturación, gerencia; ventas 403). Web: panel «Equipo del proyecto» bajo los hitos (se refresca solo cada 10 s). `setup-env` de projects fuerza `CONSUMER_ENABLED=false` (lección del jest colgado). `reset-demo.sh` borra `project_team`.
+- Pruebas: 17 unitarias del evento + 5 e2e con RabbitMQ real (repetido no va a muertos, inválidos sí; 2 mutaciones fallan), projects 72 unit + 95 e2e, 1 funcional en Chromium y WebKit.
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

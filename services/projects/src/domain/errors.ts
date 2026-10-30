@@ -10,3 +10,6 @@ export class MilestoneAlreadyApprovedError extends Error {
 export class InvalidInputError extends Error {
   constructor(message: string) { super(message); this.name = 'InvalidInputError'; }
 }
+
+/** Un evento recibido del bus no cumple el contrato: va a la cola de mensajes muertos, no se reintenta. */
+export class InvalidEventError extends Error {}

@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { Request } from 'express';
 import { ApproveMilestoneUseCase } from '../application/approve-milestone.use-case';
 import { CreateMilestoneUseCase, CreateProjectUseCase } from '../application/create.use-cases';
-import { ListMilestonesUseCase, ListProjectsUseCase } from '../application/queries.use-cases';
+import { ListMilestonesUseCase, ListProjectsUseCase, ListTeamUseCase } from '../application/queries.use-cases';
 import { AuthUser, Roles } from '../auth/auth.guard';
 import { Milestone } from '../domain/milestone';
 import { CreateMilestoneDto, CreateProjectDto } from './create.dto';
@@ -11,6 +11,7 @@ import { IdPipe } from './id.pipe';
 
 export const LIST_PROJECTS = 'LIST_PROJECTS';
 export const LIST_MILESTONES = 'LIST_MILESTONES';
+export const LIST_TEAM = 'LIST_TEAM';
 export const APPROVE_MILESTONE = 'APPROVE_MILESTONE';
 export const CREATE_PROJECT = 'CREATE_PROJECT';
 export const CREATE_MILESTONE = 'CREATE_MILESTONE';
@@ -25,6 +26,7 @@ export class ProjectsController {
   constructor(
     @Inject(LIST_PROJECTS) private readonly listProjects: ListProjectsUseCase,
     @Inject(LIST_MILESTONES) private readonly listMilestones: ListMilestonesUseCase,
+    @Inject(LIST_TEAM) private readonly listTeam: ListTeamUseCase,
     @Inject(APPROVE_MILESTONE) private readonly approveMilestone: ApproveMilestoneUseCase,
     @Inject(CREATE_PROJECT) private readonly createProject: CreateProjectUseCase,
     @Inject(CREATE_MILESTONE) private readonly createMilestone: CreateMilestoneUseCase,
@@ -35,6 +37,14 @@ export class ProjectsController {
   @ApiOperation({ summary: 'List projects with their approval progress' })
   projects() {
     return this.listProjects.execute();
+  }
+
+  @Get('projects/:projectId/team')
+  @Roles('project_lead', 'billing_analyst', 'manager')
+  @ApiOperation({ summary: 'Engineers allocated to a project (built from the EngineerAllocated event; no costs)' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  team(@Param('projectId', new IdPipe()) projectId: string) {
+    return this.listTeam.execute(projectId);
   }
 
   @Get('projects/:projectId/milestones')

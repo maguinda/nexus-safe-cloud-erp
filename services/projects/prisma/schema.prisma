@@ -50,3 +50,17 @@ model OutboxEvent {
   @@index([publishedAt])
   @@map("outbox_events")
 }
+
+/// Quién trabaja en cada proyecto (evento EngineerAllocated). Se enlaza con `projects.name` por valor.
+model ProjectTeamMember {
+  allocationId String   @id @map("allocation_id") @db.Uuid
+  engineerName String   @map("engineer_name")
+  projectName  String   @map("project_name")
+  percent      Int
+  periodStart  DateTime @map("period_start") @db.Date
+  periodEnd    DateTime @map("period_end") @db.Date
+  occurredAt   DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([projectName])
+  @@map("project_team")
+}

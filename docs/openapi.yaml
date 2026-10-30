@@ -300,6 +300,30 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /projects/{projectId}/team:
+    get:
+      tags: [Projects]
+      operationId: listProjectTeam
+      summary: Engineers allocated to the project, built from the EngineerAllocated event (roles project_lead, billing_analyst, manager; sales gets 403)
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, example: p1 } }
+      responses:
+        '200':
+          description: Up to 200 rows, by start date and engineer name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    engineerName: { type: string }
+                    percent: { type: integer, minimum: 1, maximum: 100 }
+                    periodStart: { type: string, format: date }
+                    periodEnd: { type: string, format: date }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /projects/{projectId}/milestones:
     get:
       tags: [Projects]
