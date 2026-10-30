@@ -35,6 +35,8 @@ model MilestoneFact {
   /// Cuándo se supo que la factura venció (evento OverdueDetected) y cuántos días llevaba entonces; null si no ha vencido.
   overdueAt     DateTime?      @map("overdue_at")
   overdueDays   Int?           @map("overdue_days")
+  /// Lo pagado en total contra su factura (evento PaymentReceived: el máximo visto).
+  paidCop       Int            @default(0) @map("paid_cop")
   updatedAt     DateTime       @default(now()) @map("updated_at")
 
   @@index([projectName])

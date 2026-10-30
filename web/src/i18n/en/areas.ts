@@ -15,3 +15,4 @@ export { einvoice } from './einvoice';
 export { notifications } from './notifications';
 export { capacity } from './capacity';
 export { procurement } from './procurement';
+export { payments } from './payments';

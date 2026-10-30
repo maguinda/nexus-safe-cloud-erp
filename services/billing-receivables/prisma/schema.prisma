@@ -12,6 +12,21 @@ enum InvoiceStatus {
   issued
 }
 
+/// Pagos contra facturas emitidas (solo se agregan; ver la migración 0006).
+model Payment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceNumber String   @map("invoice_number")
+  amountCop     Int      @map("amount_cop")
+  method        String
+  reference     String?
+  paidAt        DateTime @default(now()) @map("paid_at") @db.Timestamptz(6)
+  registeredBy  String   @map("registered_by")
+  invoice       Invoice  @relation(fields: [invoiceNumber], references: [number])
+
+  @@index([invoiceNumber])
+  @@map("payments")
+}
+
 model Invoice {
   id            String             @id @default(uuid()) @db.Uuid
   /// INV-0001... generado con la secuencia invoice_number_seq (ver la migración)
@@ -37,6 +52,7 @@ model Invoice {
   /// El cliente del proyecto (viene en MilestoneApproved); null en las facturas anteriores a ese campo.
   clientName    String?            @map("client_name")
   electronic    ElectronicInvoice?
+  payments      Payment[]
 
   @@index([createdAt])
   @@map("invoices")

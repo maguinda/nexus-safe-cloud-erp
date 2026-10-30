@@ -33,7 +33,13 @@ export async function wipeEInvoices(prisma: PrismaClient) {
   ]);
 }
 
+/** Los pagos son de solo agregar: el trigger de la base los protege y esta es la única forma de limpiarlos (la declara a propósito, solo en esta transacción). */
+export async function wipePayments(prisma: PrismaClient) {
+  await prisma.$transaction(async (tx) => { await tx.$executeRaw`SELECT set_config('erp.allow_payment_delete', 'on', true)`; await tx.$executeRaw`DELETE FROM payments`; });
+}
+
 export async function resetState(prisma: PrismaClient) {
+  await wipePayments(prisma);
   await wipeEInvoices(prisma);
   await prisma.customer.deleteMany();
   await prisma.$executeRaw`UPDATE einvoice_numbering SET next_number = range_from, range_to = 1999, valid_from = '2026-01-01T05:00:00Z', valid_to = '2028-01-01T04:59:59Z' WHERE id = 1`;

@@ -1286,6 +1286,46 @@ test('Procurement: buy → receive (the stock goes up once) → adjust (never be
   } finally { await ctx.close(); deleteOldReadings(); }
 });
 
+test('Payments: the billing analyst registers a partial and then the final payment; an over-payment is refused; the manager sees what was collected; the lead cannot register', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'billing' | 'manager' | 'lead') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [billing, manager, lead] = [await open('billing'), await open('manager'), await open('lead')];
+  try {
+    await billing.page.getByRole('navigation').getByRole('button', { name: 'Invoices' }).click();
+    const card = billing.page.locator('[data-invoice="INV-0102"]');
+    await expect(card).toContainText('Unpaid'); await expect(card).toContainText('Balance: 11.662.000 COP');
+    await card.getByRole('button', { name: 'Register a payment for invoice INV-0102' }).click();
+    const form = billing.page.getByRole('form', { name: 'Register a payment for invoice INV-0102' });
+    // El formulario avisa sin enviar.
+    await form.getByRole('button', { name: 'Save payment' }).click();
+    await expect(form.getByText('The amount must be a whole number of pesos greater than 0 (no dots or commas).')).toBeVisible();
+    await expect(form.getByText('Choose a payment method.')).toBeVisible();
+    await form.getByLabel(/Amount in pesos/).fill('1000000'); await form.getByRole('button', { name: 'Transfer' }).click(); await form.getByLabel('Reference (optional)').fill('Bank transfer 8841');
+    await form.getByRole('button', { name: 'Save payment' }).click();
+    await expect(billing.page.getByText('Payment of 1.000.000 COP registered on INV-0102: balance 10.662.000 COP.')).toBeVisible();
+    await expect(card).toContainText('Partly paid'); await expect(card).toContainText('Paid: 1.000.000 COP');
+    // Un pago de más no se envía: el navegador lo avisa con el saldo.
+    await card.getByRole('button', { name: 'Register a payment for invoice INV-0102' }).click();
+    const form2 = billing.page.getByRole('form', { name: 'Register a payment for invoice INV-0102' });
+    await form2.getByLabel(/Amount in pesos/).fill('10662001'); await form2.getByRole('button', { name: 'Cash' }).click(); await form2.getByRole('button', { name: 'Save payment' }).click();
+    await expect(form2.getByText(/cannot be above the balance of the invoice/)).toBeVisible();
+    await form2.getByLabel(/Amount in pesos/).fill('10662000'); await form2.getByRole('button', { name: 'Save payment' }).click();
+    await expect(billing.page.getByText('the invoice is now paid.')).toBeVisible();
+    await expect(card).toContainText('Paid'); await expect(card.getByRole('button', { name: /Register a payment/ })).toHaveCount(0);
+    await card.getByRole('button', { name: 'See the payments of invoice INV-0102' }).click();
+    await expect(card.getByRole('listitem')).toHaveCount(2);
+    await expect(card).toContainText('Bank transfer 8841');
+    // Gerencia ve lo cobrado en el tablero (se refresca solo).
+    await expect(manager.page.getByText('Collected', { exact: true })).toBeVisible();
+    await expect(manager.page.getByText('11.662.000 COP with IVA').first()).toBeVisible({ timeout: 60_000 });
+    // El líder no tiene el panel de pagos.
+    await lead.page.getByRole('navigation').getByRole('button', { name: 'Invoices' }).click();
+    await expect(lead.page.getByRole('heading', { name: 'Payments', exact: true })).toHaveCount(0);
+  } finally { await billing.ctx.close(); await manager.ctx.close(); await lead.ctx.close(); }
+});
+
 test('Invoices: the list stops asking the server while the tab is hidden and refreshes at once when it comes back', async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as { __vis: string }).__vis = 'hidden'; Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (window as unknown as { __vis: string }).__vis }); });
   await openAs(page, 'lead');

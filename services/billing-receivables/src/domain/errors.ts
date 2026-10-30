@@ -27,3 +27,15 @@ export class EInvoiceNotFoundError extends Error {
 export class NumberingExhaustedError extends Error {
   constructor() { super('The authorized numbering range is exhausted'); this.name = 'NumberingExhaustedError'; }
 }
+/** El pago no cumple el contrato (monto, medio, referencia): 400. */
+export class InvalidPaymentError extends Error {
+  constructor(reason: string) { super(`Invalid payment: ${reason}`); this.name = 'InvalidPaymentError'; }
+}
+/** Solo se cobra una factura EMITIDA (409). */
+export class PaymentNotAllowedError extends Error {
+  constructor(n: string) { super(`Invoice ${n} is not issued: only issued invoices can receive payments`); this.name = 'PaymentNotAllowedError'; }
+}
+/** El pago pasaría del saldo de la factura (409). */
+export class OverpaymentError extends Error {
+  constructor(public readonly balanceCop: number) { super(`The payment is higher than the balance of the invoice (${balanceCop} COP)`); this.name = 'OverpaymentError'; }
+}

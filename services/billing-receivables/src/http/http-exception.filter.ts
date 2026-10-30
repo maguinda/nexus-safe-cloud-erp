@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { DeliveryLimitError, EInvoiceNotFoundError, EInvoiceNotReadyError, InvalidCustomerError, InvoiceNotDraftError, InvoiceNotFoundError, NumberingExhaustedError } from '../domain/errors';
+import { InvalidPaymentError, OverpaymentError, PaymentNotAllowedError, DeliveryLimitError, EInvoiceNotFoundError, EInvoiceNotReadyError, InvalidCustomerError, InvoiceNotDraftError, InvoiceNotFoundError, NumberingExhaustedError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (docs/openapi.yaml, schema Error). */
 @Catch()
@@ -21,6 +21,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
     } else if (err instanceof InvalidCustomerError) {
       statusCode = 400; error = 'Bad Request'; message = err.message;
     } else if (err instanceof EInvoiceNotReadyError || err instanceof NumberingExhaustedError || err instanceof DeliveryLimitError) {
+      statusCode = 409; error = 'Conflict'; message = err.message;
+    } else if (err instanceof InvalidPaymentError) {
+      statusCode = 400; error = 'Bad Request'; message = err.message;
+    } else if (err instanceof PaymentNotAllowedError || err instanceof OverpaymentError) {
       statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof InvoiceNotDraftError) {
       statusCode = 409; error = 'Conflict'; message = err.message;

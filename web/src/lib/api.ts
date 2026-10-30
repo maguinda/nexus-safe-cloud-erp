@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -100,6 +100,8 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     notificationRead: (id: string) => request<void>('POST', `/notifications/${encodeURIComponent(id)}/read`),
     notificationsReadAll: () => request<{ marked: number }>('POST', '/notifications/read-all'),
     invoices: () => request<Invoice[]>('GET', '/invoices'),
+    payments: (n: string) => request<InvoicePayment[]>('GET', `/invoices/${encodeURIComponent(n)}/payments`),
+    registerPayment: (n: string, b: { amountCop: number; method: string; reference?: string }) => request<InvoicePayment & { paidCop: number; balanceCop: number; paymentStatus: string }>('POST', `/invoices/${encodeURIComponent(n)}/payments`, b),
     /** Factura electrónica de PRUEBA (sandbox, sin validez legal). El XML y el HTML llegan como texto: llevan datos fiscales del cliente y solo los pide el analista de facturación. */
     customers: () => request<(Customer & { updatedAt: string })[]>('GET', '/customers'),
     putCustomer: (c: CustomerInput) => request<Customer>('PUT', '/customers', c),

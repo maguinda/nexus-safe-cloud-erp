@@ -23,6 +23,8 @@ export interface Dashboard {
     milestonesPending: { count: number; cop: number };
     /** Facturas vencidas: cuántas y cuánto suman (con IVA). Una vez vencida, sigue vencida: este MVP no tiene pagos. */
     overdue: { count: number; totalCop: number };
+    /** Lo cobrado: pesos recibidos en pagos y cuántas facturas ya están pagadas del todo. */
+    collected: { totalCop: number; paidInvoices: number };
     milestonesApproved: number;
     approvedCop: number;
     waitingForInvoice: { count: number; cop: number };
@@ -46,7 +48,7 @@ export function buildDashboard(facts: Fact[], activity: ActivityItem[], eventsPr
     return r;
   };
   const totals: Dashboard['totals'] = {
-    milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 0, subtotalCop: 0, taxCop: 0, totalCop: 0 },
+    milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, collected: { totalCop: 0, paidInvoices: 0 }, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 0, subtotalCop: 0, taxCop: 0, totalCop: 0 },
   };
   for (const f of facts) {
     const r = row(f.projectName);
@@ -55,7 +57,10 @@ export function buildDashboard(facts: Fact[], activity: ActivityItem[], eventsPr
       totals.milestonesApproved++; totals.approvedCop += f.amountCop; r.milestonesApproved++; r.approvedCop += f.amountCop;
       if (!f.invoiceNumber) { totals.waitingForInvoice.count++; totals.waitingForInvoice.cop += f.amountCop; r.waitingForInvoice++; }
     }
-    if (f.overdueAt) { totals.overdue.count++; totals.overdue.totalCop += f.totalCop ?? 0; r.overdueInvoices++; }
+    const paidInFull = f.totalCop !== null && f.totalCop > 0 && f.paidCop >= f.totalCop;
+    totals.collected.totalCop += f.paidCop; if (paidInFull) totals.collected.paidInvoices++;
+    // Vencida y SIN pagar del todo: una factura pagada ya no está por cobrar.
+    if (f.overdueAt && !paidInFull) { totals.overdue.count++; totals.overdue.totalCop += f.totalCop ?? 0; r.overdueInvoices++; }
     if (f.invoiceStatus === 'draft') { totals.draft.count++; totals.draft.totalCop += f.totalCop ?? 0; r.draftTotalCop += f.totalCop ?? 0; }
     if (f.invoiceStatus === 'issued') {
       totals.issued.count++; totals.issued.subtotalCop += f.amountCop; totals.issued.taxCop += f.taxCop ?? 0; totals.issued.totalCop += f.totalCop ?? 0; r.issuedTotalCop += f.totalCop ?? 0;

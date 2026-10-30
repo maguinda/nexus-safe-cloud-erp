@@ -14,6 +14,7 @@ const env = (type: string, data: any, over: any = {}) => ({ eventId: randomUUID(
 const approved = (n: string | number, over: any = {}) => env('MilestoneApproved', { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, approvedBy: 'laura.rios@nexus.example', ...over });
 const created = (n: string | number, over: any = {}) => env('MilestoneCreated', { milestoneId: `t${n}`, milestoneName: `Milestone ${n}`, projectId: 'p1', projectName: 'Branch network upgrade', amountCop: 1_000_000, ...over });
 const overdue = (n: string | number, over: any = {}) => env('OverdueDetected', { ...inv(n), dueDate: '2026-10-20T15:00:00.000Z', daysOverdue: 9, ...over });
+const payEv = (n: string | number, data: any = {}) => env('PaymentReceived', { invoiceNumber: 'INV-0103', milestoneId: `t${n}`, projectName: 'Branch network upgrade', milestoneName: `Milestone ${n}`, totalCop: 1_190_000, paymentCop: 500_000, paidCop: 500_000, balanceCop: 690_000, paidInFull: false, method: 'transfer', ...data });
 const drafted = (n: string | number, over: any = {}) => env('InvoiceDrafted', { ...inv(n), approvedBy: 'laura.rios@nexus.example', ...over });
 const issued = (n: string | number, over: any = {}) => env('InvoiceIssued', { ...inv(n), issuedBy: 'andres.mora@nexus.example', ...over });
 
@@ -193,5 +194,36 @@ describe('analytics consumer (e2e, real PostgreSQL and RabbitMQ)', () => {
     toQueue(overdue(44, { totalCop: 5 }));
     expect(await waitUntil(async () => (await dlq()) === 2)).toBe(true);
     expect(await fact('t43')).toBeNull(); expect(await fact('t44')).toBeNull();
+  });
+
+  it('PaymentReceived (real routing key) records what was paid; a repeat changes nothing; a fully paid overdue invoice leaves the overdue count', async () => {
+    toQueue(approved(51)); toQueue(drafted(51, { invoiceNumber: 'INV-5101' })); toQueue(issued(51, { invoiceNumber: 'INV-5101' }));
+    expect(await waitUntil(async () => (await fact('t51'))?.invoiceStatus === 'issued')).toBe(true);
+    ch.publish(EXCHANGE, 'billing.invoice.overdue', Buffer.from(JSON.stringify(overdue(51, { invoiceNumber: 'INV-5101' }))), { persistent: true });
+    expect(await waitUntil(async () => (await fact('t51'))?.overdueAt != null)).toBe(true);
+    expect((await dashboard()).body.totals.overdue.count).toBe(1);
+    const p1 = payEv(51, { invoiceNumber: 'INV-5101' });
+    ch.publish(EXCHANGE, 'billing.payment.received', Buffer.from(JSON.stringify(p1)), { persistent: true });
+    ch.publish(EXCHANGE, 'billing.payment.received', Buffer.from(JSON.stringify(p1)), { persistent: true });
+    expect(await waitUntil(async () => (await fact('t51'))?.paidCop === 500_000)).toBe(true);
+    let d = (await dashboard()).body;
+    expect(d.totals.collected).toEqual({ totalCop: 500_000, paidInvoices: 0 }); expect(d.totals.overdue.count).toBe(1); // pagada a medias: sigue vencida
+    toQueue(payEv(51, { invoiceNumber: 'INV-5101', paymentCop: 690_000, paidCop: 1_190_000, balanceCop: 0, paidInFull: true }));
+    expect(await waitUntil(async () => (await fact('t51'))?.paidCop === 1_190_000)).toBe(true);
+    d = (await dashboard()).body;
+    expect(d.totals.collected).toEqual({ totalCop: 1_190_000, paidInvoices: 1 }); expect(d.totals.overdue).toEqual({ count: 0, totalCop: 0 });
+    expect((await prisma.activityEntry.findMany({ where: { kind: 'PaymentReceived' }, orderBy: { occurredAt: 'asc' } })).map((a) => a.message)).toEqual([
+      'Payment of 500.000 COP for invoice INV-5101 · balance 690.000 COP', 'Payment of 690.000 COP for invoice INV-5101 · paid in full']);
+  });
+
+  it('a payment that arrives BEFORE the invoice events is kept and merged (order does not matter); inconsistent payments go to the dead-letter queue', async () => {
+    toQueue(payEv(52, { invoiceNumber: 'INV-5201' }));
+    expect(await waitUntil(async () => (await fact('t52'))?.paidCop === 500_000)).toBe(true);
+    toQueue(approved(52)); toQueue(drafted(52, { invoiceNumber: 'INV-5201' })); toQueue(issued(52, { invoiceNumber: 'INV-5201' }));
+    expect(await waitUntil(async () => (await fact('t52'))?.invoiceStatus === 'issued')).toBe(true);
+    expect(await fact('t52')).toMatchObject({ paidCop: 500_000, approvedBy: 'laura.rios@nexus.example' });
+    toQueue(payEv(53, { paidCop: 1 })); toQueue(payEv(54, { method: 'bitcoin' }));
+    expect(await waitUntil(async () => (await dlq()) === 2)).toBe(true);
+    expect(await fact('t53')).toBeNull(); expect(await fact('t54')).toBeNull();
   });
 });

@@ -12,6 +12,8 @@ const approved = (over: any = {}) => ({ ...base(1, T0), type: 'MilestoneApproved
 const drafted = (over: any = {}) => ({ ...base(2, T1), type: 'InvoiceDrafted', data: { ...inv, approvedBy: 'laura.rios@nexus.example', ...over } });
 const T3 = '2026-11-20T00:00:00.000Z';
 const overdue = (over: any = {}) => ({ ...base(5, T3), type: 'OverdueDetected', data: { ...inv, dueDate: '2026-11-17T15:00:00.000Z', daysOverdue: 3, ...over } });
+const T4 = '2026-11-25T00:00:00.000Z';
+const pay = (over: any = {}, n = 6, at = T4) => ({ ...base(n, at), type: 'PaymentReceived', data: { invoiceNumber: 'INV-0103', milestoneId: 'm2', projectName: 'Branch network upgrade', milestoneName: 'Link redundancy design', totalCop: 22_015_000, paymentCop: 10_000_000, paidCop: 10_000_000, balanceCop: 12_015_000, paidInFull: false, method: 'transfer', paymentId: '5a1c0e2f-1111-4b2c-8d3e-9f0a1b2c3d4e', ...over } });
 const issued = (over: any = {}) => ({ ...base(3, T2), type: 'InvoiceIssued', data: { ...inv, issuedBy: 'andres.mora@nexus.example', ...over } });
 
 describe('parseEvent', () => {
@@ -48,7 +50,7 @@ describe('mergeEvent', () => {
     expect(fold(evs())).toEqual({
       milestoneId: 'm2', projectId: 'p1', projectName: 'Branch network upgrade', milestoneName: 'Link redundancy design', amountCop: 18_500_000, createdAt: null, overdueAt: null, overdueDays: null,
       approvedBy: 'laura.rios@nexus.example', approvedAt: new Date(T0), invoiceNumber: 'INV-0103', invoiceStatus: 'issued', taxCop: 3_515_000, totalCop: 22_015_000,
-      draftedAt: new Date(T1), issuedAt: new Date(T2),
+      draftedAt: new Date(T1), issuedAt: new Date(T2), paidCop: 0,
     });
   });
   it('MilestoneCreated alone makes a pending fact (created, not approved, no invoice)', () => {
@@ -66,6 +68,17 @@ describe('mergeEvent', () => {
     expect(f).toMatchObject({ invoiceStatus: 'issued', overdueAt: new Date(T3), overdueDays: 3 });
     const alone = fold([parseEvent(overdue())]);
     expect(alone).toMatchObject({ invoiceNumber: 'INV-0103', overdueAt: new Date(T3), overdueDays: 3, invoiceStatus: null, approvedAt: null });
+  });
+  it('a payment event accumulates as the highest total paid, in any order and when repeated', () => {
+    const p1 = parseEvent(pay()), p2 = parseEvent(pay({ paymentCop: 12_015_000, paidCop: 22_015_000, balanceCop: 0, paidInFull: true }, 7, '2026-11-26T00:00:00.000Z'));
+    expect(fold([p1, p2]).paidCop).toBe(22_015_000); expect(fold([p2, p1]).paidCop).toBe(22_015_000); expect(fold([p1, p1, p2, p1]).paidCop).toBe(22_015_000);
+    expect(fold([p1])).toMatchObject({ paidCop: 10_000_000, invoiceNumber: 'INV-0103', totalCop: 22_015_000, invoiceStatus: null });
+  });
+  it('with ALL SIX events (including two payments) the fact is the same in every one of the 720 arrival orders', () => {
+    const all = [created(), approved(), drafted(), issued(), overdue(), pay()].map((e) => parseEvent(e));
+    const expected = fold(all);
+    expect(expected).toMatchObject({ paidCop: 10_000_000, overdueAt: new Date(T3), invoiceStatus: 'issued' });
+    for (const p of perms(all)) expect(fold(p)).toEqual(expected);
   });
   it('with ALL FIVE events the fact is the same in every one of the 120 arrival orders', () => {
     const all = [created(), approved(), drafted(), issued(), overdue()].map((e) => parseEvent(e));
@@ -106,6 +119,18 @@ describe('mergeEvent', () => {
   });
 });
 
+describe('payment events', () => {
+  it('parses a valid payment and refuses the inconsistent ones', () => {
+    expect(parseEvent(pay()).type).toBe('PaymentReceived');
+    for (const over of [{ paymentCop: 0 }, { paidCop: 5 }, { balanceCop: 1 }, { paidInFull: true }, { paymentCop: 30_000_000, paidCop: 30_000_000 }, { method: 'bitcoin' }, { invoiceNumber: 'X1' }, { totalCop: 0 }, { paidInFull: 'yes' }])
+      expect(() => parseEvent(pay(over))).toThrow(InvalidEventError);
+  });
+  it('says what was paid and what remains', () => {
+    expect(describeEvent(parseEvent(pay()))).toBe('Payment of 10.000.000 COP for invoice INV-0103 · balance 12.015.000 COP');
+    expect(describeEvent(parseEvent(pay({ paymentCop: 12_015_000, paidCop: 22_015_000, balanceCop: 0, paidInFull: true })))).toBe('Payment of 12.015.000 COP for invoice INV-0103 · paid in full');
+  });
+});
+
 describe('describe', () => {
   it('says an invoice is overdue, with the days (singular and plural)', () => {
     expect(describeEvent(parseEvent(overdue()))).toBe('Invoice INV-0103 is overdue by 3 days · total 22.015.000 COP');
@@ -123,13 +148,23 @@ describe('describe', () => {
 });
 
 describe('buildDashboard', () => {
-  const fact = (o: Partial<Fact>): Fact => ({ milestoneId: 'x', projectId: 'p', projectName: 'A', milestoneName: 'M', amountCop: 1000, createdAt: null, overdueAt: null, overdueDays: null, approvedBy: 'a@x.co', approvedAt: new Date(T0), invoiceNumber: null, invoiceStatus: null, taxCop: null, totalCop: null, draftedAt: null, issuedAt: null, ...o });
+  const fact = (o: Partial<Fact>): Fact => ({ milestoneId: 'x', projectId: 'p', projectName: 'A', milestoneName: 'M', amountCop: 1000, createdAt: null, overdueAt: null, overdueDays: null, approvedBy: 'a@x.co', approvedAt: new Date(T0), invoiceNumber: null, invoiceStatus: null, taxCop: null, totalCop: null, draftedAt: null, issuedAt: null, paidCop: 0, ...o });
   const act = (n: number, lagMs: number): ActivityItem => ({ kind: 'MilestoneApproved', message: `m${n}`, occurredAt: new Date(T0), receivedAt: new Date(Date.parse(T0) + lagMs) });
   const NOW = new Date('2026-10-18T10:10:00Z');
 
+  it('collected adds up the payments; an invoice paid in full is not overdue, a partly paid one still is', () => {
+    const d = buildDashboard([
+      fact({ milestoneId: 'a', invoiceNumber: 'INV-1', invoiceStatus: 'issued', totalCop: 1000, taxCop: 0, overdueAt: new Date(T0), overdueDays: 2, paidCop: 1000 }),
+      fact({ milestoneId: 'b', invoiceNumber: 'INV-2', invoiceStatus: 'issued', totalCop: 1000, taxCop: 0, overdueAt: new Date(T0), overdueDays: 2, paidCop: 400 }),
+      fact({ milestoneId: 'c', invoiceNumber: 'INV-3', invoiceStatus: 'issued', totalCop: 1000, taxCop: 0, paidCop: 0 }),
+    ], [], 3, NOW);
+    expect(d.totals.collected).toEqual({ totalCop: 1400, paidInvoices: 1 });
+    expect(d.totals.overdue).toEqual({ count: 1, totalCop: 1000 });
+    expect(d.projects[0].overdueInvoices).toBe(1);
+  });
   it('is empty-safe', () => {
     const d = buildDashboard([], [], 0, NOW);
-    expect(d.totals).toEqual({ milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 0, subtotalCop: 0, taxCop: 0, totalCop: 0 } });
+    expect(d.totals).toEqual({ milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, collected: { totalCop: 0, paidInvoices: 0 }, milestonesApproved: 0, approvedCop: 0, waitingForInvoice: { count: 0, cop: 0 }, draft: { count: 0, totalCop: 0 }, issued: { count: 0, subtotalCop: 0, taxCop: 0, totalCop: 0 } });
     expect(d.projects).toEqual([]); expect(d.freshness).toEqual({ lastEventAt: null, lastEventLagMs: null, eventsProcessed: 0 });
   });
   it('adds up approved, waiting, draft and issued amounts', () => {
@@ -140,7 +175,7 @@ describe('buildDashboard', () => {
       fact({ milestoneId: 'd', projectName: 'B', amountCop: 500, invoiceNumber: 'INV-3', invoiceStatus: 'issued', taxCop: 95, totalCop: 595 }),
     ];
     const d = buildDashboard(facts, [act(1, 120)], 9, NOW);
-    expect(d.totals).toEqual({ milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, milestonesApproved: 4, approvedCop: 7500, waitingForInvoice: { count: 1, cop: 1000 }, draft: { count: 1, totalCop: 2380 }, issued: { count: 2, subtotalCop: 4500, taxCop: 855, totalCop: 5355 } });
+    expect(d.totals).toEqual({ milestonesPending: { count: 0, cop: 0 }, overdue: { count: 0, totalCop: 0 }, collected: { totalCop: 0, paidInvoices: 0 }, milestonesApproved: 4, approvedCop: 7500, waitingForInvoice: { count: 1, cop: 1000 }, draft: { count: 1, totalCop: 2380 }, issued: { count: 2, subtotalCop: 4500, taxCop: 855, totalCop: 5355 } });
     expect(d.projects).toEqual([
       { projectName: 'A', milestonesPending: 0, milestonesApproved: 3, approvedCop: 7000, waitingForInvoice: 1, draftTotalCop: 2380, issuedTotalCop: 4760, overdueInvoices: 0 },
       { projectName: 'B', milestonesPending: 0, milestonesApproved: 1, approvedCop: 500, waitingForInvoice: 0, draftTotalCop: 0, issuedTotalCop: 595, overdueInvoices: 0 },
