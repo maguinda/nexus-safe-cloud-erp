@@ -14,6 +14,10 @@ import { AdvisorController, GET_ADVICE } from './http/advisor.controller';
 import { HealthController } from './http/health.controller';
 import { EXPLORE_NETWORK, GET_NETWORK, NetworkController } from './http/network.controller';
 import { EXPLORE_READINGS, GET_TELEMETRY, GET_TRENDS, INGEST_READINGS, TelemetryController } from './http/telemetry.controller';
+import { DeleteOldReadingsUseCase } from './application/delete-old-readings.use-case';
+import { PrismaReadingRetention } from './infrastructure/prisma-reading-retention';
+import { RetentionScheduler } from './infrastructure/retention-scheduler';
+import { retentionCutoff } from './domain/retention';
 import { OutboxRelay } from './infrastructure/outbox-relay';
 import { AnthropicAdviceWriter } from './infrastructure/anthropic-advice-writer';
 import { PrismaNetworkExplorer } from './infrastructure/prisma-network-explorer';
@@ -26,6 +30,7 @@ import { PrismaTrendsQueries } from './infrastructure/prisma-trends-queries';
 const prisma = new PrismaClient();
 const cfg = () => loadConfig();
 let relay: OutboxRelay | undefined;
+let retention: RetentionScheduler | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
@@ -62,11 +67,19 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
       relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs });
       relay.start();
     }
+    // Falla al arrancar si el plazo es peligroso (menos de 30 días): mejor que borrar de más.
+    retentionCutoff(new Date(), c.retentionDays);
+    if (c.retentionDays > 0 && process.env.RETENTION_ENABLED !== 'false') {
+      retention = new RetentionScheduler(new DeleteOldReadingsUseCase(new PrismaReadingRetention(prisma), c.retentionDays), c.retentionCheckMs);
+      retention.start();
+    }
   }
 
   async onModuleDestroy() {
     await relay?.stop();
     relay = undefined;
+    await retention?.stop();
+    retention = undefined;
     await prisma.$disconnect();
   }
 }

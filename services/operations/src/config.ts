@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { DEFAULT_RETENTION_DAYS } from './domain/retention';
 
 export interface Config {
   port: number;
@@ -9,6 +10,8 @@ export interface Config {
   rabbitUrl: string;
   outboxPollMs: number;
   relayEnabled: boolean;
+  retentionDays: number;
+  retentionCheckMs: number;
 }
 
 function required(name: string): string {
@@ -27,5 +30,8 @@ export function loadConfig(): Config {
     rabbitUrl: required('RABBITMQ_URL'),
     outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
     relayEnabled: process.env.RELAY_ENABLED !== 'false',
+    // Lecturas de sensores: se guardan 365 días por defecto; RETENTION_DAYS=0 las guarda para siempre. Un plazo inválido (menos de 30 días) detiene el arranque.
+    retentionDays: process.env.RETENTION_DAYS === undefined || process.env.RETENTION_DAYS === '' ? DEFAULT_RETENTION_DAYS : Number(process.env.RETENTION_DAYS),
+    retentionCheckMs: Math.max(1000, Number(process.env.RETENTION_CHECK_MS ?? 3_600_000) || 3_600_000),
   };
 }

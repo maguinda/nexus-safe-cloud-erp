@@ -75,5 +75,10 @@ export interface ReadingIngest {
    */
   insertReadings(rows: import('./ingest').NewReading[], ctx: IngestContext): Promise<number>;
 }
+/** Borrado de lecturas viejas (retención). */
+export interface ReadingRetention {
+  /** Borra hasta `limit` lecturas anteriores a `cutoff` que no sean la última de su dispositivo y devuelve cuántas. */
+  deleteOlderThan(cutoff: Date, limit: number): Promise<number>;
+}
 /** Con qué se escribe el lote: el reloj de esta petición y su id de correlación (viaja en el evento). */
 export interface IngestContext { correlationId: string; now: Date }
