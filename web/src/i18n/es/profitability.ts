@@ -17,7 +17,7 @@ export const profitability = {
   'cost.label': 'Sueldo mensual (nómina)',
   'cost.none': 'sin sueldo todavía',
   'cost.value': '{amount} COP al mes',
-  'cost.daily': 'Costo por día hábil: {amount} COP (sueldo ÷ 22)',
+  'cost.daily': 'Costo por día hábil para la empresa: {amount} COP (sueldo + prestaciones y seguridad social ÷ 22)',
   'cost.change': 'Cambiar',
   'cost.edit': 'Cambiar sueldo mensual de {name}',
   'cost.field': 'Sueldo mensual en pesos (vacío para quitarlo)',

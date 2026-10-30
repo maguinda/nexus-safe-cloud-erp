@@ -4,7 +4,7 @@ import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { PrismaClient } from '@prisma/client';
 import { Request } from 'express';
 import { AuthUser, Roles } from '../auth/auth.guard';
-import { dailyCostFromSalary, monthlySalary, POSITIONS, position } from '../domain/engineer';
+import { employerCost, monthlySalary, POSITIONS, position } from '../domain/engineer';
 import { ValidationError } from '../domain/errors';
 
 export const RATES_PRISMA = 'RATES_PRISMA';
@@ -21,13 +21,13 @@ export class RatesController {
   constructor(@Inject(RATES_PRISMA) private readonly prisma: PrismaClient) {}
 
   @Get() @Roles('sales', 'manager', 'project_lead')
-  @ApiOperation({ summary: 'Reference monthly salary per position and the cost per working day (salary / 22), to quote before knowing who will go to the project' })
+  @ApiOperation({ summary: 'Reference monthly salary per position and what it costs the company: with benefits and social security (breakdown) and per working day, to quote before knowing who will go to the project' })
   async list() {
     const rows = await this.prisma.positionRate.findMany();
     const order = Object.keys(POSITIONS);
     return rows.sort((a, b) => order.indexOf(a.position) - order.indexOf(b.position)).map((r) => ({
       position: r.position, kind: POSITIONS[r.position as keyof typeof POSITIONS].kind, label: POSITIONS[r.position as keyof typeof POSITIONS].label,
-      monthlySalaryCop: r.monthlySalaryCop, dailyCostCop: dailyCostFromSalary(r.monthlySalaryCop), note: r.note, updatedAt: r.updatedAt.toISOString(), updatedBy: r.updatedBy,
+      monthlySalaryCop: r.monthlySalaryCop, cost: employerCost(r.monthlySalaryCop, r.position as keyof typeof POSITIONS), dailyCostCop: employerCost(r.monthlySalaryCop, r.position as keyof typeof POSITIONS).dailyCop, note: r.note, updatedAt: r.updatedAt.toISOString(), updatedBy: r.updatedBy,
     }));
   }
 

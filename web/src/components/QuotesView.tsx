@@ -153,7 +153,8 @@ function RatesPanel({ rates, isManager, toast, onChanged }: { rates: PositionRat
           const label = t(`position.${r.position}` as 'position.tech_lead');
           return (
             <li key={r.position} className={s.rate} data-rate={r.position}>
-              <span>{t('q.rates.row', { label, salary: formatCop(r.monthlySalaryCop), daily: formatCop(r.dailyCostCop) })}</span>
+              <span>{t('q.rates.row', { label, salary: formatCop(r.monthlySalaryCop), monthly: formatCop(r.cost.monthlyCop), daily: formatCop(r.dailyCostCop) })}</span>
+              <span className={s.note}>{t('q.rates.breakdown', { prestaciones: formatCop(r.cost.prestacionesCop), pension: formatCop(r.cost.pensionCop), caja: formatCop(r.cost.cajaCop), arl: formatCop(r.cost.arlCop), aid: formatCop(r.cost.transportAidCop) })}</span>
               {isManager && editing !== r.position && <button type="button" className={ui.btnGhost} aria-label={t('q.rates.edit', { label })} onClick={() => { setEditing(r.position); setText(String(r.monthlySalaryCop)); setError(''); }}>{t('cost.change')}</button>}
               <span className={s.note}>{r.note}</span>
               {isManager && editing === r.position && (

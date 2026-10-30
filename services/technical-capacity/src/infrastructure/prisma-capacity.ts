@@ -11,9 +11,9 @@ export class PrismaCapacity implements CapacityQueries, EngineerCommands {
     await this.prisma.engineer.create({ data: { id: e.id, name: e.name, role: e.role, position: e.position, kind: e.kind, skills: e.skills, certifications: e.certifications, monthlySalaryCop: e.monthlySalaryCop, dailyCostCop: e.dailyCostCop } });
   }
 
-  async setSalary(id: string, salary: number | null, daily: number | null): Promise<boolean> {
-    const n = await this.prisma.engineer.updateMany({ where: { id }, data: { monthlySalaryCop: salary, dailyCostCop: daily } });
-    return n.count === 1;
+  async setSalary(id: string, salary: number | null): Promise<boolean> {
+    const n = await this.prisma.$executeRaw`UPDATE engineers SET monthly_salary_cop = ${salary}, daily_cost_cop = CASE WHEN ${salary}::integer IS NULL THEN NULL ELSE employer_daily_cost(${salary}::integer, position) END WHERE id = ${id}::uuid`;
+    return n === 1;
   }
 
   async engineersWithAllocations(today: number) {

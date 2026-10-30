@@ -178,5 +178,6 @@ export interface Quote {
   createdBy: string; createdAt: string; submittedAt: string | null; decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; projectId: string | null;
   costCop: number; priceCop: number; profitCop: number; lowMargin: boolean; byCategory: Record<LineCategory, number>; milestones: QuoteMilestoneView[];
 }
-export interface PositionRate { position: StaffPosition; kind: 'engineer' | 'technician'; label: string; monthlySalaryCop: number; dailyCostCop: number; note: string; updatedAt: string; updatedBy: string | null }
+export interface EmployerCost { salaryCop: number; transportAidCop: number; prestacionesCop: number; pensionCop: number; cajaCop: number; arlCop: number; monthlyCop: number; dailyCop: number }
+export interface PositionRate { position: StaffPosition; kind: 'engineer' | 'technician'; label: string; monthlySalaryCop: number; cost: EmployerCost; dailyCostCop: number; note: string; updatedAt: string; updatedBy: string | null }
 export interface QuoteCatalogItem { itemId: string; name: string; kind: 'equipment' | 'spare'; supplier: string; refPriceCop: number; leadDays: number }

@@ -1159,7 +1159,7 @@ test('Capacity: the 100% rule end to end — a second allocation is refused with
     await newForm.getByRole('button', { name: 'Add engineer' }).click();
     await expect(manager.page.getByText('Engineer Playwright Engineer added.')).toBeVisible();
     await expect(card(manager.page)).toContainText('Skills: Jest, Playwright');
-    await expect(card(manager.page)).toContainText('Software engineer · Tester'); await expect(card(manager.page)).toContainText('6.600.000 COP a month'); await expect(card(manager.page)).toContainText('Cost per working day: 300.000 COP');
+    await expect(card(manager.page)).toContainText('Software engineer · Tester'); await expect(card(manager.page)).toContainText('6.600.000 COP a month'); await expect(card(manager.page)).toContainText('Cost per working day for the company: 415.056 COP');
     // Los técnicos también son personal: se filtra por tipo y se les asigna igual.
     await expect(manager.page.locator('[data-kind="technician"]')).toHaveCount(2);
     await manager.page.getByRole('button', { name: /^Technicians \(2\)/ }).click(); await expect(manager.page.locator('[data-engineer]')).toHaveCount(2); await expect(manager.page.getByRole('heading', { name: 'Hugo Salazar' })).toBeVisible();
@@ -1430,7 +1430,7 @@ test('Profitability: the manager sees revenue minus labor cost and edits the dai
     // El costo se escribe en Capacidad técnica; el formulario avisa antes de enviar.
     await nav(manager.page, 'Capacity');
     const ana = manager.page.locator('[data-engineer="Ana Torres"]');
-    await expect(ana).toContainText('9.900.000 COP a month'); await expect(ana).toContainText('Cost per working day: 450.000 COP');
+    await expect(ana).toContainText('9.900.000 COP a month'); await expect(ana).toContainText('Cost per working day for the company: 622.584 COP');
     await ana.getByRole('button', { name: 'Change the monthly salary of Ana Torres' }).click();
     const form = manager.page.getByRole('form', { name: 'Change the monthly salary of Ana Torres' });
     await form.getByLabel(/Monthly salary in pesos/).fill('1.5'); await form.getByRole('button', { name: 'Save salary' }).click();
@@ -2224,13 +2224,13 @@ test('Quotes: sales builds a quote with materials, supplies and labor, the manag
     // Enviar vacía se rechaza con aviso, sin tocar el servidor.
     await ed.getByRole('button', { name: 'Send for approval' }).click();
     await expect(ed.getByText(/add at least one milestone with a cost line/)).toBeVisible();
-    // Hito 1: solo mano de obra → números exactos (3 días × 109.091 = 327.273; precio con 25 % = 409.091).
+    // Hito 1: solo mano de obra → números exactos (3 días × 171.275 = 513.825, con prestaciones; precio con 25 % = 642.281).
     await ed.getByRole('button', { name: 'Add milestone' }).click();
     await ed.getByLabel('Name of milestone 1').fill('Instalación');
     await ed.getByRole('button', { name: /^Field \/ installation technician · / }).click();
     await ed.getByLabel('Quantity of line 1.1').fill('3');
-    await expect(ed.getByText(/Milestone 1: cost 327\.273 COP, price 409\.091 COP/)).toBeVisible();
-    await expect(ed.locator('[data-quote-sum]')).toContainText('price 409.091 COP');
+    await expect(ed.getByText(/Milestone 1: cost 513\.825 COP, price 642\.281 COP/)).toBeVisible();
+    await expect(ed.locator('[data-quote-sum]')).toContainText('price 642.281 COP');
     // Hito 2: un material del catálogo de proveedores y un insumo a mano.
     await ed.getByRole('button', { name: 'Add milestone' }).click();
     await ed.getByLabel('Name of milestone 2').fill('Equipos');
@@ -2250,7 +2250,7 @@ test('Quotes: sales builds a quote with materials, supplies and labor, the manag
     await expect(card).toContainText('Cost:'); await expect(card).toContainText('Margin: 25%');
     const priceText = (await card.locator('p').filter({ hasText: 'Price:' }).first().textContent()) ?? ''; const price = moneyNum(priceText.match(/Price: ([\d.]+)/)![1]);
     const cost = moneyNum(((await card.textContent()) ?? '').match(/Cost: ([\d.]+)/)![1]);
-    expect(price).toBeGreaterThan(cost); expect(price).toBeGreaterThanOrEqual(409_091 + 4);
+    expect(price).toBeGreaterThan(cost); expect(price).toBeGreaterThanOrEqual(642_281 + 4);
     await ed.getByRole('button', { name: 'Send for approval' }).click();
     await expect(sales.page.getByText(`Quote ${number} sent to the manager.`)).toBeVisible();
     await expect(sales.page.locator(`[data-quote="${number}"]`)).toContainText('Waiting for approval');

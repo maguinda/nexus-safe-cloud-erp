@@ -26,7 +26,11 @@ const allocations: [number, string, number, number, number][] = [
 
 async function main() {
   const prisma = new PrismaClient();
-  for (const [i, e] of engineers.entries()) await prisma.engineer.upsert({ where: { id: e.id }, update: {}, create: { ...e, kind: KIND[e.position] ?? 'engineer', monthlySalaryCop: DEMO_SALARY[i], dailyCostCop: Math.round(DEMO_SALARY[i] / 22) } });
+  // El costo diario (con prestaciones) lo calcula la función SQL employer_daily_cost, la misma que comprueba el CHECK de la tabla: así el seed no depende del código del servicio.
+  for (const [i, e] of engineers.entries()) {
+    await prisma.$executeRaw`INSERT INTO engineers (id, name, role, position, kind, skills, certifications, monthly_salary_cop, daily_cost_cop)
+      VALUES (${e.id}::uuid, ${e.name}, ${e.role}, ${e.position}, ${KIND[e.position] ?? 'engineer'}, ${e.skills}, ${e.certifications}, ${DEMO_SALARY[i]}, employer_daily_cost(${DEMO_SALARY[i]}::integer, ${e.position})) ON CONFLICT (id) DO NOTHING`;
+  }
   if ((await prisma.allocation.count()) === 0) {
     for (const [i, projectName, percent, s, e] of allocations) await prisma.allocation.create({ data: { engineerId: engineers[i].id, projectName, percent, startDate: day(s), endDate: day(e) } });
   }
