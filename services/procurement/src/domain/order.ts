@@ -7,17 +7,27 @@ export const MAX_STOCK = 1_000_000;
 export const MAX_ORDER_TOTAL_COP = 2_000_000_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export interface NewOrder { id: string; supplierId: string; itemId: string; quantity: number; unitPriceCop: number; totalCop: number }
+export interface NewOrder { id: string; supplierId: string; itemId: string; quantity: number; unitPriceCop: number; totalCop: number; projectName: string | null }
+
+/** El proyecto al que va el pedido: opcional; 2 a 80 caracteres sin < > ni control (como el nombre de un proyecto en Capacidad). */
+export function projectName(v: unknown): string | null {
+  if (v === undefined || v === null || v === '') return null;
+  if (typeof v !== 'string') throw new ValidationError('projectName must be text');
+  const t = v.replace(/\s+/g, ' ').trim();
+  // eslint-disable-next-line no-control-regex
+  if (t.length < 2 || t.length > 80 || /[\u0000-\u001f<>]/.test(t)) throw new ValidationError('projectName must be 2 to 80 characters without < > or control characters');
+  return t;
+}
 
 /** `unitPriceCop` puede venir vacío: entonces el caso de uso pone el precio de referencia del proveedor para ese artículo. */
-export function newOrder(supplierId: unknown, itemId: unknown, quantity: unknown, unitPriceCop: unknown): NewOrder {
+export function newOrder(supplierId: unknown, itemId: unknown, quantity: unknown, unitPriceCop: unknown, project?: unknown): NewOrder {
   if (typeof supplierId !== 'string' || !UUID.test(supplierId)) throw new ValidationError('supplierId must be an id');
   if (typeof itemId !== 'string' || !UUID.test(itemId)) throw new ValidationError('itemId must be an id');
   if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1 || quantity > 100_000) throw new ValidationError('quantity must be a whole number from 1 to 100000');
   if (typeof unitPriceCop !== 'number' || !Number.isInteger(unitPriceCop) || unitPriceCop < 1 || unitPriceCop > 1_000_000_000) throw new ValidationError('unitPriceCop must be a whole number of pesos from 1 to 1000000000');
   const totalCop = quantity * unitPriceCop;
   if (totalCop > MAX_ORDER_TOTAL_COP) throw new ValidationError(`the total of an order cannot pass ${MAX_ORDER_TOTAL_COP} pesos`);
-  return { id: randomUUID(), supplierId: supplierId.toLowerCase(), itemId: itemId.toLowerCase(), quantity, unitPriceCop, totalCop };
+  return { id: randomUUID(), supplierId: supplierId.toLowerCase(), itemId: itemId.toLowerCase(), quantity, unitPriceCop, totalCop, projectName: projectName(project) };
 }
 
 /** Recibir un pedido solo sirve si sigue pendiente: recibirlo dos veces (un doble clic) o recibir uno cancelado no mueve el stock. */

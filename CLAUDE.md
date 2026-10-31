@@ -336,6 +336,14 @@ Planteamiento original (ya implementado): Hoy una orden de mantenimiento (preven
 - Pruebas: capacity 105 unit + 62 e2e (nómina: 9 pruebas; carreras ×15: 8 «generar» a la vez = 1, 8 pagos = 1 y un solo evento; generar mientras cambia un sueldo; 3 mutaciones fallan), identity 142 + 222, web 761, navegador (Nómina con finanzas), auditoría en 6 perfiles (incluido el login con 5 cuentas).
 - Límites: no es la nómina legal (PILA, DIAN, liquidaciones, descuentos al empleado): registra lo que cuesta a la empresa.
 
+## Finanzas F3: cuentas por pagar y pedidos ligados a un proyecto (🔴, 2026-10-31)
+- **Recibir un pedido crea la deuda** con el proveedor (monto del pedido, vence a 30 días de recibido) en la MISMA transacción; antes solo subía el stock. `payables` (Compras, migración `0006`): una por pedido, no se borra, no cambia de monto, y solo pasa de «por pagar» a «pagada» una vez, con quién, cuándo y cómo (trigger + CHECK). Los pedidos ya recibidos también quedaron con su deuda.
+- **Pagar** (`POST /payables/:id/pay`, gerencia y finanzas): bloquea la fila, relee el estado, método transferencia/efectivo/tarjeta/cheque y referencia opcional; publica `SupplierPaid` (para el flujo de caja, F4).
+- **El pedido se liga a un proyecto** (opcional, `projectName`): así el costo real de un proyecto incluye sus materiales. En la web el formulario de pedido ofrece los proyectos.
+- Web: **Cuentas por pagar** (gerencia y finanzas; finanzas ahora tiene Nómina y Cuentas por pagar), con totales «por pagar» y «vencido».
+- Pruebas: procurement 77 unit + 84 e2e (8 de deudas; carreras ×15: 8 recepciones a la vez = 1 deuda, 8 pagos = 1 y un solo evento; 3 mutaciones fallan), web 761, navegador (flujo completo con finanzas), auditoría en 6 perfiles. `reset-demo.sh` hace `TRUNCATE payables`.
+- Límites: pagos completos, no parciales; sin intereses por mora; el plazo es siempre 30 días (no usa los «términos» del proveedor).
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

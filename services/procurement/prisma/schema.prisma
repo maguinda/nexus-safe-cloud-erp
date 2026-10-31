@@ -49,6 +49,8 @@ model PurchaseOrder {
   status       String    @default("ordered")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   receivedAt   DateTime? @map("received_at") @db.Timestamptz(6)
+  /// El proyecto al que va el pedido (opcional): para el costo real del proyecto.
+  projectName  String?   @map("project_name")
   supplier     Supplier  @relation(fields: [supplierId], references: [id])
   item         Item      @relation(fields: [itemId], references: [id])
 
@@ -163,4 +165,24 @@ model EquipmentInstall {
   endedBy     String?  @map("ended_by")
 
   @@map("equipment_installs")
+}
+
+/// Lo que se le debe a un proveedor por un pedido recibido. open → paid, una sola vez.
+model Payable {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number       Int       @unique @default(autoincrement())
+  orderId      String    @unique @map("order_id") @db.Uuid
+  supplierName String    @map("supplier_name")
+  amountCop    Int       @map("amount_cop")
+  dueDate      DateTime  @map("due_date") @db.Date
+  projectName  String?   @map("project_name")
+  status       String    @default("open")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  paidAt       DateTime? @map("paid_at") @db.Timestamptz(6)
+  paidBy       String?   @map("paid_by")
+  method       String?
+  reference    String?
+
+  @@index([status, dueDate])
+  @@map("payables")
 }

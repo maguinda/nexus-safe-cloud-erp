@@ -100,7 +100,7 @@ export function ProcurementView({ toast }: { toast: (m: string) => void }) {
               <ul className={s.list}>
                 {data.orders.slice(0, 30).map((o) => (
                   <li key={o.id} className={s.row} data-order={o.number}>
-                    <span className={s.grow}>{t('proc.orders.line', { number: o.number, item: o.itemName, quantity: o.quantity, supplier: o.supplierName, total: formatCop(o.totalCop) })}</span>
+                    <span className={s.grow}>{t('proc.orders.line', { number: o.number, item: o.itemName, quantity: o.quantity, supplier: o.supplierName, total: formatCop(o.totalCop) })}{o.projectName ? ` · ${t('proc.order.project', { project: o.projectName })}` : ''}</span>
                     <strong className={`${s.status} ${o.status === 'received' ? s.statusReceived : o.status === 'cancelled' ? s.statusCancelled : ''}`}>{t(`proc.orders.status.${o.status}` as 'proc.orders.status.ordered')}</strong>
                     {isManager && o.status === 'ordered' && (
                       <>

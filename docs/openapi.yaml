@@ -554,6 +554,20 @@ paths:
       summary: Mark a payroll as paid, once (roles manager, finance)
       parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
       responses: { '200': { description: Paid }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Already paid } }
+  /payables:
+    get:
+      tags: [Payables]
+      operationId: listPayables
+      summary: What is owed to suppliers - one per received order, open first by due date, with the totals owed and overdue (roles manager, finance)
+      responses: { '200': { description: The payables }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /payables/{id}/pay:
+    post:
+      tags: [Payables]
+      operationId: payPayable
+      summary: Pay a payable, once, and announce it (SupplierPaid) (roles manager, finance)
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [method], properties: { method: { type: string, enum: [transfer, cash, card, check] }, reference: { type: string, minLength: 3, maxLength: 60 } } } } } }
+      responses: { '200': { description: Paid }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Already paid } }
   /work-orders:
     get:
       tags: [Work orders]

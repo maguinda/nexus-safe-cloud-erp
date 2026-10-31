@@ -10,6 +10,7 @@ export const USERS = {
   billing: { id: randomUUID(), email: 'andres.mora@nexus.example', role: 'billing_analyst' },
   sales: { id: randomUUID(), email: 'camila.soto@nexus.example', role: 'sales' },
   manager: { id: randomUUID(), email: 'diana.vega@nexus.example', role: 'manager' },
+  finance: { id: randomUUID(), email: 'fernanda.gil@nexus.example', role: 'finance' },
 };
 
 /** Firma como lo haría identity-access; las opciones permiten fabricar tokens defectuosos a propósito. */
@@ -35,6 +36,7 @@ export const SEED_CATALOG = [
 export const SEED_STOCK: Record<string, number> = { [SEED_ITEMS[0]]: 8, [SEED_ITEMS[1]]: 3, [SEED_ITEMS[2]]: 2 };
 /** Deja la base como el seed: borra pedidos, avisos y outbox, lo creado por las pruebas y devuelve las existencias de los artículos del seed. */
 export async function resetState(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe('TRUNCATE payables'); // las deudas no se borran fila por fila (trigger): TRUNCATE no lo dispara
   await prisma.stockCount.deleteMany();
   await prisma.equipmentInstall.deleteMany();
   await prisma.outboxEvent.deleteMany();
