@@ -36,7 +36,26 @@ export class PrismaRefreshTokenStore implements RefreshTokenStore {
   }
 
   async revokeFamily(familyId: string, now: Date): Promise<void> {
-    await this.prisma.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: now } });
+    await this.revokeUntilQuiet({ familyId }, now);
+  }
+
+  async revokeAllForUser(userId: string, now: Date): Promise<number> {
+    return this.revokeUntilQuiet({ userId }, now);
+  }
+
+  /**
+   * Una renovación que ya gastó su token y está a punto de guardar el siguiente NO ve el UPDATE de revocación (su fila nueva aún no existe para él) y
+   * el UPDATE no ve esa fila nueva (nació después de su foto). Por eso se repite hasta que una pasada ya no encuentra nada: la segunda pasada empieza
+   * cuando la renovación en vuelo ya confirmó (el primer UPDATE tuvo que esperar su fila) y ve el token nuevo. Tope de pasadas por si algo gira sin fin.
+   */
+  private async revokeUntilQuiet(where: { familyId: string } | { userId: string }, now: Date): Promise<number> {
+    let total = 0;
+    for (let pass = 0; pass < 5; pass++) {
+      const { count } = await this.prisma.refreshToken.updateMany({ where: { ...where, revokedAt: null }, data: { revokedAt: now } });
+      total += count;
+      if (count === 0) break;
+    }
+    return total;
   }
 
   async purge(before: Date): Promise<number> {

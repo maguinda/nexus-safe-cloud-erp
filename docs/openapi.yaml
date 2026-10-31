@@ -581,6 +581,21 @@ paths:
       operationId: getProjectCosts
       summary: Each approved quote - what it said it would cost against what it has cost so far (labor to date plus suppliers paid for the project) (roles manager, finance)
       responses: { '200': { description: The projects }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /auth/logout-all:
+    post:
+      tags: [Auth]
+      operationId: logoutAll
+      summary: Sign out EVERYWHERE - revokes every session (all devices) of the signed-in person and clears this renewal cookie. The person comes from the signed token. An access token already issued lasts up to 15 minutes
+      security: [ { bearerAuth: [] } ]
+      responses: { '204': { description: All sessions revoked }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /users/{id}/sessions/revoke:
+    post:
+      tags: [Users]
+      operationId: revokeUserSessions
+      summary: Close every session of a user on all devices (manager only; the role is read from the database). The user can sign in again
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: 'How many renewal tokens were revoked', content: { application/json: { schema: { type: object, properties: { revoked: { type: integer } } } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /work-orders/mine:
     get:
       tags: [Work orders]

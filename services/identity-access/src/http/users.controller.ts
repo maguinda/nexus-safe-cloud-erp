@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from '../application/user-admin.use-cases';
+import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase, RevokeUserSessionsUseCase } from '../application/user-admin.use-cases';
 import { AuthUser, Roles } from '../auth/auth.guard';
 import { UserSummary } from '../domain/ports';
 import { ChangeRoleDto, CreateUserDto } from './users.dto';
@@ -9,6 +9,7 @@ import { ChangeRoleDto, CreateUserDto } from './users.dto';
 export const LIST_USERS_USE_CASE = 'LIST_USERS_USE_CASE';
 export const CREATE_USER_USE_CASE = 'CREATE_USER_USE_CASE';
 export const CHANGE_ROLE_USE_CASE = 'CHANGE_ROLE_USE_CASE';
+export const REVOKE_SESSIONS_USE_CASE = 'REVOKE_SESSIONS_USE_CASE';
 export const USERS_WRITE_RATE_LIMIT = Number(process.env.USERS_WRITE_RATE_LIMIT ?? 30);
 
 /** Contrato público: solo estos campos. Nunca la contraseña ni su hash. */
@@ -24,6 +25,7 @@ export class UsersController {
     @Inject(LIST_USERS_USE_CASE) private readonly listUsers: ListUsersUseCase,
     @Inject(CREATE_USER_USE_CASE) private readonly createUser: CreateUserUseCase,
     @Inject(CHANGE_ROLE_USE_CASE) private readonly changeRole: ChangeRoleUseCase,
+    @Inject(REVOKE_SESSIONS_USE_CASE) private readonly revokeSessions: RevokeUserSessionsUseCase,
   ) {}
 
   @Get()
@@ -46,6 +48,19 @@ export class UsersController {
   @ApiResponse({ status: 409, description: 'That email is already registered' })
   async create(@Req() req: { user: AuthUser }, @Body() dto: CreateUserDto) {
     return toDto(await this.createUser.execute(actorOf(req), dto));
+  }
+
+  @Post(':id/sessions/revoke')
+  @HttpCode(200)
+  @Throttle({ default: { limit: USERS_WRITE_RATE_LIMIT, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Close every session of a user on all devices (manager only). The user can sign in again; an access token already issued lasts up to 15 minutes' })
+  @ApiResponse({ status: 200, description: 'How many renewal tokens were revoked' })
+  @ApiResponse({ status: 400, description: 'Invalid id' })
+  @ApiResponse({ status: 401, description: 'Missing, invalid, tampered or expired token' })
+  @ApiResponse({ status: 403, description: 'The role is not manager' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async revoke(@Req() req: { user: AuthUser }, @Param('id', new ParseUUIDPipe()) id: string) {
+    return { revoked: await this.revokeSessions.execute(actorOf(req), id) };
   }
 
   @Patch(':id/role')

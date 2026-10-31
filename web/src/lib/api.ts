@@ -76,6 +76,8 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     },
     /** Cierra la sesión en el servidor (revoca la renovación y borra la cookie). Si no hay red no pasa nada: la cookie vence sola. */
     logout: async (): Promise<void> => { try { await fetchImpl(baseUrl + '/auth/logout', { method: 'POST', headers: SESSION_HEADERS }); } catch { /* sin red */ } },
+    /** Cierra TODAS las sesiones de la persona (todos sus dispositivos). Responde 204; el token de acceso en curso dura hasta 15 minutos. */
+    logoutAll: async (): Promise<void> => { await request<unknown>('POST', '/auth/logout-all'); },
     projects: () => request<Project[]>('GET', '/projects'),
     milestones: (projectId: string) => request<Milestone[]>('GET', `/projects/${encodeURIComponent(projectId)}/milestones`),
     createProject: (name: string, client: string) => request<Project>('POST', '/projects', { name, client }),

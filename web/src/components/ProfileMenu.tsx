@@ -13,7 +13,7 @@ const THEME_KEY = { system: 'theme.system', light: 'theme.light', dark: 'theme.d
 
 /** Perfil de la persona: sus datos y el idioma de la interfaz. El idioma se guarda en el servidor, así la sigue a cualquier equipo. */
 export function ProfileMenu({ onChanged }: { onChanged: (message: string) => void }) {
-  const { user, lang, t, theme, setLanguage, setTheme } = useSession();
+  const { user, lang, t, theme, setLanguage, setTheme, api, signOut } = useSession();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -60,6 +60,19 @@ export function ProfileMenu({ onChanged }: { onChanged: (message: string) => voi
     } finally { setSaving(false); }
   };
 
+  const logoutAll = async () => {
+    if (saving) return;
+    setSaving(true); setError('');
+    try {
+      await api.logoutAll();
+      signOut(); // las sesiones ya están cerradas en el servidor: esta pantalla también sale
+    } catch (e) {
+      // Las sesiones NO se cerraron: la persona sigue dentro y se le dice por qué.
+      setError(t('profile.logoutAllError', { reason: errorText(e, t, 'server.unexpected') }));
+      setSaving(false);
+    }
+  };
+
   return (
     <div className={s.wrap} ref={root}>
       <button
@@ -93,6 +106,11 @@ export function ProfileMenu({ onChanged }: { onChanged: (message: string) => voi
               ))}
             </div>
             <p className={s.help}>{t('theme.help')}</p>
+          </fieldset>
+          <fieldset className={s.group}>
+            <legend>{t('profile.sessions')}</legend>
+            <button type="button" className={s.option} disabled={saving} onClick={() => void logoutAll()}>{t('profile.logoutAll')}</button>
+            <p className={s.help}>{t('profile.logoutAllHelp')}</p>
           </fieldset>
           {saving && <p className={s.status} role="status">{t('profile.saving')}</p>}
           {error && <p className={s.error} role="alert">{error}</p>}

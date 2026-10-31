@@ -38,6 +38,17 @@ export class CreateUserUseCase {
   }
 }
 
+/** Un gerente cierra todas las sesiones de una persona (se fue, le robaron el equipo...). La persona puede volver a entrar con su contraseña. */
+export class RevokeUserSessionsUseCase {
+  constructor(private readonly store: UserAdminStore, private readonly users: { findById(id: string): Promise<unknown | null> }, private readonly sessions: { endAll(userId: string): Promise<number> }) {}
+
+  async execute(actorId: string, targetId: string): Promise<number> {
+    await ensureManager(this.store, actorId);
+    if (!(await this.users.findById(targetId))) throw new UserNotFoundError();
+    return this.sessions.endAll(targetId);
+  }
+}
+
 export class ChangeRoleUseCase {
   constructor(private readonly store: UserAdminStore) {}
 
