@@ -33,6 +33,11 @@ echo "${ACME_EMAIL:-}" | grep -Eq '^[^@ ]+@[^@ ]+\.[^@ ]+$' && ok "ACME_EMAIL v�
 # Llaves del login (JWT) y certificados de mTLS: tienen que ser de ESTE servidor, no los de desarrollo del repositorio.
 [ -f infra/keys/jwt-private.pem ] && [ -f infra/keys/jwt-public.pem ] && ok "existen las llaves del login (JWT)" || fail "faltan las llaves del login: openssl genrsa -out infra/keys/jwt-private.pem 2048 (ver docs/DEPLOY.md)"
 [ -f infra/certs/ca.pem ] && ok "existe la CA de mTLS" || fail "falta la CA de mTLS (ver docs/DEPLOY.md)"
+if [ -f infra/certs/ca.pem ]; then
+  # Un certificado vencido corta TODA la comunicación entre servicios: se avisa con 30 días de margen.
+  if ./scripts/cert-expiry.sh infra/certs 30 >/tmp/cert-expiry.$$ 2>&1; then ok "certificados de mTLS con más de 30 días de vida"; else fail "hay certificados de mTLS por vencer o vencidos (./scripts/rotate-certs.sh): $(grep -E '^[✘!]' /tmp/cert-expiry.$$ | head -3 | tr '\n' ' ')"; fi
+  rm -f /tmp/cert-expiry.$$
+fi
 if command -v git >/dev/null 2>&1 && git ls-files --error-unmatch infra/keys/jwt-private.pem >/dev/null 2>&1; then fail "la llave privada está en Git: hay que sacarla y generar otra"; fi
 if [ -f infra/keys/jwt-private.pem ]; then
   perm=$(stat -f '%Lp' infra/keys/jwt-private.pem 2>/dev/null || stat -c '%a' infra/keys/jwt-private.pem 2>/dev/null)
