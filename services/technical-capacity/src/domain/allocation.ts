@@ -5,7 +5,7 @@ import { ValidationError } from './errors';
 export const MAX_SPAN_DAYS = 1095;
 
 /** Una asignación: un porcentaje de la jornada de un ingeniero, del día `start` al `end` (los dos incluidos). Los días son números (días desde 1970). */
-export interface Allocation { id: string; engineerId: string; projectName: string; percent: number; start: number; end: number; kind?: 'project' | 'maintenance' }
+export interface Allocation { id: string; engineerId: string; projectName: string; percent: number; start: number; end: number; kind?: 'project' | 'maintenance'; /** Solo en las de mantenimiento: la orden de trabajo (de Operations) a la que pertenece. Los proyectos no tienen. */ workOrderId?: string | null }
 
 export function newAllocation(engineerId: string, projectName: unknown, percent: unknown, startDate: unknown, endDate: unknown): Allocation {
   if (typeof projectName !== 'string') throw new ValidationError('projectName must be text');

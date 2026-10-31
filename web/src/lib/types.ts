@@ -39,7 +39,7 @@ export const STAFF_POSITIONS = ['software_engineer', 'cloud_devops_engineer', 's
 export type StaffPosition = (typeof STAFF_POSITIONS)[number];
 /** Título que el servidor guarda cuando nadie escribe uno propio (no se traduce: viene de la base). */
 export const POSITION_DEFAULT_TITLE: Record<StaffPosition, string> = { software_engineer: 'Software engineer', cloud_devops_engineer: 'Cloud / DevOps engineer', security_engineer: 'Cybersecurity engineer', network_engineer: 'Network engineer', tech_lead: 'Tech lead / architect', field_technician: 'Field / installation technician', support_technician: 'Support / maintenance technician' };
-export interface CapacityAllocation { id: string; kind: 'project' | 'maintenance'; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
+export interface CapacityAllocation { id: string; kind: 'project' | 'maintenance'; /** Solo las de mantenimiento: la orden de trabajo a la que pertenecen. */ workOrderId: string | null; projectName: string; percent: number; startDate: string; endDate: string; overAllocated: boolean }
 export interface CapacityEngineer {
   id: string; name: string; role: string; position: StaffPosition; kind: 'engineer' | 'technician'; skills: string[]; certifications: string[]; monthlySalaryCop?: number | null; dailyCostCop?: number | null;
   loadToday: number; freeToday: number; peakNext30: number; minFreeNext30: number; allocations: CapacityAllocation[];
@@ -193,4 +193,11 @@ export interface CashflowResponse { months: CashMonth[]; totals: { inCop: number
 export interface ProjectCostRow { quoteNumber: string; projectName: string; quotedPriceCop: number; quotedCostCop: number; quotedMarginPct: number; laborCostCop: number; purchasesPaidCop: number; realCostCop: number; varianceCop: number; usedPct: number | null; approvedAt: string }
 export interface ProjectCostsResponse { asOf: string; projects: ProjectCostRow[] }
 
+/** Una actividad de un hito: la crea el ingeniero responsable del hito y se la asigna a un técnico. */
+export type ActivityStatus = 'open' | 'in_progress' | 'done' | 'cancelled';
+export interface MilestoneActivity { id: string; code: string; milestoneId: string; title: string; description: string | null; status: ActivityStatus; dueDate: string | null; assignedTo: string; assignedToId: string; createdBy: string; createdAt: string; startedAt: string | null; doneAt: string | null; doneBy: string | null; doneNote: string | null; cancelledAt: string | null }
+export interface MyActivity extends MilestoneActivity { milestoneName: string; projectId: string; projectName: string }
+export interface ActivityProgress { total: number; done: number; inProgress: number; open: number; pct: number }
+export interface MyMilestone { milestoneId: string; name: string; status: 'pending' | 'approved'; projectId: string; projectName: string; progress: ActivityProgress; activities: MilestoneActivity[] }
+export interface TechnicianOption { id: string; name: string; position: StaffPosition; loadToday: number; freeToday: number }
 export interface MyCapacity { today: string; me: { id: string; name: string; position: StaffPosition; kind: 'engineer' | 'technician'; loadToday: number; freeToday: number; peakNext30: number; allocations: CapacityAllocation[] } }

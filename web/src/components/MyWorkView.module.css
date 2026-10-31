@@ -20,3 +20,8 @@
   .seg { display: flex; }
 }
 .number { font-family: var(--mono); white-space: nowrap; }
+.selectedRow td { background: var(--accent-soft); }
+.filterBar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+@media (max-width: 640px) {
+  .filterBar > button { flex: 1 1 auto; }
+}

@@ -78,7 +78,7 @@ export class ListCapacityUseCase {
       engineers: rows.map(({ engineer, allocations }) => ({
         ...engineer, ...summarize(allocations, today),
         // La carga se calcula con TODAS las asignaciones vigentes; solo la lista que se muestra se corta (las 100 más próximas).
-        allocations: allocations.slice(0, MAX_LISTED).map((x) => ({ id: x.id, kind: x.kind ?? 'project' as const, projectName: x.projectName, percent: x.percent, startDate: dayString(x.start), endDate: dayString(x.end), overAllocated: x.overAllocated })),
+        allocations: allocations.slice(0, MAX_LISTED).map((x) => ({ id: x.id, kind: x.kind ?? 'project' as const, workOrderId: x.workOrderId ?? null, projectName: x.projectName, percent: x.percent, startDate: dayString(x.start), endDate: dayString(x.end), overAllocated: x.overAllocated })),
       })),
     };
   }

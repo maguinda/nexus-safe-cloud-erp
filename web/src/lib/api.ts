@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { MyCapacity, CashflowResponse, ProjectCostsResponse, PayablesResponse, Payable, PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { MyCapacity, MyMilestone, MyActivity, MilestoneActivity, TechnicianOption, CashflowResponse, ProjectCostsResponse, PayablesResponse, Payable, PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -101,6 +101,13 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     setCatalog: (supplierId: string, itemId: string, b: { refPriceCop: number; leadDays: number }) => request<{ supplierId: string; itemId: string }>('PUT', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`, b),
     removeCatalog: (supplierId: string, itemId: string) => request<void>('DELETE', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`),
     myCapacity: () => request<MyCapacity>('GET', '/my-capacity'),
+    myMilestones: () => request<MyMilestone[]>('GET', '/my-milestones'),
+    myActivities: () => request<MyActivity[]>('GET', '/my-activities'),
+    technicians: async () => (await request<{ technicians: TechnicianOption[] }>('GET', '/staff/technicians')).technicians,
+    createActivity: (milestoneId: string, body: { title: string; description?: string; assignedToId: string; assignedTo: string; dueDate?: string }) => request<MilestoneActivity>('POST', `/milestones/${encodeURIComponent(milestoneId)}/activities`, body),
+    reassignActivity: (id: string, assignedToId: string, assignedTo: string) => request<MilestoneActivity>('PATCH', `/activities/${encodeURIComponent(id)}`, { assignedToId, assignedTo }),
+    cancelActivity: (id: string) => request<MilestoneActivity>('POST', `/activities/${encodeURIComponent(id)}/cancel`),
+    progressActivity: (id: string, status: 'in_progress' | 'done', note?: string) => request<MilestoneActivity>('PATCH', `/activities/${encodeURIComponent(id)}/progress`, { status, ...(note ? { note } : {}) }),
     myOrders: () => request<WorkOrder[]>('GET', '/work-orders/mine'),
     progressOrder: (id: string, status: 'in_progress' | 'done', note?: string) => request<WorkOrder>('PATCH', `/work-orders/${encodeURIComponent(id)}/progress`, { status, ...(note ? { note } : {}) }),
     cashflow: (months: number) => request<CashflowResponse>('GET', `/cashflow?months=${months}`),

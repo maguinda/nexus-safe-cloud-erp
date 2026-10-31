@@ -20,7 +20,7 @@ export class PrismaCapacity implements CapacityQueries, EngineerCommands {
     const rows = await this.prisma.engineer.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }], include: { allocations: { where: { endDate: { gte: new Date(today * 86_400_000) } }, orderBy: [{ startDate: 'asc' }, { id: 'asc' }] } } });
     return rows.map((r) => ({
       engineer: { id: r.id, name: r.name, role: r.role, position: r.position as Engineer['position'], kind: r.kind as Engineer['kind'], skills: r.skills, certifications: r.certifications, monthlySalaryCop: r.monthlySalaryCop, dailyCostCop: r.dailyCostCop },
-      allocations: r.allocations.map((a): Allocation & { overAllocated: boolean } => ({ id: a.id, engineerId: r.id, projectName: a.projectName, kind: a.kind as 'project' | 'maintenance', percent: a.percent, start: dateDay(a.startDate), end: dateDay(a.endDate), overAllocated: a.overAllocated })),
+      allocations: r.allocations.map((a): Allocation & { overAllocated: boolean } => ({ id: a.id, engineerId: r.id, projectName: a.projectName, workOrderId: a.workOrderId, kind: a.kind as 'project' | 'maintenance', percent: a.percent, start: dateDay(a.startDate), end: dateDay(a.endDate), overAllocated: a.overAllocated })),
     }));
   }
 }

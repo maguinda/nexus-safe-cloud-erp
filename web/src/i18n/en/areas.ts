@@ -31,3 +31,4 @@ export { payables } from './payables';
 export { cashflow } from './cashflow';
 export { mywork } from './mywork';
 export { finance } from './finance';
+export { activities } from './activities';
