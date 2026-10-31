@@ -568,6 +568,19 @@ paths:
       parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [method], properties: { method: { type: string, enum: [transfer, cash, card, check] }, reference: { type: string, minLength: 3, maxLength: 60 } } } } } }
       responses: { '200': { description: Paid }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Already paid } }
+  /cashflow:
+    get:
+      tags: [Finance]
+      operationId: getCashflow
+      summary: Cash in (client payments) against cash out (payroll and suppliers) per month with the running balance (roles manager, finance)
+      parameters: [ { name: months, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 36, default: 12 } } ]
+      responses: { '200': { description: The months }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /project-costs:
+    get:
+      tags: [Finance]
+      operationId: getProjectCosts
+      summary: Each approved quote - what it said it would cost against what it has cost so far (labor to date plus suppliers paid for the project) (roles manager, finance)
+      responses: { '200': { description: The projects }, '403': { $ref: '#/components/responses/Forbidden' } }
   /work-orders:
     get:
       tags: [Work orders]

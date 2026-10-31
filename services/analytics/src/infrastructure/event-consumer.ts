@@ -11,6 +11,8 @@ const MAX_BYTES = 16 * 1024;
 
 export interface ConsumerOptions { queue: string; dlq: string; keys: readonly string[]; name: string }
 export const DEFAULT_OPTIONS: ConsumerOptions = { queue: QUEUE, dlq: DLQ, keys: ROUTING_KEYS, name: 'AnalyticsConsumer' };
+import { CASH_ROUTING_KEYS } from '../domain/cash';
+export const CASH_OPTIONS: ConsumerOptions = { queue: 'q.analytics.cash', dlq: 'q.analytics.cash.dlq', keys: CASH_ROUTING_KEYS, name: 'CashConsumer' };
 export const AUDIT_OPTIONS: ConsumerOptions = { queue: 'q.analytics.audit', dlq: 'q.analytics.audit.dlq', keys: ['#'], name: 'AuditConsumer' };
 
 /**

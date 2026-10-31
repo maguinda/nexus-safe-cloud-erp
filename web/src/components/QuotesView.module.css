@@ -17,5 +17,5 @@
 .errors { margin: 0; padding-left: var(--sp-4); color: var(--bad); }
 .total { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .rates { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
-.rate { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; justify-content: space-between; padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
+.rate { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; justify-content: space-between; padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); min-width: 0; overflow-wrap: anywhere; }
 .note { color: var(--muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }

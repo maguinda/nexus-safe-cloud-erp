@@ -1,0 +1,18 @@
+export const cashflow = {
+  'nav.cashflow': 'Flujo de caja',
+  'cf.title': 'Flujo de caja',
+  'cf.intro': 'Lo que entra (cobros de clientes) contra lo que sale (nómina pagada y pagos a proveedores), mes a mes, con el saldo acumulado. Cuenta solo dinero ya pagado o cobrado, no lo facturado ni lo que se debe.',
+  'cf.loading': 'Cargando el flujo de caja…',
+  'cf.loadError': 'No se pudo cargar el flujo de caja: {reason}',
+  'cf.months': 'Meses',
+  'cf.monthsN': 'Últimos {n} meses',
+  'cf.row': '{month}: entra {inc} · sale {out} (nómina {payroll}, proveedores {suppliers}) · neto {net} · saldo {balance}',
+  'cf.totals': 'En la ventana: entró {inc} COP, salió {out} COP, neto {net} COP. Saldo acumulado: {balance} COP.',
+  'cf.empty': 'Todavía no hay movimientos de dinero.',
+  'cf.costs.title': 'Costo real contra lo cotizado',
+  'cf.costs.intro': 'Cada proyecto nacido de una cotización aprobada: lo que la cotización decía que costaría y lo que ha costado hasta hoy (mano de obra de las asignaciones más lo pagado a proveedores ligado al proyecto).',
+  'cf.costs.empty': 'Todavía no hay proyectos con cotización aprobada.',
+  'cf.costs.row': '{quote} · {project}: cotizado {quoted} COP (precio {price} COP, margen {margin} %) · real hasta hoy {real} COP (mano de obra {labor} + proveedores {suppliers}) · {used}',
+  'cf.costs.used': '{pct} % del costo cotizado',
+  'cf.costs.noCost': 'sin costo cotizado',
+} as const;
