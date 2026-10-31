@@ -596,6 +596,85 @@ paths:
       security: [ { bearerAuth: [] } ]
       parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
       responses: { '200': { description: 'How many renewal tokens were revoked', content: { application/json: { schema: { type: object, properties: { revoked: { type: integer } } } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /milestones/{milestoneId}/owner:
+    patch:
+      tags: [Activities]
+      operationId: setMilestoneOwner
+      summary: Choose (or clear with ownerId null) the engineer in charge of a milestone (manager, project lead). An approved milestone no longer changes owner
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: milestoneId, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, properties: { ownerId: { type: string, format: uuid, nullable: true }, ownerName: { type: string, minLength: 2, maxLength: 100 } } } } } }
+      responses: { '200': { description: The owner }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: The milestone is already approved } }
+  /projects/{projectId}/milestone-progress:
+    get:
+      tags: [Activities]
+      operationId: milestoneProgress
+      summary: Owner and activity progress (total, done, in progress, open, pct; cancelled ones do not count) of every milestone of a project (manager, project lead)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: projectId, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: One row per milestone }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /my-milestones:
+    get:
+      tags: [Activities]
+      operationId: myMilestones
+      summary: The milestones I am in charge of, with project, status, progress and activities; no money. The person comes from the signed token (role engineer)
+      security: [ { bearerAuth: [] } ]
+      responses: { '200': { description: My milestones }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /my-activities:
+    get:
+      tags: [Activities]
+      operationId: myActivities
+      summary: The activities assigned to me, with milestone and project; live ones first. The person comes from the signed token (role technician)
+      security: [ { bearerAuth: [] } ]
+      responses: { '200': { description: My activities }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /milestones/{milestoneId}/activities:
+    get:
+      tags: [Activities]
+      operationId: listActivities
+      summary: Activities of a milestone (manager, project lead; an engineer only for milestones they are in charge of, else 404)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: milestoneId, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Activities }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      tags: [Activities]
+      operationId: createActivity
+      summary: Add an activity to a milestone and assign it to a technician (the engineer in charge, the manager or the project lead). An approved milestone takes no more
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: milestoneId, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [title, assignedToId, assignedTo], properties: { title: { type: string, minLength: 3, maxLength: 120 }, description: { type: string, maxLength: 300 }, assignedToId: { type: string, format: uuid }, assignedTo: { type: string, minLength: 2, maxLength: 100 }, dueDate: { type: string, format: date, description: Not in the past } } } } } }
+      responses: { '201': { description: Created }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: The milestone is already approved } }
+  /activities/{id}:
+    patch:
+      tags: [Activities]
+      operationId: editActivity
+      summary: Edit or reassign a live activity; only what you send changes (reassigning needs assignedToId and assignedTo)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: Updated }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Finished or cancelled } }
+  /activities/{id}/cancel:
+    post:
+      tags: [Activities]
+      operationId: cancelActivity
+      summary: Cancel a live activity (the engineer in charge, the manager or the project lead)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: Cancelled }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Finished or cancelled } }
+  /activities/{id}/progress:
+    patch:
+      tags: [Activities]
+      operationId: progressActivity
+      summary: The assigned technician starts (in_progress) or finishes (done, optional note up to 300 characters) the activity. Not assigned to you = 404
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: false, required: [status], properties: { status: { type: string, enum: [in_progress, done] }, note: { type: string, maxLength: 300 } } } } } }
+      responses: { '200': { description: Updated }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Not allowed from the current status } }
+  /staff/technicians:
+    get:
+      tags: [Capacity]
+      operationId: listTechnicians
+      summary: The technicians of the staff (id, name, position, load today) to assign them activities. Never salaries or costs (engineer, project lead, manager)
+      security: [ { bearerAuth: [] } ]
+      responses: { '200': { description: Technicians }, '403': { $ref: '#/components/responses/Forbidden' } }
   /work-orders/mine:
     get:
       tags: [Work orders]

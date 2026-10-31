@@ -22,17 +22,48 @@ model Project {
 }
 
 model Milestone {
-  id         String          @id
-  projectId  String          @map("project_id")
+  id         String              @id
+  projectId  String              @map("project_id")
   name       String
-  amountCop  Int             @map("amount_cop")
-  status     MilestoneStatus @default(pending)
-  approvedAt DateTime?       @map("approved_at")
-  approvedBy String?         @map("approved_by")
-  project    Project         @relation(fields: [projectId], references: [id])
+  amountCop  Int                 @map("amount_cop")
+  status     MilestoneStatus     @default(pending)
+  approvedAt DateTime?           @map("approved_at")
+  approvedBy String?             @map("approved_by")
+  /// El ingeniero responsable del hito (persona del personal de Capacity, por valor: id y nombre).
+  ownerId    String?             @map("owner_id") @db.Uuid
+  ownerName  String?             @map("owner_name")
+  project    Project             @relation(fields: [projectId], references: [id])
+  activities MilestoneActivity[]
 
   @@index([projectId])
+  @@index([ownerId])
   @@map("milestones")
+}
+
+/// Un paso concreto de un hito: lo crea el ingeniero del hito (o gerencia/líder) y se le asigna a un técnico, que la va completando.
+model MilestoneActivity {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number       Int       @unique @default(autoincrement())
+  milestoneId  String    @map("milestone_id")
+  title        String
+  description  String?
+  status       String    @default("open")
+  dueDate      DateTime? @map("due_date") @db.Date
+  assignedTo   String    @map("assigned_to")
+  assignedToId String    @map("assigned_to_id") @db.Uuid
+  createdBy    String    @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  doneAt       DateTime? @map("done_at") @db.Timestamptz(6)
+  doneBy       String?   @map("done_by")
+  doneNote     String?   @map("done_note")
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy  String?   @map("cancelled_by")
+  milestone    Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@index([milestoneId])
+  @@index([assignedToId, status])
+  @@map("milestone_activities")
 }
 
 /// Evento guardado en la misma transacción que el cambio de negocio; un relay lo publica después.
@@ -75,21 +106,21 @@ model RemovedAllocation {
 
 /// Cotización de ventas: proyecto con hitos y costos. Los totales NO se guardan: se calculan siempre de las líneas.
 model Quote {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  number       Int      @unique @default(autoincrement())
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number       Int              @unique @default(autoincrement())
   client       String
-  projectName  String   @map("project_name")
+  projectName  String           @map("project_name")
   /// draft, pending (esperando a gerencia), approved o rejected.
-  status       String   @default("draft")
-  marginPct    Int      @default(25) @map("margin_pct")
-  createdBy    String   @map("created_by")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  submittedAt  DateTime? @map("submitted_at") @db.Timestamptz(6)
-  decidedBy    String?  @map("decided_by")
-  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
-  decisionNote String?  @map("decision_note")
+  status       String           @default("draft")
+  marginPct    Int              @default(25) @map("margin_pct")
+  createdBy    String           @map("created_by")
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  submittedAt  DateTime?        @map("submitted_at") @db.Timestamptz(6)
+  decidedBy    String?          @map("decided_by")
+  decidedAt    DateTime?        @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?          @map("decision_note")
   /// El proyecto que nació al aprobar.
-  projectId    String?  @map("project_id")
+  projectId    String?          @map("project_id")
   milestones   QuoteMilestone[]
 
   @@index([createdBy])
@@ -97,11 +128,11 @@ model Quote {
 }
 
 model QuoteMilestone {
-  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  quoteId  String @map("quote_id") @db.Uuid
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId  String      @map("quote_id") @db.Uuid
   position Int
   name     String
-  quote    Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote    Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   lines    QuoteLine[]
 
   @@unique([quoteId, position])
@@ -109,14 +140,14 @@ model QuoteMilestone {
 }
 
 model QuoteLine {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  milestoneId String @map("milestone_id") @db.Uuid
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  milestoneId String         @map("milestone_id") @db.Uuid
   position    Int
   /// materials, supplies o labor.
   category    String
   description String
   quantity    Int
-  unitCostCop Int    @map("unit_cost_cop")
+  unitCostCop Int            @map("unit_cost_cop")
   /// De dónde salió el precio: un artículo del catálogo o un cargo (informativo; Projects no lo verifica contra otro servicio).
   ref         String?
   milestone   QuoteMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
