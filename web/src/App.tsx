@@ -14,6 +14,7 @@ import { ContractsView } from './components/ContractsView';
 import { QuotesView } from './components/QuotesView';
 import { PayrollView } from './components/PayrollView';
 import { PayablesView } from './components/PayablesView';
+import { FinanceSummaryView } from './components/FinanceSummaryView';
 import { CashflowView } from './components/CashflowView';
 import { MyWorkView } from './components/MyWorkView';
 import { ProfitabilityView } from './components/ProfitabilityView';
@@ -29,7 +30,7 @@ import { mmss } from './lib/format';
 import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
-type View = 'projects' | 'invoices' | 'contracts' | 'capacity' | 'procurement' | 'workorders' | 'quotes' | 'payroll' | 'payables' | 'cashflow';
+type View = 'projects' | 'invoices' | 'contracts' | 'capacity' | 'procurement' | 'workorders' | 'quotes' | 'payroll' | 'payables' | 'cashflow' | 'finsummary';
 type ManagerView = 'dashboard' | 'quotes' | 'payroll' | 'payables' | 'cashflow' | 'contracts' | 'profitability' | 'audit' | 'cameras' | 'workorders' | 'sensors' | 'network' | 'capacity' | 'procurement' | 'users';
 interface NavItem { label: MsgKey; icon: IconName; on: boolean; go: () => void }
 interface NavGroup { label?: MsgKey; items: NavItem[] }
@@ -54,7 +55,7 @@ function Shell() {
     : user?.role === 'engineer' || user?.role === 'technician'
     ? [{ items: [{ label: 'nav.mywork', icon: 'users', on: true, go: () => setView('projects') }] }]
     : user?.role === 'finance'
-    ? [{ items: [{ label: 'nav.payroll', icon: 'users', on: view !== 'payables' && view !== 'cashflow', go: () => setView('payroll') }, { label: 'nav.payables', icon: 'receipt', on: view === 'payables', go: () => setView('payables') }, { label: 'nav.cashflow', icon: 'grid', on: view === 'cashflow', go: () => setView('cashflow') }] }]
+    ? [{ items: [{ label: 'nav.finsummary', icon: 'grid', on: view !== 'payroll' && view !== 'payables' && view !== 'cashflow', go: () => setView('finsummary') }, { label: 'nav.payroll', icon: 'users', on: view === 'payroll', go: () => setView('payroll') }, { label: 'nav.payables', icon: 'receipt', on: view === 'payables', go: () => setView('payables') }, { label: 'nav.cashflow', icon: 'grid', on: view === 'cashflow', go: () => setView('cashflow') }] }]
     : [{ items: [{ label: 'nav.projects', icon: 'layers', on: view === 'projects', go: () => setView('projects') }, { label: 'nav.invoices', icon: 'receipt', on: view === 'invoices', go: () => setView('invoices') },
       // Ventas y el líder de proyecto ven las cotizaciones (el líder solo las lee); facturación no.
       ...(user?.role === 'sales' || user?.role === 'project_lead' ? [{ label: 'nav.quotes' as const, icon: 'receipt' as const, on: view === 'quotes', go: () => setView('quotes') }] : []),
@@ -99,7 +100,7 @@ function Shell() {
             </div>
           </nav>
           <main className={s.content}>
-            {isManager ? (managerView === 'cashflow' ? <CashflowView key="cf" /> : managerView === 'payables' ? <PayablesView key="ap" toast={setToast} /> : managerView === 'payroll' ? <PayrollView key="py" toast={setToast} /> : managerView === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : managerView === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : managerView === 'cameras' ? <CamerasView key="cm" /> : managerView === 'audit' ? <AuditView key="au" /> : managerView === 'profitability' ? <ProfitabilityView key="pf" /> : managerView === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): user?.role === 'engineer' || user?.role === 'technician' ? <MyWorkView key="mw" toast={setToast} /> : user?.role === 'finance' ? (view === 'cashflow' ? <CashflowView key="cf" /> : view === 'payables' ? <PayablesView key="ap" toast={setToast} /> : <PayrollView key="py" toast={setToast} />) : view === 'payroll' ? <PayrollView key="py" toast={setToast} /> : view === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : view === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : view === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : view === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? (managerView === 'cashflow' ? <CashflowView key="cf" /> : managerView === 'payables' ? <PayablesView key="ap" toast={setToast} /> : managerView === 'payroll' ? <PayrollView key="py" toast={setToast} /> : managerView === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : managerView === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : managerView === 'cameras' ? <CamerasView key="cm" /> : managerView === 'audit' ? <AuditView key="au" /> : managerView === 'profitability' ? <ProfitabilityView key="pf" /> : managerView === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): user?.role === 'engineer' || user?.role === 'technician' ? <MyWorkView key="mw" toast={setToast} /> : user?.role === 'finance' ? (view === 'cashflow' ? <CashflowView key="cf" /> : view === 'payables' ? <PayablesView key="ap" toast={setToast} /> : view === 'payroll' ? <PayrollView key="py" toast={setToast} /> : <FinanceSummaryView key="fs" onGo={setView} />) : view === 'payroll' ? <PayrollView key="py" toast={setToast} /> : view === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : view === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : view === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : view === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>
