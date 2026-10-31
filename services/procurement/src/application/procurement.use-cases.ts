@@ -37,17 +37,17 @@ export class CreateItemUseCase {
 /** Un pedido nace «pendiente» (`ordered`): comprar no mueve el stock, recibirlo sí. */
 export class CreateOrderUseCase {
   constructor(private readonly uow: UnitOfWork) {}
-  async execute(i: { supplierId: unknown; itemId: unknown; quantity: unknown; unitPriceCop?: unknown }) {
+  async execute(i: { supplierId: unknown; itemId: unknown; quantity: unknown; unitPriceCop?: unknown; projectName?: unknown }) {
     const priced = i.unitPriceCop !== undefined && i.unitPriceCop !== null;
     // Sin precio, se valida con uno provisional y se reemplaza por el de referencia del proveedor dentro de la transacción.
-    const o = newOrder(i.supplierId, i.itemId, i.quantity, priced ? i.unitPriceCop : 1);
+    const o = newOrder(i.supplierId, i.itemId, i.quantity, priced ? i.unitPriceCop : 1, i.projectName);
     return this.uow.run(async (tx) => {
       if ((await tx.supplierName(o.supplierId)) === null) throw new NotFoundError('Supplier');
       if ((await tx.lockItem(o.itemId)) === null) throw new NotFoundError('Item');
       // El proveedor solo vende lo de su catálogo.
       const ref = await tx.catalogPrice(o.supplierId, o.itemId);
       if (ref === null) throw new ConflictError('That supplier does not sell that item');
-      const order = priced ? o : newOrder(o.supplierId, o.itemId, o.quantity, ref);
+      const order = priced ? o : newOrder(o.supplierId, o.itemId, o.quantity, ref, o.projectName);
       const number = await tx.insertOrder(order);
       return { ...order, number };
     });
@@ -73,6 +73,8 @@ export class ReceiveOrderUseCase {
       await tx.setOnHand(item.id, onHand);
       await tx.addMovement({ itemId: item.id, itemName: item.name, delta: order.quantity, onHandAfter: onHand, source: 'purchase_received', reason: `Pedido ${orderNumber(order.number)} recibido`, actor });
       await tx.setOrderStatus(order.id, 'received', now);
+      // Recibir un pedido crea la deuda con el proveedor (vence a 30 días), en la MISMA transacción: ni pedido recibido sin deuda ni deuda sin pedido recibido.
+      await tx.createPayable(order.id, new Date(now.getTime() + 30 * 86_400_000).toISOString().slice(0, 10));
       await tx.addToOutbox(stockChanged(item, order.quantity, onHand, 'purchase_received', `order ${order.number}`, correlationId, now), `${order.id}:stock`);
       if (item.kind === 'equipment') {
         await tx.addToOutbox(equipmentPurchased({ number: order.number, id: order.id, supplierName: order.supplierName, itemName: item.name, quantity: order.quantity, unitPriceCop: order.unitPriceCop, totalCop: order.totalCop }, correlationId, now), `${order.id}:purchase`);

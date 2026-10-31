@@ -1873,12 +1873,12 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
 test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
-  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Payroll', 'Contracts', 'Profitability']);
+  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Payroll', 'Payables', 'Contracts', 'Profitability']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras', 'Work orders']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(13);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(14);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1916,7 +1916,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(13);
+  expect(edges.length).toBe(14);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });
@@ -2348,4 +2348,45 @@ test('Payroll: the manager and finance generate the month with a snapshot of wha
     await manager.page.reload(); await nav(manager.page, 'Payroll');
     await expect(manager.page.locator('[data-payroll="2026-06"]')).toContainText('Paid');
   } finally { for (const w of [manager, finance, sales, lead]) await w.ctx.close(); }
+});
+
+test('Payables: receiving an order creates the debt with the supplier (tied to its project), finance pays it once, the totals follow; other roles have no payables', async ({ browser }) => {
+  test.setTimeout(150_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'finance' | 'lead' | 'billing') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const [manager, finance, lead, billing] = [await open('manager'), await open('finance'), await open('lead'), await open('billing')];
+  try {
+    for (const w of [lead, billing]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Payables', exact: true })).toHaveCount(0);
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables']);
+    // Un pedido ligado a un proyecto, recibido: nace la deuda.
+    await nav(manager.page, 'Procurement');
+    const form = manager.page.getByRole('form', { name: 'New order' });
+    await form.getByRole('button', { name: 'Redes del Norte (example)' }).click(); await form.getByRole('button', { name: 'Switch de acceso 24 puertos' }).click();
+    await form.getByLabel('Quantity (1 to 100,000)').fill('2');
+    await form.getByRole('button', { name: 'Branch network upgrade' }).click();
+    await form.getByRole('button', { name: 'Create order' }).click();
+    await expect(manager.page.getByText(/Order PO-\d+ created/)).toBeVisible();
+    const ord = manager.page.locator('[data-order]').first(); await expect(ord).toContainText('Project: Branch network upgrade');
+    await ord.getByRole('button', { name: /^Receive order/ }).click(); await expect(ord).toContainText('Received');
+    // Finanzas ve la deuda (2 × 2.400.000 = 4.800.000) y la paga una sola vez.
+    await nav(finance.page, 'Payables');
+    const row = finance.page.locator('[data-payable]').filter({ hasText: 'Branch network upgrade' }).first();
+    await expect(row).toContainText('4.800.000 COP'); await expect(row).toContainText('To pay'); await expect(finance.page.locator('[data-ap-totals]')).toContainText('To pay: 4.800.000 COP');
+    const number = (await row.getAttribute('data-payable'))!;
+    await row.getByRole('button', { name: `Pay payable ${number}` }).click();
+    const pf = row.getByRole('form', { name: `Pay payable ${number}` });
+    await pf.getByRole('button', { name: 'Confirm payment' }).click(); await expect(pf.getByText('Choose how it was paid.')).toBeVisible();
+    await pf.getByRole('button', { name: 'Transfer' }).click(); await pf.getByLabel(/Reference/).fill('x'); await pf.getByRole('button', { name: 'Confirm payment' }).click();
+    await expect(pf.getByText(/The reference must be 3 to 60 characters/)).toBeVisible();
+    await pf.getByLabel(/Reference/).fill('TRF 8841'); await pf.getByRole('button', { name: 'Confirm payment' }).click();
+    await expect(finance.page.getByText(`Payable ${number} paid.`)).toBeVisible();
+    await expect(row).toContainText('Paid'); await expect(row).toContainText('fernanda.gil@nexus.example (Transfer) · TRF 8841');
+    await expect(finance.page.locator('[data-ap-totals]')).toContainText('To pay: 0 COP');
+    await expect(row.getByRole('button', { name: /^Pay payable/ })).toHaveCount(0);
+    // Gerencia lo ve igual.
+    await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Payables');
+    await expect(manager.page.locator(`[data-payable="${number}"]`)).toContainText('Paid');
+  } finally { for (const w of [manager, finance, lead, billing]) await w.ctx.close(); }
 });

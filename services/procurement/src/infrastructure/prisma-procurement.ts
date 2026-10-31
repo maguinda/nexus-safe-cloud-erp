@@ -52,7 +52,7 @@ export class PrismaProcurement implements ProcurementQueries, ProcurementCommand
     const rows = await this.prisma.purchaseOrder.findMany({ orderBy: [{ createdAt: 'desc' }, { number: 'desc' }], take: limit, include: { supplier: true, item: true } });
     return rows.map((r) => ({
       id: r.id, number: orderNumber(r.number), supplierId: r.supplierId, supplierName: r.supplier.name, itemId: r.itemId, itemName: r.item.name, itemKind: r.item.kind,
-      quantity: r.quantity, unitPriceCop: r.unitPriceCop, totalCop: r.totalCop, status: r.status as OrderStatus, createdAt: r.createdAt.toISOString(), receivedAt: r.receivedAt ? r.receivedAt.toISOString() : null,
+      quantity: r.quantity, unitPriceCop: r.unitPriceCop, totalCop: r.totalCop, projectName: r.projectName, status: r.status as OrderStatus, createdAt: r.createdAt.toISOString(), receivedAt: r.receivedAt ? r.receivedAt.toISOString() : null,
     }));
   }
   async suggestions(limit: number): Promise<SuggestionView[]> {
@@ -109,8 +109,13 @@ class Scope implements TransactionScope {
   }
   async insertOrder(o: NewOrder): Promise<number> {
     const rows = await this.tx.$queryRaw<{ number: number }[]>`
-      INSERT INTO purchase_orders (id, supplier_id, item_id, quantity, unit_price_cop, total_cop) VALUES (${o.id}::uuid, ${o.supplierId}::uuid, ${o.itemId}::uuid, ${o.quantity}, ${o.unitPriceCop}, ${o.totalCop}) RETURNING number`;
+      INSERT INTO purchase_orders (id, supplier_id, item_id, quantity, unit_price_cop, total_cop, project_name) VALUES (${o.id}::uuid, ${o.supplierId}::uuid, ${o.itemId}::uuid, ${o.quantity}, ${o.unitPriceCop}, ${o.totalCop}, ${o.projectName}) RETURNING number`;
     return rows[0].number;
+  }
+  async createPayable(orderId: string, dueDate: string) {
+    await this.tx.$executeRaw`INSERT INTO payables (order_id, supplier_name, amount_cop, due_date, project_name)
+      SELECT o.id, s.name, o.total_cop, ${dueDate}::date, o.project_name FROM purchase_orders o JOIN suppliers s ON s.id = o.supplier_id WHERE o.id = ${orderId}::uuid
+      ON CONFLICT (order_id) DO NOTHING`;
   }
   async setOrderStatus(id: string, status: OrderStatus, receivedAt: Date | null) {
     await this.tx.$executeRaw`UPDATE purchase_orders SET status = ${status}, received_at = ${receivedAt} WHERE id = ${id}::uuid`;

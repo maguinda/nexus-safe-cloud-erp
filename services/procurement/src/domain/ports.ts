@@ -3,7 +3,7 @@ import { ProcurementEvent } from './events';
 import { NewOrder, OrderStatus } from './order';
 import { ThresholdAlert } from './events';
 
-export interface OrderView { id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string; quantity: number; unitPriceCop: number; totalCop: number; status: OrderStatus; createdAt: string; receivedAt: string | null }
+export interface OrderView { id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string; quantity: number; unitPriceCop: number; totalCop: number; projectName: string | null; status: OrderStatus; createdAt: string; receivedAt: string | null }
 export interface SuggestionView { eventId: string; deviceName: string; location: string; readingKind: string; status: string; value: number; unit: string; at: string; items: { id: string; name: string; onHand: number }[] }
 
 /** Lecturas: no necesitan transacción. */
@@ -43,6 +43,8 @@ export interface TransactionScope {
   endInstall(id: string, status: 'returned' | 'retired', actor: string | null): Promise<void>;
   insertInstall(i: { itemId: string; itemName: string; actor: string | null }): Promise<{ id: string; number: number }>;
   insertOrder(o: NewOrder): Promise<number>;
+  /** La deuda del pedido recibido (monto del pedido, proveedor y proyecto) con su vencimiento (YYYY-MM-DD). Una sola por pedido. */
+  createPayable(orderId: string, dueDate: string): Promise<void>;
   setOrderStatus(id: string, status: OrderStatus, receivedAt: Date | null): Promise<void>;
   setOnHand(itemId: string, onHand: number): Promise<void>;
   /** Anota el movimiento en el historial (misma transacción que `setOnHand`). */

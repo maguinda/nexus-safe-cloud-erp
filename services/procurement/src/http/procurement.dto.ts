@@ -23,6 +23,7 @@ export class CreateOrderDto {
   @ApiProperty() @IsString() @MaxLength(40) itemId!: string;
   @ApiProperty({ minimum: 1, maximum: 100000 }) @IsInt() quantity!: number;
   @ApiPropertyOptional({ minimum: 1, maximum: 1000000000, description: 'Whole Colombian pesos per unit; empty = the supplier’s reference price' }) @IsOptional() @IsInt() unitPriceCop?: number;
+  @ApiPropertyOptional({ maxLength: 80, description: 'The project the purchase is for (optional): its cost counts in the real cost of the project' }) @IsOptional() @IsString() @MaxLength(120) projectName?: string;
 }
 export class CountedDto {
   @ApiProperty({ example: 7, description: 'What was physically counted, whole number from 0 to 1.000.000' }) @IsDefined() counted!: number;

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import type { Api } from '../lib/api';
 import { errorText } from '../i18n/server';
 import { checkAdjust, checkCatalog, checkName, checkOrder, checkTender, NAME_MAX, parseKinds, TERMS_MAX } from '../lib/procurement';
@@ -88,6 +88,9 @@ export function NewItemForm({ api, onCreated }: { api: Api; onCreated: (name: st
 export function NewOrderForm({ api, suppliers, items, onCreated }: { api: Api; suppliers: Supplier[]; items: StockItem[]; onCreated: (number: string) => void }) {
   const { t } = useSession();
   const [f, setF] = useState({ supplierId: '', itemId: '', quantity: '', price: '' });
+  const [project, setProject] = useState('');
+  const [projects, setProjects] = useState<string[]>([]);
+  useEffect(() => { let live = true; api.projects().then((p) => { if (live) setProjects(p.map((x) => x.name)); }).catch(() => { /* el proyecto es opcional */ }); return () => { live = false; }; }, [api]);
   const [e, setE] = useState<ReturnType<typeof checkOrder>['errors'] & { form?: string }>({});
   const [busy, setBusy] = useState(false);
   const supplier = suppliers.find((x) => x.id === f.supplierId);
@@ -101,7 +104,7 @@ export function NewOrderForm({ api, suppliers, items, onCreated }: { api: Api; s
     setE(errors);
     if (!value) return;
     setBusy(true);
-    try { const r = await api.createOrder(value); setF({ supplierId: '', itemId: '', quantity: '', price: '' }); onCreated(r.number); }
+    try { const r = await api.createOrder({ ...value, ...(project ? { projectName: project } : {}) }); setF({ supplierId: '', itemId: '', quantity: '', price: '' }); setProject(''); onCreated(r.number); }
     catch (err) { setE({ form: t('proc.saveFailed', { reason: errorText(err, t, 'server.unexpected') }) }); } finally { setBusy(false); }
   }
   return (
@@ -111,6 +114,7 @@ export function NewOrderForm({ api, suppliers, items, onCreated }: { api: Api; s
         <Pick id="no-sup" label={t('proc.field.supplier')} value={f.supplierId} onChange={(v) => setF({ ...f, supplierId: v, itemId: '' })} error={e.supplier} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <Pick id="no-item" label={t('proc.field.item')} value={f.itemId} onChange={(v) => setF({ ...f, itemId: v })} error={e.item} options={options.map((i) => ({ value: i.id, label: i.name }))} />
         {supplier && options.length === 0 && <p className={ui.muted}>{t('cat.noItemsForSupplier')}</p>}
+        {projects.length > 0 && <Pick wrap id="no-project" label={t('proc.field.project')} value={project} onChange={(v) => setProject(v === project ? '' : v)} options={projects.map((p) => ({ value: p, label: p }))} />}
         <label className={ui.field}><span>{t('proc.field.quantity')}</span><input type="text" inputMode="numeric" autoComplete="off" value={f.quantity} maxLength={8} onChange={(x) => setF({ ...f, quantity: x.target.value })} aria-invalid={!!e.quantity} aria-describedby={e.quantity ? 'no-q-err' : undefined} />{e.quantity && <span id="no-q-err" className={ui.err}>{e.quantity}</span>}</label>
         <label className={ui.field}><span>{t('proc.field.price')}</span>{ref && <span className={ui.muted}>{t('cat.refHint', { price: formatCop(ref.refPriceCop), days: ref.leadDays })}</span>}<input type="text" inputMode="numeric" autoComplete="off" value={f.price} maxLength={14} onChange={(x) => setF({ ...f, price: x.target.value })} aria-invalid={!!e.price} aria-describedby={e.price ? 'no-p-err' : undefined} />{e.price && <span id="no-p-err" className={ui.err}>{e.price}</span>}</label>
       </div>

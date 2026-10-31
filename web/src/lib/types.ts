@@ -56,7 +56,7 @@ export interface EquipmentInstall { id: string; number: string; itemId: string; 
 export interface StockItem { id: string; name: string; kind: 'equipment' | 'spare'; forKinds: string[]; onHand: number }
 export interface PurchaseOrder {
   id: string; number: string; supplierId: string; supplierName: string; itemId: string; itemName: string; itemKind: string;
-  quantity: number; unitPriceCop: number; totalCop: number; status: 'ordered' | 'received' | 'cancelled'; createdAt: string; receivedAt: string | null;
+  quantity: number; unitPriceCop: number; totalCop: number; projectName?: string | null; status: 'ordered' | 'received' | 'cancelled'; createdAt: string; receivedAt: string | null;
 }
 export interface RestockSuggestion { eventId: string; deviceName: string; location: string; readingKind: string; status: string; value: number; unit: string; at: string; items: { id: string; name: string; onHand: number }[] }
 
@@ -184,3 +184,6 @@ export interface QuoteCatalogItem { itemId: string; name: string; kind: 'equipme
 
 export interface PayrollRun { id: string; period: string; status: 'generated' | 'paid'; totalCop: number; headcount: number; generatedBy: string; generatedAt: string; paidBy: string | null; paidAt: string | null }
 export interface PayrollLine { engineerId: string; name: string; position: StaffPosition; kind: 'engineer' | 'technician'; salaryCop: number; transportAidCop: number; prestacionesCop: number; pensionCop: number; cajaCop: number; arlCop: number; employerCostCop: number }
+
+export interface Payable { id: string; number: string; orderId: string; supplierName: string; amountCop: number; dueDate: string; projectName: string | null; status: 'open' | 'paid'; overdue: boolean; createdAt: string; paidAt: string | null; paidBy: string | null; method: 'transfer' | 'cash' | 'card' | 'check' | null; reference: string | null }
+export interface PayablesResponse { payables: Payable[]; openCop: number; overdueCop: number }

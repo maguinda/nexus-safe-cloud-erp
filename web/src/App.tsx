@@ -13,6 +13,7 @@ import { ProcurementView } from './components/ProcurementView';
 import { ContractsView } from './components/ContractsView';
 import { QuotesView } from './components/QuotesView';
 import { PayrollView } from './components/PayrollView';
+import { PayablesView } from './components/PayablesView';
 import { ProfitabilityView } from './components/ProfitabilityView';
 import { AuditView } from './components/AuditView';
 import { CamerasView } from './components/CamerasView';
@@ -26,8 +27,8 @@ import { mmss } from './lib/format';
 import { SessionProvider, useSession } from './session';
 import s from './App.module.css';
 
-type View = 'projects' | 'invoices' | 'contracts' | 'capacity' | 'procurement' | 'workorders' | 'quotes' | 'payroll';
-type ManagerView = 'dashboard' | 'quotes' | 'payroll' | 'contracts' | 'profitability' | 'audit' | 'cameras' | 'workorders' | 'sensors' | 'network' | 'capacity' | 'procurement' | 'users';
+type View = 'projects' | 'invoices' | 'contracts' | 'capacity' | 'procurement' | 'workorders' | 'quotes' | 'payroll' | 'payables';
+type ManagerView = 'dashboard' | 'quotes' | 'payroll' | 'payables' | 'contracts' | 'profitability' | 'audit' | 'cameras' | 'workorders' | 'sensors' | 'network' | 'capacity' | 'procurement' | 'users';
 interface NavItem { label: MsgKey; icon: IconName; on: boolean; go: () => void }
 interface NavGroup { label?: MsgKey; items: NavItem[] }
 // El gerente ve el dashboard y administra usuarios (la API responde 403 al resto de sus rutas); los demás roles no tienen esas pestañas.
@@ -43,13 +44,13 @@ function Shell() {
   const groups: NavGroup[] = isManager
     ? [
       { items: [{ label: 'nav.dashboard', icon: 'grid', on: managerView === 'dashboard', go: () => setManagerView('dashboard') }] },
-      { label: 'nav.group.business', items: [{ label: 'nav.quotes', icon: 'receipt', on: managerView === 'quotes', go: () => setManagerView('quotes') }, { label: 'nav.payroll', icon: 'users', on: managerView === 'payroll', go: () => setManagerView('payroll') }, { label: 'nav.contracts', icon: 'receipt', on: managerView === 'contracts', go: () => setManagerView('contracts') }, { label: 'nav.profitability', icon: 'grid', on: managerView === 'profitability', go: () => setManagerView('profitability') }] },
+      { label: 'nav.group.business', items: [{ label: 'nav.quotes', icon: 'receipt', on: managerView === 'quotes', go: () => setManagerView('quotes') }, { label: 'nav.payroll', icon: 'users', on: managerView === 'payroll', go: () => setManagerView('payroll') }, { label: 'nav.payables', icon: 'receipt', on: managerView === 'payables', go: () => setManagerView('payables') }, { label: 'nav.contracts', icon: 'receipt', on: managerView === 'contracts', go: () => setManagerView('contracts') }, { label: 'nav.profitability', icon: 'grid', on: managerView === 'profitability', go: () => setManagerView('profitability') }] },
       { label: 'nav.group.data', items: [{ label: 'nav.sensors', icon: 'pulse', on: managerView === 'sensors', go: () => setManagerView('sensors') }, { label: 'nav.network', icon: 'network', on: managerView === 'network', go: () => setManagerView('network') }, { label: 'nav.cameras', icon: 'pulse', on: managerView === 'cameras', go: () => setManagerView('cameras') }, { label: 'nav.workorders', icon: 'layers', on: managerView === 'workorders', go: () => setManagerView('workorders') }] },
       { label: 'nav.group.team', items: [{ label: 'nav.capacity', icon: 'users', on: managerView === 'capacity', go: () => setManagerView('capacity') }, { label: 'nav.procurement', icon: 'layers', on: managerView === 'procurement', go: () => setManagerView('procurement') }] },
       { label: 'nav.group.admin', items: [{ label: 'nav.users', icon: 'users', on: managerView === 'users', go: () => setManagerView('users') }, { label: 'nav.audit', icon: 'grid', on: managerView === 'audit', go: () => setManagerView('audit') }] },
     ]
     : user?.role === 'finance'
-    ? [{ items: [{ label: 'nav.payroll', icon: 'users', on: true, go: () => setView('payroll') }] }]
+    ? [{ items: [{ label: 'nav.payroll', icon: 'users', on: view !== 'payables', go: () => setView('payroll') }, { label: 'nav.payables', icon: 'receipt', on: view === 'payables', go: () => setView('payables') }] }]
     : [{ items: [{ label: 'nav.projects', icon: 'layers', on: view === 'projects', go: () => setView('projects') }, { label: 'nav.invoices', icon: 'receipt', on: view === 'invoices', go: () => setView('invoices') },
       // Ventas y el líder de proyecto ven las cotizaciones (el líder solo las lee); facturación no.
       ...(user?.role === 'sales' || user?.role === 'project_lead' ? [{ label: 'nav.quotes' as const, icon: 'receipt' as const, on: view === 'quotes', go: () => setView('quotes') }] : []),
@@ -94,7 +95,7 @@ function Shell() {
             </div>
           </nav>
           <main className={s.content}>
-            {isManager ? (managerView === 'payroll' ? <PayrollView key="py" toast={setToast} /> : managerView === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : managerView === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : managerView === 'cameras' ? <CamerasView key="cm" /> : managerView === 'audit' ? <AuditView key="au" /> : managerView === 'profitability' ? <ProfitabilityView key="pf" /> : managerView === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): view === 'payroll' || user?.role === 'finance' ? <PayrollView key="py" toast={setToast} /> : view === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : view === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : view === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : view === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
+            {isManager ? (managerView === 'payables' ? <PayablesView key="ap" toast={setToast} /> : managerView === 'payroll' ? <PayrollView key="py" toast={setToast} /> : managerView === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : managerView === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : managerView === 'cameras' ? <CamerasView key="cm" /> : managerView === 'audit' ? <AuditView key="au" /> : managerView === 'profitability' ? <ProfitabilityView key="pf" /> : managerView === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : managerView === 'users' ? <UsersView key="u" toast={setToast} /> : managerView === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : managerView === 'capacity' ? <CapacityView key="c" toast={setToast} /> : managerView === 'sensors' ? <SensorsView key="s" /> : managerView === 'network' ? <NetworkView key="n" /> : <Fragment key="d"><AdvisorPanel onOpen={setManagerView} /><DashboardView /></Fragment>): user?.role === 'finance' ? (view === 'payables' ? <PayablesView key="ap" toast={setToast} /> : <PayrollView key="py" toast={setToast} />) : view === 'payroll' ? <PayrollView key="py" toast={setToast} /> : view === 'quotes' ? <QuotesView key="qt" toast={setToast} /> : view === 'workorders' ? <WorkOrdersView key="wo" toast={setToast} /> : view === 'contracts' ? <ContractsView key="ct" toast={setToast} /> : view === 'procurement' ? <ProcurementView key="pr" toast={setToast} /> : view === 'capacity' ? <CapacityView key="c" toast={setToast} /> : view === 'projects' ? <ProjectsView key="p" toast={setToast} /> : <InvoicesView key="i" toast={setToast} />}
             <JwtPanel />
           </main>
         </div>
