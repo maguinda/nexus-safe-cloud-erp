@@ -2320,8 +2320,9 @@ test('Payroll: the manager and finance generate the month with a snapshot of wha
   try {
     for (const w of [sales, lead]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Payroll', exact: true })).toHaveCount(0);
     // Finanzas solo ve lo suyo (nómina, cuentas por pagar y flujo de caja); la nómina es la primera y ya está abierta.
-    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables', 'Cash flow']);
-    await expect(finance.page.getByRole('heading', { name: 'Monthly payroll' })).toBeVisible();
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Summary', 'Payroll', 'Payables', 'Cash flow']);
+    await expect(finance.page.getByRole('heading', { name: 'Financial summary' })).toBeVisible(); // finanzas aterriza en el Resumen
+    await nav(finance.page, 'Payroll'); await expect(finance.page.getByRole('heading', { name: 'Monthly payroll' })).toBeVisible();
     // Gerencia genera: un mes mal escrito avisa sin enviar.
     await nav(manager.page, 'Payroll');
     const f = manager.page.getByRole('form', { name: 'Generate payroll' });
@@ -2330,17 +2331,20 @@ test('Payroll: the manager and finance generate the month with a snapshot of wha
     await f.getByLabel('Month (YYYY-MM)').fill('2026-06'); await f.getByRole('button', { name: 'Generate payroll' }).click();
     await expect(manager.page.getByText(/Payroll of 2026-06 generated: 8 people, [\d.]+ COP\./)).toBeVisible();
     const row = manager.page.locator('[data-payroll="2026-06"]');
-    await expect(row).toContainText('Generated, not paid');
+    await expect(row).toContainText('Late: not paid'); // un mes que ya pasó y sigue sin pagar sale en rojo
     // El detalle: la foto de cada persona con lo que cuesta a la empresa (Ana: 9.900.000 de sueldo → 13.696.848 con prestaciones).
     await row.getByRole('button', { name: 'See the detail of the payroll of 2026-06' }).click();
-    await expect(row.locator('[data-person="Ana Torres"]')).toContainText('13.696.848 COP');
-    await expect(row.locator('[data-person="Nelly Ortiz"]')).toContainText('aid 249.095'); await expect(row.locator('[data-person="Hugo Salazar"]')).toContainText('aid 0');
+    const person = (n: string, col: string) => manager.page.locator(`[data-person="${n}"] [data-col="${col}"]`);
+    await expect(person('Ana Torres', 'cost')).toHaveText('13.696.848'); await expect(person('Ana Torres', 'salary')).toHaveText('9.900.000');
+    await expect(person('Nelly Ortiz', 'aid')).toHaveText('249.095'); await expect(person('Hugo Salazar', 'aid')).toHaveText('0');
     // Repetir el mes no se puede; finanzas lo ve y lo paga una sola vez.
     await f.getByRole('button', { name: 'Generate payroll' }).click();
     await expect(manager.page.getByText(/The payroll of 2026-06 already exists/)).toBeVisible();
     await finance.page.reload();
+    await expect(finance.page.getByRole('heading', { name: 'Financial summary' })).toBeVisible(); // finanzas ahora aterriza en el Resumen
+    await nav(finance.page, 'Payroll');
     const frow = finance.page.locator('[data-payroll="2026-06"]');
-    await expect(frow).toContainText('Generated, not paid');
+    await expect(frow).toContainText('Late: not paid');
     await frow.getByRole('button', { name: 'Mark the payroll of 2026-06 as paid' }).click();
     await expect(finance.page.getByText('Payroll of 2026-06 paid.')).toBeVisible();
     await expect(frow).toContainText('Paid'); await expect(frow).toContainText('fernanda.gil@nexus.example');
@@ -2359,7 +2363,7 @@ test('Payables: receiving an order creates the debt with the supplier (tied to i
   const [manager, finance, lead, billing] = [await open('manager'), await open('finance'), await open('lead'), await open('billing')];
   try {
     for (const w of [lead, billing]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Payables', exact: true })).toHaveCount(0);
-    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables', 'Cash flow']);
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Summary', 'Payroll', 'Payables', 'Cash flow']);
     // Un pedido ligado a un proyecto, recibido: nace la deuda.
     await nav(manager.page, 'Procurement');
     const form = manager.page.getByRole('form', { name: 'New order' });
@@ -2373,10 +2377,10 @@ test('Payables: receiving an order creates the debt with the supplier (tied to i
     // Finanzas ve la deuda (2 × 2.400.000 = 4.800.000) y la paga una sola vez.
     await nav(finance.page, 'Payables');
     const row = finance.page.locator('[data-payable]').filter({ hasText: 'Branch network upgrade' }).first();
-    await expect(row).toContainText('4.800.000 COP'); await expect(row).toContainText('To pay'); await expect(finance.page.locator('[data-ap-totals]')).toContainText('To pay: 4.800.000 COP');
+    await expect(row.locator('[data-col="amount"]')).toHaveText('4.800.000'); await expect(row).toContainText('To pay'); await expect(finance.page.locator('[data-ap-totals]')).toContainText('To pay: 4.800.000 COP');
     const number = (await row.getAttribute('data-payable'))!;
     await row.getByRole('button', { name: `Pay payable ${number}` }).click();
-    const pf = row.getByRole('form', { name: `Pay payable ${number}` });
+    const pf = finance.page.getByRole('form', { name: `Pay payable ${number}` }); // el formulario va en la fila de abajo de la tabla
     await pf.getByRole('button', { name: 'Confirm payment' }).click(); await expect(pf.getByText('Choose how it was paid.')).toBeVisible();
     await pf.getByRole('button', { name: 'Transfer' }).click(); await pf.getByLabel(/Reference/).fill('x'); await pf.getByRole('button', { name: 'Confirm payment' }).click();
     await expect(pf.getByText(/The reference must be 3 to 60 characters/)).toBeVisible();
@@ -2401,7 +2405,7 @@ test('Cash flow: the payroll paid and the suppliers paid go out, the month shows
   const month = new Date().toISOString().slice(0, 7);
   try {
     for (const w of [lead, sales]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Cash flow', exact: true })).toHaveCount(0);
-    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables', 'Cash flow']);
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Summary', 'Payroll', 'Payables', 'Cash flow']);
     // Sale la nómina del mes.
     await nav(finance.page, 'Payroll');
     await finance.page.getByRole('form', { name: 'Generate payroll' }).getByRole('button', { name: 'Generate payroll' }).click();
@@ -2417,7 +2421,7 @@ test('Cash flow: the payroll paid and the suppliers paid go out, the month shows
     await nav(finance.page, 'Payables'); await finance.page.reload(); await nav(finance.page, 'Payables');
     const row = finance.page.locator('[data-payable]').first(); const number = (await row.getAttribute('data-payable'))!;
     await row.getByRole('button', { name: `Pay payable ${number}` }).click();
-    const pf = row.getByRole('form', { name: `Pay payable ${number}` }); await pf.getByRole('button', { name: 'Cash' }).click(); await pf.getByRole('button', { name: 'Confirm payment' }).click();
+    const pf = finance.page.getByRole('form', { name: `Pay payable ${number}` }); await pf.getByRole('button', { name: 'Cash' }).click(); await pf.getByRole('button', { name: 'Confirm payment' }).click(); // el formulario va en la fila de abajo de la tabla
     await expect(finance.page.getByText(`Payable ${number} paid.`)).toBeVisible();
     // Gerencia aprueba la cotización pendiente de la demostración.
     await nav(manager.page, 'Quotes');
@@ -2426,16 +2430,16 @@ test('Cash flow: the payroll paid and the suppliers paid go out, the month shows
     await expect(async () => {
       await nav(finance.page, 'Payables'); await nav(finance.page, 'Cash flow');
       const m = finance.page.locator(`[data-month="${month}"]`);
-      await expect(m).toContainText('suppliers 4.800.000', { timeout: 1500 }); await expect(m).not.toContainText('payroll 0 ');
+      await expect(m.locator('[data-col="suppliers"]')).toHaveText('4.800.000', { timeout: 1500 }); await expect(m.locator('[data-col="payroll"]')).not.toHaveText('0');
       await expect(finance.page.locator('[data-cost="COT-0002"]')).toContainText('Cámaras y control de acceso', { timeout: 1500 });
     }).toPass({ timeout: 60_000 });
     const m = finance.page.locator(`[data-month="${month}"]`);
-    await expect(m).toContainText('in 0'); await expect(finance.page.locator('[data-cf-totals]')).toContainText('came in');
+    await expect(m.locator('[data-col="in"]')).toHaveText('0'); await expect(finance.page.locator('[data-cf-totals]')).toContainText('came in');
     const cost = finance.page.locator('[data-cost="COT-0002"]');
-    await expect(cost).toContainText('quoted 4.049.092 COP'); await expect(cost).toContainText('margin 25%'); await expect(cost).toContainText('real so far 0 COP'); await expect(cost).toContainText('0% of the quoted cost');
+    await expect(cost.locator('[data-col="quoted"]')).toHaveText('4.049.092'); await expect(cost.locator('[data-col="margin"]')).toHaveText('25 %'); await expect(cost.locator('[data-col="real"]')).toHaveText('0'); await expect(cost.locator('[data-col="used"]')).toContainText('0% of the quoted cost'); await expect(cost.locator('[data-col="used"]')).toContainText('Within the quote');
     // Cambiar la ventana y que gerencia lo vea igual.
     await finance.page.getByRole('button', { name: 'Last 3 months' }).click(); await expect(finance.page.locator('[data-month]')).toHaveCount(3);
-    await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Cash flow'); await expect(manager.page.locator(`[data-month="${month}"]`)).toContainText('suppliers 4.800.000');
+    await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Cash flow'); await expect(manager.page.locator(`[data-month="${month}"] [data-col="suppliers"]`)).toHaveText('4.800.000');
   } finally { for (const w of [manager, finance, lead, sales]) await w.ctx.close(); }
 });
 
@@ -2518,4 +2522,53 @@ test('Sessions: «Sign out on all my devices» closes the session here AND on th
   await laptop.ctx.close(); await phone.ctx.close();
   const again = await signIn(); // la contraseña sigue sirviendo
   await again.ctx.close();
+});
+
+test('Finance summary: finance lands on the month close; it moves from to-do to done as the payroll is generated and paid, and an overdue payable turns red in the summary and in Payables', async ({ browser }) => {
+  test.setTimeout(240_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'finance') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const [manager, finance] = [await open('manager'), await open('finance')];
+  const month = new Date().toISOString().slice(0, 7);
+  const close = finance.page.getByRole('list', { name: 'What was done, what is being done and what is left of the month close' });
+  try {
+    // Aterriza en el Resumen: la nómina del mes por hacer; nada vencido ni pasado de presupuesto.
+    await expect(finance.page.getByRole('heading', { name: 'Financial summary' })).toBeVisible();
+    await expect(finance.page.getByRole('heading', { name: `Close of ${month}` })).toBeVisible();
+    await expect(close.getByText(`The payroll of ${month} still has to be generated`)).toBeVisible();
+    await expect(close.locator('[data-state="todo"]')).toHaveCount(2);
+    await expect(close.getByText('No overdue payables')).toBeVisible(); await expect(close.getByText('No project over budget')).toBeVisible();
+    await expect(close.locator('[data-state="done"]')).toHaveCount(2);
+    // El botón del punto lleva a su pantalla; se genera la nómina y el resumen pasa a «en curso».
+    await close.getByRole('button', { name: 'Go to Payroll' }).first().click();
+    await finance.page.getByRole('form', { name: 'Generate payroll' }).getByRole('button', { name: 'Generate payroll' }).click();
+    await expect(finance.page.getByText(new RegExp(`Payroll of ${month} generated`))).toBeVisible();
+    await nav(finance.page, 'Summary');
+    await expect(close.getByText(`Payroll of ${month} generated: it still has to be paid`)).toBeVisible();
+    await expect(close.locator('[data-state="doing"]')).toHaveCount(1);
+    // Se paga y todo el punto queda hecho.
+    await nav(finance.page, 'Payroll');
+    await finance.page.locator(`[data-payroll="${month}"]`).getByRole('button', { name: `Mark the payroll of ${month} as paid` }).click();
+    await expect(finance.page.getByText(`Payroll of ${month} paid.`)).toBeVisible();
+    await nav(finance.page, 'Summary');
+    await expect(close.getByText(`Payroll of ${month} paid`, { exact: true })).toBeVisible();
+    await expect(close.locator('[data-state="doing"]')).toHaveCount(0);
+    // Una compra recibida crea una deuda; se la fecha hacia atrás en la base y se pone roja en el resumen y en Cuentas por pagar.
+    await nav(manager.page, 'Procurement');
+    const form = manager.page.getByRole('form', { name: 'New order' });
+    await form.getByRole('button', { name: 'Redes del Norte (example)' }).click(); await form.getByRole('button', { name: 'Switch de acceso 24 puertos' }).click();
+    await form.getByLabel('Quantity (1 to 100,000)').fill('1'); await form.getByRole('button', { name: 'Create order' }).click();
+    const ord = manager.page.locator('[data-order]').first(); await ord.getByRole('button', { name: /^Receive order/ }).click(); await expect(ord).toContainText('Received');
+    execSync(`. ./.env && docker compose exec -T -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" postgres psql -h localhost -U "$POSTGRES_ADMIN_USER" -d procurement -Atc "ALTER TABLE payables DISABLE TRIGGER USER; UPDATE payables SET due_date = CURRENT_DATE - 3 WHERE status = 'open'; ALTER TABLE payables ENABLE TRIGGER USER;"`, { cwd: join(here, '..', '..'), stdio: 'ignore', shell: '/bin/sh' });
+    await finance.page.reload();
+    await expect(close.getByText('Overdue payables: 1')).toBeVisible(); await expect(close.locator('[data-state="bad"]')).toHaveCount(1);
+    await close.getByRole('button', { name: 'Go to Payables' }).click();
+    const row = finance.page.locator('[data-payable][data-status="open"]').first();
+    await expect(row).toContainText('Overdue'); await expect(row).toContainText(/Overdue \d+ d|\d+ d ago/i);
+    await expect(finance.page.getByRole('group', { name: 'Filter the payables by status' }).getByRole('button', { name: 'Overdue (1)' })).toBeVisible();
+    await finance.page.getByRole('group', { name: 'Filter the payables by status' }).getByRole('button', { name: 'Paid (0)' }).click();
+    await expect(finance.page.getByText('There are no payables with this filter.')).toBeVisible();
+  } finally { for (const w of [manager, finance]) await w.ctx.close(); }
 });

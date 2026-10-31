@@ -1,0 +1,35 @@
+.stack { display: grid; gap: var(--sp-4); min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: var(--sp-3); min-width: 0; }
+.panelTitle { margin: 0; font-size: var(--fs-md); }
+.lead { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.number { font-family: var(--mono); white-space: nowrap; }
+.cell { display: grid; gap: 2px; min-width: 0; }
+.what { font-weight: 600; overflow-wrap: anywhere; }
+.wide { min-width: 16ch; }
+.desc { color: var(--muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.dueCell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.rowActions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.subRow td { background: var(--surface-2); }
+.form { display: grid; gap: var(--sp-2); padding: var(--sp-2) 0; }
+.empty { display: grid; gap: var(--sp-1); padding: var(--sp-4); border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
+.seg { display: inline-flex; flex-wrap: wrap; }
+.mini { display: grid; gap: 2px; min-width: 130px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.good { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+/* Gráfica de barras por mes: es decoración; la misma información está en la tabla de abajo. Las alturas son lo único calculado en línea. */
+.chart { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-3); align-items: end; height: 160px; padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
+.month { display: grid; grid-template-rows: 1fr auto; gap: var(--sp-1); height: 100%; min-width: 0; }
+.bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; min-height: 0; }
+.barIn { width: 14px; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--ok); }
+.barOut { width: 14px; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--bad); }
+.monthLabel { text-align: center; font-size: var(--fs-sm); color: var(--muted); font-family: var(--mono); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--muted); }
+.dotIn { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); margin-right: var(--sp-1); }
+.dotOut { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); margin-right: var(--sp-1); }
+@media (max-width: 640px) {
+  .rowActions > button { flex: 1 1 auto; }
+  .seg { display: flex; }
+  .barIn, .barOut { width: 8px; }
+}
