@@ -24,13 +24,13 @@ services:
     environment:
       COOKIE_SECURE: "true"
       SEED_DEMO: "false"
-  projects: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
-  billing: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  projects: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false", RELAY_MANDATORY: "true" } }
+  billing: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false", RELAY_MANDATORY: "true" } }
   analytics: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
   notifications: { <<: *prod, mem_limit: 256m, environment: { SEED_DEMO: "false" } }
-  capacity: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
-  operations: { <<: *prod, mem_limit: 512m, environment: { SEED_DEMO: "false" } }
-  procurement: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  capacity: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false", RELAY_MANDATORY: "true" } }
+  operations: { <<: *prod, mem_limit: 512m, environment: { SEED_DEMO: "false", RELAY_MANDATORY: "true" } }
+  procurement: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false", RELAY_MANDATORY: "true" } }
   web: { <<: *prod, mem_limit: 128m }
   gateway:
     <<: *prod

@@ -10,6 +10,8 @@ export interface Config {
   consumerEnabled: boolean;
   outboxPollMs: number;
   relayEnabled: boolean;
+  relayMandatory: boolean;
+  outboxCompactDays: number;
 }
 
 function required(name: string): string {
@@ -29,5 +31,7 @@ export function loadConfig(): Config {
     consumerEnabled: process.env.CONSUMER_ENABLED !== 'false',
     outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
     relayEnabled: process.env.RELAY_ENABLED !== 'false',
+    relayMandatory: process.env.RELAY_MANDATORY === 'true',
+    outboxCompactDays: Number(process.env.OUTBOX_COMPACT_DAYS ?? 30),
   };
 }
