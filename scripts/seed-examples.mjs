@@ -176,7 +176,12 @@ await step('Aviso de un sensor en alerta', async () => {
 // 7. Verificación: por la API, que nada de lo que prometen los ejemplos quedó vacío.
 await step('Verificación: nada quedó vacío', async () => {
   const miss = [];
-  const count = async (what, path, token, pick, min) => { const r = await api('GET', path, token); const n = r.status === 200 ? pick(r.json) : -1; if (!(n >= min)) miss.push(`${what} (${n} < ${min})`); };
+  // Bitácora, campana, flujo de caja y costo real se arman por eventos (outbox → RabbitMQ → consumidor): se espera hasta ~20 s a que lleguen en vez de fallar por rapidez.
+  const count = async (what, path, token, pick, min) => {
+    let n = -1;
+    for (let i = 0; i < 20; i++) { const r = await api('GET', path, token); n = r.status === 200 ? pick(r.json) : -1; if (n >= min) return; await new Promise((ok) => setTimeout(ok, 1000)); }
+    miss.push(`${what} (${n} < ${min})`);
+  };
   await count('nóminas', '/payroll', t.finance, (j) => (Array.isArray(j) ? j : j.runs ?? []).length, 2);
   await count('cuentas por pagar', '/payables', t.finance, (j) => j.payables.length, 3);
   await count('movimientos de caja (meses con datos)', '/cashflow?months=6', t.finance, (j) => j.months.filter((m) => m.inCop + m.outCop > 0).length, 1);
