@@ -34,6 +34,14 @@ export class CapacityController {
     return { ...r, engineers: r.engineers.map(({ dailyCostCop: _cost, monthlySalaryCop: _salary, ...rest }) => rest) };
   }
 
+  @Get('staff/technicians')
+  @Roles('engineer', 'project_lead', 'manager')
+  @ApiOperation({ summary: 'The technicians of the staff (id, name, position and load today), to assign them an activity of a milestone. Never salaries or costs (roles engineer, project lead, manager)' })
+  async technicians(): Promise<{ technicians: { id: string; name: string; position: string; loadToday: number; freeToday: number }[] }> {
+    const r = await this.list.execute();
+    return { technicians: r.engineers.filter((e) => e.kind === 'technician').map((e) => ({ id: e.id, name: e.name, position: e.position, loadToday: e.loadToday, freeToday: e.freeToday })) };
+  }
+
   @Get('my-capacity')
   @Roles('engineer', 'technician')
   @ApiOperation({ summary: 'My own load: today, the peak of the next 30 days and my allocations (projects and maintenance). Only me (the person comes from the signed token), never salaries or costs (roles engineer and technician)' })

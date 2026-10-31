@@ -254,4 +254,20 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
     for (const u of [USERS.manager, USERS.lead, USERS.sales, USERS.billing, USERS.finance]) expect((await get(tok(u))).status).toBe(403);
     expect((await get()).status).toBe(401); expect((await get(tok(eng))).status).toBe(401);
   });
+
+  it('the technicians list (to assign milestone activities): only technicians, no salary or cost; engineer, project lead and manager can read it, the others cannot', async () => {
+    const tok = (u: any, staffId?: string) => bearer(token(u, staffId ? { extra: { staffId } } : {}));
+    const get = (auth?: string) => { let r = request(app.getHttpServer()).get('/staff/technicians'); if (auth) r = r.set('Authorization', auth); return r; };
+    const eng = { id: randomUUID(), email: 'ana.torres@nexus.example', role: 'engineer' };
+    for (const who of [tok(eng, SEED_ENGINEERS[0]), as(USERS.lead), as(USERS.manager)]) {
+      const r = await get(who); expect(r.status).toBe(200);
+      const names = r.body.technicians.map((t: any) => t.name).sort();
+      expect(names).toEqual(['Hugo Salazar', 'Nelly Ortiz']); // solo técnicos: ningún ingeniero
+      expect(r.body.technicians[0]).toEqual(expect.objectContaining({ id: expect.any(String), position: expect.any(String), loadToday: expect.any(Number), freeToday: expect.any(Number) }));
+      expect(JSON.stringify(r.body)).not.toMatch(/dailyCostCop|monthlySalaryCop|salary|cost/i);
+    }
+    for (const u of [USERS.sales, USERS.billing, USERS.finance]) expect((await get(as(u))).status).toBe(403);
+    expect((await get(tok({ id: randomUUID(), email: 'hugo.salazar@nexus.example', role: 'technician' }, SEED_ENGINEERS[6]))).status).toBe(403); // el técnico no arma listas de otros
+    expect((await get()).status).toBe(401);
+  });
 });

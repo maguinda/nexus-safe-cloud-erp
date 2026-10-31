@@ -8,6 +8,8 @@ import { ListMilestonesUseCase, ListProjectsUseCase, ListTeamUseCase } from './a
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { HealthController } from './http/health.controller';
+import { ActivitiesController, ACTIVITIES } from './http/activities.controller';
+import { ActivitiesService } from './infrastructure/prisma-activities';
 import { QuotesController, QUOTES } from './http/quotes.controller';
 import { QuotesService } from './infrastructure/prisma-quotes';
 import { APPROVE_MILESTONE, CREATE_MILESTONE, CREATE_PROJECT, LIST_MILESTONES, LIST_PROJECTS, LIST_TEAM, ProjectsController } from './http/projects.controller';
@@ -25,7 +27,7 @@ let consumer: TeamConsumer | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 300) }])],
-  controllers: [ProjectsController, QuotesController, HealthController],
+  controllers: [ProjectsController, QuotesController, ActivitiesController, HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -37,6 +39,7 @@ let consumer: TeamConsumer | undefined;
     { provide: CREATE_PROJECT, useFactory: () => new CreateProjectUseCase(new PrismaProjectCommands(prisma)) },
     { provide: CREATE_MILESTONE, useFactory: () => new CreateMilestoneUseCase(new PrismaUnitOfWork(prisma)) },
     { provide: QUOTES, useFactory: () => new QuotesService(prisma) },
+    { provide: ACTIVITIES, useFactory: () => new ActivitiesService(prisma) },
     { provide: APPROVE_MILESTONE, useFactory: () => new ApproveMilestoneUseCase(new PrismaUnitOfWork(prisma)) },
   ],
 })

@@ -25,3 +25,12 @@ export class QuoteForbiddenError extends Error {
 
 /** Un evento recibido del bus no cumple el contrato: va a la cola de mensajes muertos, no se reintenta. */
 export class InvalidEventError extends Error {}
+
+/** La actividad no existe, o la persona no puede verla (se responde igual: no se sondean actividades ajenas). */
+export class ActivityNotFoundError extends Error {
+  constructor() { super('Activity not found'); this.name = 'ActivityNotFoundError'; }
+}
+/** La actividad o el hito no está en el estado que pide la acción (409). */
+export class ActivityStateError extends Error {
+  constructor(message: string) { super(message); this.name = 'ActivityStateError'; }
+}

@@ -26,6 +26,8 @@ export const unsigned = (u: { id: string; email: string; role: string }) => `${b
 import { PrismaClient } from '@prisma/client';
 /** Deja los 4 hitos pendientes del seed como estaban y borra el outbox (las pruebas no deben depender del orden). */
 export async function resetState(prisma: PrismaClient) {
+  await prisma.milestoneActivity.deleteMany();
+  await prisma.milestone.updateMany({ data: { ownerId: null, ownerName: null } });
   await prisma.quote.deleteMany();
   await prisma.outboxEvent.deleteMany();
   await prisma.projectTeamMember.deleteMany();
