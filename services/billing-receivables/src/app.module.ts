@@ -61,7 +61,7 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
       consumer.start();
     }
     if (c.relayEnabled) {
-      relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs });
+      relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs, mandatory: c.relayMandatory, compactAfterDays: c.outboxCompactDays });
       relay.start();
     }
     if (c.overdueEnabled) {

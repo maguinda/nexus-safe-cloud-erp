@@ -70,4 +70,33 @@ describe('outbox relay -> RabbitMQ (e2e, real PostgreSQL and RabbitMQ)', () => {
     await new Promise((r) => setTimeout(r, 800));
     expect(received).toHaveLength(0);
   });
+  it('real RabbitMQ: a mandatory publish to a key with no queue is RETURNED before the confirmation (the assumption the relay relies on), and a routable one is not', async () => {
+    const ex = `relay.probe.${Date.now()}`;
+    const c2 = await conn.createConfirmChannel();
+    await c2.assertExchange(ex, 'topic', { autoDelete: true });
+    const order: string[] = [];
+    c2.on('return', () => order.push('return'));
+    await new Promise<void>((res, rej) => c2.publish(ex, 'nobody.listens', Buffer.from('{}'), { mandatory: true, messageId: 'p1' }, (e) => { order.push('confirm'); e ? rej(e) : res(); }));
+    expect(order).toEqual(['return', 'confirm']);
+    const q = await c2.assertQueue('', { exclusive: true }); await c2.bindQueue(q.queue, ex, 'somebody.#');
+    order.length = 0;
+    await new Promise<void>((res, rej) => c2.publish(ex, 'somebody.listens', Buffer.from('{}'), { mandatory: true, messageId: 'p2' }, (e) => { order.push('confirm'); e ? rej(e) : res(); }));
+    expect(order).toEqual(['confirm']);
+    await c2.close();
+  });
+
+  it('compaction empties the payload of events published more than N days ago, keeps the row and its unique key, and leaves recent and pending events alone', async () => {
+    const { OutboxRelay } = require('../src/infrastructure/outbox-relay');
+    const mk = (n: string, published: Date | null) => prisma.outboxEvent.create({ data: { id: require('crypto').randomUUID(), aggregateId: `compact-${n}`, type: 'T', routingKey: 'ops.x', payload: { type: 'T', data: { secret: n } }, publishedAt: published } });
+    const day = 86_400_000;
+    const old = await mk('old', new Date(Date.now() - 40 * day)); const recent = await mk('recent', new Date(Date.now() - 2 * day)); const pending = await mk('pending', null);
+    const relay = new OutboxRelay(prisma, { url: process.env.RABBITMQ_URL as string, pollMs: 100 });
+    expect(await relay.compact(30)).toBe(1);
+    expect((await prisma.outboxEvent.findUniqueOrThrow({ where: { id: old.id } })).payload).toEqual({ compacted: true });
+    expect((await prisma.outboxEvent.findUniqueOrThrow({ where: { id: recent.id } })).payload).toMatchObject({ data: { secret: 'recent' } });
+    expect((await prisma.outboxEvent.findUniqueOrThrow({ where: { id: pending.id } })).payload).toMatchObject({ data: { secret: 'pending' } });
+    expect(await relay.compact(30)).toBe(0);
+    // la fila sigue ahí: el mismo evento no puede volver a crearse
+    await expect(mk('old', null)).rejects.toThrow();
+  });
 });

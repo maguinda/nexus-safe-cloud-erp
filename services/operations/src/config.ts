@@ -10,6 +10,8 @@ export interface Config {
   rabbitUrl: string;
   outboxPollMs: number;
   relayEnabled: boolean;
+  relayMandatory: boolean;
+  outboxCompactDays: number;
   consumerEnabled: boolean;
   retentionDays: number;
   retentionCheckMs: number;
@@ -31,6 +33,8 @@ export function loadConfig(): Config {
     rabbitUrl: required('RABBITMQ_URL'),
     outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
     relayEnabled: process.env.RELAY_ENABLED !== 'false',
+    relayMandatory: process.env.RELAY_MANDATORY === 'true',
+    outboxCompactDays: Number(process.env.OUTBOX_COMPACT_DAYS ?? 30),
     consumerEnabled: process.env.CONSUMER_ENABLED !== 'false',
     // Lecturas de sensores: se guardan 365 días por defecto; RETENTION_DAYS=0 las guarda para siempre. Un plazo inválido (menos de 30 días) detiene el arranque.
     retentionDays: process.env.RETENTION_DAYS === undefined || process.env.RETENTION_DAYS === '' ? DEFAULT_RETENTION_DAYS : Number(process.env.RETENTION_DAYS),

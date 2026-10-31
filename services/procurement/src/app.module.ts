@@ -49,7 +49,7 @@ let consumer: EventConsumer | undefined;
 export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
   onApplicationBootstrap() {
     const c = cfg();
-    if (c.relayEnabled) { relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs }); relay.start(); }
+    if (c.relayEnabled) { relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs, mandatory: c.relayMandatory, compactAfterDays: c.outboxCompactDays }); relay.start(); }
     if (c.consumerEnabled) { consumer = new EventConsumer(new HandleEventUseCase(new PrismaEventUnitOfWork(prisma)), c.rabbitUrl); consumer.start(); }
   }
 
