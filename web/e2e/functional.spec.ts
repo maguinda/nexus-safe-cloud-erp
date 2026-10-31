@@ -209,7 +209,7 @@ test('the project lead creates a project and a milestone, approves it and the dr
   await page.getByLabel('Amount (COP, before VAT)').fill('12000000');
   await page.getByRole('button', { name: 'Add milestone' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Milestone “Site survey” added' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Site survey' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Site survey', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Pending' })).toBeVisible();
   await page.getByRole('button', { name: 'Approve milestone' }).click();
   await expect(page.getByRole('status').filter({ hasText: /Billing created draft INV-\d+/ })).toBeVisible({ timeout: 15_000 });
@@ -899,12 +899,12 @@ test('Projects: a click anywhere on the row selects it, and the milestones on sc
   const heading = (name: string) => page.getByRole('heading', { name: `Milestones · ${name}` });
   await page.getByRole('row', { name: /Retail POS integration/ }).getByRole('cell').nth(1).click(); // la celda del cliente, no el nombre
   await expect(heading('Retail POS integration')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'API contract' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'API contract', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Site survey', exact: true })).toHaveCount(0); // un hito del proyecto anterior nunca queda bajo el título nuevo
   await page.getByRole('row', { name: /SME cloud migration/ }).getByRole('cell').nth(2).click(); // la celda del contador
   await expect(heading('SME cloud migration')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Add a milestone to SME cloud migration' })).toBeVisible(); // el formulario apunta al proyecto elegido
-  await expect(page.getByRole('cell', { name: 'API contract' })).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: 'API contract', exact: true })).toHaveCount(0);
 });
 
 test('Projects: opening the screen asks for the milestones of ONE project, however many projects there are', async ({ page, request }) => {
@@ -1832,7 +1832,7 @@ test('Projects: every project shows its progress, and the board view splits the 
   await expect(approvedCol.getByText('Done')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Milestone', exact: true })).toHaveCount(0); // en el tablero no se pinta la tabla de hitos (la del equipo sí sigue ahí)
   await page.getByRole('button', { name: 'List', exact: true }).click();
-  await expect(page.getByRole('cell', { name: 'Pilot in 3 stores' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Pilot in 3 stores', exact: true })).toBeVisible();
 });
 
 test('Projects: approving from the board creates the draft invoice and the step tracker shows it', async ({ page, request }) => {
@@ -2653,4 +2653,50 @@ test('Milestone activities: the engineer in charge creates activities for techni
     const other = await eng.page.request.post('/milestones/m3/activities', { headers: auth('engineer'), data: { title: 'No debe entrar', assignedToId: ANA, assignedTo: 'Ana Torres' } }); expect(other.status()).toBe(404);
     const byTech = await tech.page.request.post('/milestones/m2/activities', { headers: auth('technician'), data: { title: 'No debe entrar', assignedToId: ANA, assignedTo: 'Ana Torres' } }); expect(byTech.status()).toBe(403);
   } finally { for (const w of [eng, tech]) await w.ctx.close(); }
+});
+
+test('Milestone owners: the project lead assigns, changes and removes the engineer of a milestone and sees the progress of its activities; an approved milestone no longer changes; sales and billing do not see it', async ({ browser }) => {
+  test.setTimeout(240_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const sessions = await currentSessions();
+  const auth = (role: string) => ({ authorization: `Bearer ${sessions[role].token}` });
+  const HUGO = '11111111-1111-4111-8111-111111111107';
+  const open = async (role: 'lead' | 'engineer' | 'sales') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [lead, eng] = [await open('lead'), await open('engineer')];
+  try {
+    await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+    await expect(lead.page.getByRole('heading', { name: 'Milestone owners' })).toBeVisible();
+    const m2 = lead.page.locator('[data-owner-of="m2"]');
+    await expect(m2).toContainText('Link redundancy design'); await expect(m2.locator('[data-col="owner"]')).toContainText('No owner'); await expect(m2.locator('[data-col="progress"]')).toContainText('No activities');
+    // Un hito ya aprobado no cambia de responsable: lo dice y no ofrece el botón.
+    const m1 = lead.page.locator('[data-owner-of="m1"]');
+    await expect(m1).toContainText('Approved: the owner no longer changes'); await expect(m1.getByRole('button', { name: /^Assign an owner/ })).toHaveCount(0);
+    // Asignar: sin elegir avisa; eligiendo a Ana queda como responsable.
+    await m2.getByRole('button', { name: 'Assign an owner to the milestone Link redundancy design' }).click();
+    const g = lead.page.getByRole('group', { name: 'Assign an owner to the milestone Link redundancy design' });
+    await g.getByRole('button', { name: 'Confirm owner' }).click(); await expect(g.getByText('Choose the engineer in charge.')).toBeVisible();
+    await expect(g.getByRole('button', { name: /Hugo Salazar/ })).toHaveCount(0); // solo ingenieros, ningún técnico
+    await g.getByRole('button', { name: 'Ana Torres · Engineer' }).click(); await g.getByRole('button', { name: 'Confirm owner' }).click();
+    await expect(lead.page.getByText('Milestone Link redundancy design: owner Ana Torres.')).toBeVisible();
+    await expect(m2.locator('[data-col="owner"]')).toHaveText('Ana Torres');
+    // Ana lo ve y crea una actividad para Hugo (por la API); el líder ve el avance.
+    await eng.page.reload(); await expect(eng.page.locator('[data-hito="m2"]')).toContainText('Link redundancy design');
+    const made = await eng.page.request.post('/milestones/m2/activities', { headers: auth('engineer'), data: { title: 'Probar el enlace de respaldo', assignedToId: HUGO, assignedTo: 'Hugo Salazar' } }); expect(made.status()).toBe(201);
+    await lead.page.reload(); await lead.page.getByRole('row', { name: /Branch network upgrade/ }).click();
+    await expect(lead.page.locator('[data-owner-of="m2"] [data-col="progress"]')).toContainText('0 of 1 activities finished');
+    // Cambiar de responsable: Julián lo recibe y Ana ya no puede crear en él (404).
+    await lead.page.locator('[data-owner-of="m2"]').getByRole('button', { name: 'Assign an owner to the milestone Link redundancy design' }).click();
+    const g2 = lead.page.getByRole('group', { name: 'Assign an owner to the milestone Link redundancy design' });
+    await g2.getByRole('button', { name: 'Julián Pardo · Engineer' }).click(); await g2.getByRole('button', { name: 'Confirm owner' }).click();
+    await expect(lead.page.locator('[data-owner-of="m2"] [data-col="owner"]')).toHaveText('Julián Pardo');
+    const stale = await eng.page.request.post('/milestones/m2/activities', { headers: auth('engineer'), data: { title: 'Ya no es mío', assignedToId: HUGO, assignedTo: 'Hugo Salazar' } }); expect(stale.status()).toBe(404);
+    await eng.page.reload(); await expect(eng.page.getByText('No milestones have been assigned to you yet.')).toBeVisible();
+    // Quitar el responsable.
+    await lead.page.getByRole('button', { name: 'Remove the owner of the milestone Link redundancy design' }).click();
+    await expect(lead.page.getByText('Milestone Link redundancy design: no owner.')).toBeVisible(); await expect(lead.page.locator('[data-owner-of="m2"] [data-col="owner"]')).toContainText('No owner');
+    // Ventas no ve la sección (la API le responde 403 al líder de otro rol).
+    const sales = await open('sales');
+    try { await sales.page.getByRole('row', { name: /Branch network upgrade/ }).click(); await expect(sales.page.getByRole('heading', { name: /Milestones of/ }).or(sales.page.getByRole('heading', { name: /Branch network upgrade/ })).first()).toBeVisible(); await expect(sales.page.getByRole('heading', { name: 'Milestone owners' })).toHaveCount(0); } finally { await sales.ctx.close(); }
+  } finally { for (const w of [lead, eng]) await w.ctx.close(); }
 });

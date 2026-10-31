@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { MyCapacity, MyMilestone, MyActivity, MilestoneActivity, TechnicianOption, CashflowResponse, ProjectCostsResponse, PayablesResponse, Payable, PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { MyCapacity, MilestoneOwnerInfo, MyMilestone, MyActivity, MilestoneActivity, TechnicianOption, CashflowResponse, ProjectCostsResponse, PayablesResponse, Payable, PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -101,6 +101,8 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     setCatalog: (supplierId: string, itemId: string, b: { refPriceCop: number; leadDays: number }) => request<{ supplierId: string; itemId: string }>('PUT', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`, b),
     removeCatalog: (supplierId: string, itemId: string) => request<void>('DELETE', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`),
     myCapacity: () => request<MyCapacity>('GET', '/my-capacity'),
+    milestoneProgress: (projectId: string) => request<MilestoneOwnerInfo[]>('GET', `/projects/${encodeURIComponent(projectId)}/milestone-progress`),
+    setMilestoneOwner: (milestoneId: string, owner: { id: string; name: string } | null) => request<{ milestoneId: string; ownerId: string | null; ownerName: string | null }>('PATCH', `/milestones/${encodeURIComponent(milestoneId)}/owner`, owner ? { ownerId: owner.id, ownerName: owner.name } : { ownerId: null }),
     myMilestones: () => request<MyMilestone[]>('GET', '/my-milestones'),
     myActivities: () => request<MyActivity[]>('GET', '/my-activities'),
     technicians: async () => (await request<{ technicians: TechnicianOption[] }>('GET', '/staff/technicians')).technicians,
