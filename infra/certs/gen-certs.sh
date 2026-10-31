@@ -5,21 +5,28 @@
 #   gateway.pem / gateway-key.pem  carné del gateway (solo cliente)
 #   server.pem / server-key.pem    certificado HTTPS que el gateway presenta a los NAVEGADORES en el puerto 8443 (docker-compose.https.yml); es de la CA de desarrollo,
 #                                   que ningún navegador conoce: las pruebas lo aceptan con `ignoreHTTPSErrors`
-# Nada de esto va a Git (*.pem está ignorado). Son certificados de DESARROLLO: curva P-256, 1 año.
+# Nada de esto va a Git (*.pem está ignorado). Curva P-256. Los certificados de servicio duran 1 año y la CA 5 años (CA_DAYS).
+#   sh gen-certs.sh            solo crea lo que falta
+#   sh gen-certs.sh --renew    emite de nuevo TODOS los certificados de servicio con la MISMA CA (la renovación anual: nadie deja de confiar en nadie)
+#   sh gen-certs.sh --force    CA nueva y todo nuevo (hay que reiniciar todo a la vez)
 set -e
 # CERT_DIR permite a las pruebas generar sus propios certificados en una carpeta temporal.
 DIR="${CERT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 mkdir -p "$DIR"
 FORCE="$1"
 DAYS=365
+CA_DAYS="${CA_DAYS:-1825}"
+# --renew: la CA se queda; solo se vuelven a emitir los certificados de servicio.
+NEWCA=no; [ "$FORCE" = "--force" ] && NEWCA=yes
+[ "$FORCE" = "--renew" ] && FORCE="--force"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 # CA: puede firmar certificados finales, pero no sub-CAs (pathlen:0). Solo se crea si falta (o con --force).
-if [ ! -f "$DIR/ca.pem" ] || [ "$FORCE" = "--force" ]; then
+if [ ! -f "$DIR/ca.pem" ] || [ "$NEWCA" = "yes" ]; then
   openssl ecparam -name prime256v1 -genkey -noout -out "$DIR/ca-key.pem"
   printf 'basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n' > "$TMP/ca.ext"
   openssl req -new -key "$DIR/ca-key.pem" -subj "/O=Nexus ERP (dev)/CN=Nexus ERP internal CA" -out "$TMP/ca.csr"
-  openssl x509 -req -sha256 -in "$TMP/ca.csr" -signkey "$DIR/ca-key.pem" -days "$DAYS" -extfile "$TMP/ca.ext" -out "$DIR/ca.pem" 2>/dev/null
+  openssl x509 -req -sha256 -in "$TMP/ca.csr" -signkey "$DIR/ca-key.pem" -days "$CA_DAYS" -extfile "$TMP/ca.ext" -out "$DIR/ca.pem" 2>/dev/null
   FORCE="--force"   # una CA nueva invalida todos los certificados anteriores: se emiten de nuevo
 fi
 

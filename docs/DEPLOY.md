@@ -62,8 +62,9 @@ Volver atrás: `git checkout <versión-anterior>` y el mismo `up -d --build`. La
 
 ## 6. Seguridad
 - **Secretos:** solo en el `.env` del servidor (permisos 600, fuera de Git). Nunca por correo ni chat.
-- **Rotar las llaves del login:** generar unas nuevas con `gen-keys.sh`, reiniciar los 8 servicios; las sesiones abiertas se renuevan solas (las de renovación viven en la base) y los tokens viejos caducan en 15 minutos.
-- **Rotar los certificados de mTLS:** `gen-certs.sh` y reiniciar todo. Duran lo que dice el script: anota la fecha de vencimiento.
+- **Rotar las llaves del login:** `./scripts/rotate-keys.sh --prod` (después de un respaldo). Guarda las anteriores en `infra/.rotated/`, genera nuevas y reinicia los 8 servicios (corte de ~1 minuto). Los accesos ya emitidos dejan de valer y la pantalla pide uno nuevo sola con la sesión de renovación, que vive en la base: nadie reescribe su contraseña (probado en vivo). Hazlo si la llave privada pudo filtrarse; si no, una vez al año. No hay rotación sin corte (dos llaves a la vez): sería un proyecto aparte.
+- **Certificados de mTLS (los de servicio duran 1 año, la CA 5): se vencen y TODO deja de hablar.** Revisa cada mes `./scripts/cert-expiry.sh` (también lo hace `prod-preflight.sh` y falla con menos de 30 días). Renueva con `./scripts/rotate-certs.sh --prod`: mismos certificados nuevos con la MISMA CA, corte de ~1 minuto. Con `--new-ca` cambia también la CA (si su llave se filtró o va a vencer; anota el vencimiento de la CA en tu calendario: son 5 años). Pon un recordatorio a los 11 meses.
+- **Borra `infra/.rotated/`** cuando todo funcione: guarda las llaves anteriores.
 - **Cambiar una contraseña de base de datos:** cambiarla en el `.env` y en la base (`ALTER ROLE ... PASSWORD`), y reiniciar el servicio de esa base.
 - **Sistema operativo:** `unattended-upgrades` activado, acceso por SSH solo con llave y sin entrar como root, y cortafuegos con solo 22, 80 y 443.
 - **Navegador:** la política de contenido (CSP) del gateway sigue en modo «solo informe» a propósito: pasarla a bloqueo exige probar cada pantalla con la sesión real y revisar los avisos varios días; hacerlo en un cambio aparte y nunca directo.
@@ -80,6 +81,7 @@ Este despliegue sirve para empezar. Cuando haga falta más (varios servidores, r
 - [ ] Llaves y certificados generados EN el servidor (no copiados del repositorio).
 - [ ] Primer gerente creado; ningún usuario de demostración existe (`SEED_DEMO=false`).
 - [ ] HTTPS funcionando con el dominio y `./scripts/prod-smoke.sh` en verde.
+- [ ] Recordatorio mensual de `./scripts/cert-expiry.sh` y anual de `rotate-certs.sh`.
 - [ ] Respaldo diario programado, una copia fuera del servidor y **un ensayo de restauración hecho**.
 - [ ] El cliente sabe lo de la factura electrónica (de prueba), la nómina (no legal) y los porcentajes (los confirma un contador).
 - [ ] Política de datos personales de la empresa lista.
