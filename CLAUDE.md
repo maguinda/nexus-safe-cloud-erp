@@ -3,19 +3,23 @@
 Repositorio **privado**: https://github.com/maguinda/nexus-safe-cloud-erp (monorepo; esta carpeta es la raíz del repositorio; la carpeta padre `arquitectura_software` NO es un repo).
 Contexto, decisiones y stack: ver el `CLAUDE.md` de la carpeta padre y `../corte_2/`. Alcance del MVP aprobado por Marlon el 2026-10-18 = el boceto `../corte_2/boceto_mvp.html`; no agregar módulos sin que él lo pida.
 
-## Estado (2026-10-19, tarde)
-MVP completo y verificado: 4 servicios NestJS (identity, projects, billing, analytics) + React + PostgreSQL + RabbitMQ + gateway nginx, en contenedores, con CI en GitHub Actions. 39 PR mezclados: IVA y conciliación (#11), mTLS gateway→servicios (#12), rol `manager` (#15), servicio Analytics y su API de dashboard (#19), pantalla del dashboard (este cambio), billing publica `InvoiceDrafted`/`InvoiceIssued` por outbox y arreglo del consumidor (#16), crear proyectos e hitos por API y por pantalla (#17). Probado clonando el repo desde cero (2026-10-18).
+## Estado (actualizado el 2026-11-01)
+**Los 8 servicios del diseño están construidos y probados; `main` llega al PR #143** (los PR #99 a #143 se mezclaron sin CI de GitHub por falta de minutos hasta el 2026-11-01: hay que correr sus workflows). Alcance completo y lo que NO está: `../corte_3/estado_del_sistema.md` (la fuente del alcance del ERP). Las secciones de abajo cuentan, en orden, cómo se llegó aquí.
 
 | Pieza | Qué es | Puerto |
 |---|---|---|
-| `services/identity-access` | login, JWT RS256 con rol y **administración de usuarios** (solo `manager`: `GET/POST /users`, `PATCH /users/:id/role`) | 4101 (interno) |
-| `services/projects` | proyectos, hitos, aprobar → outbox → RabbitMQ | 4102 (interno) |
-| `services/billing-receivables` | consume `MilestoneApproved`, factura borrador; emitir | 4103 (interno) |
-| `services/analytics` | modelos de lectura por eventos, `GET /dashboard` y `GET /telemetry/summary` con los datos de red e IoT de Nexus (ambos solo `manager`) | 4104 (interno) |
-| `web` | React 19 + TS + Vite, CSS Modules y tokens | vía gateway |
+| `services/identity-access` | login, JWT RS256, renovación y cierre de sesiones, **7 roles** (gerente, líder, facturación, ventas, finanzas, ingeniero y técnico), usuarios; publica `UserCreated` y `RoleChanged` | 4101 |
+| `services/projects` | proyectos, hitos, cotizaciones, **responsable de cada hito y actividades para técnicos**, equipo del proyecto | 4102 |
+| `services/billing-receivables` | facturas con IVA, pagos, contratos, vencidas, factura electrónica de PRUEBA | 4103 |
+| `services/analytics` | tablero, rentabilidad, flujo de caja, costo real contra lo cotizado, bitácora de auditoría | 4104 |
+| `services/notifications` | la campana por rol | 4105 |
+| `services/technical-capacity` | personal técnico, asignaciones (regla de 100 %), lista de técnicos, nómina | 4106 |
+| `services/operations` | sensores, red, órdenes de trabajo, ingesta, asesor | 4107 |
+| `services/procurement` | proveedores, pedidos, stock, instalación, conteo, cuentas por pagar | 4108 |
+| `web` | React 19 + TS + Vite, CSS Modules y tokens; 7 roles; español por defecto e inglés a elegir | vía gateway |
 | `infra/gateway` | nginx: único puerto publicado `127.0.0.1:8080` | 8080 |
 
-Pruebas (2026-10-28): unitarias 1.097 (identity 142, projects 52, billing 106, analytics 233, web 564), e2e con PostgreSQL y RabbitMQ reales 667 (identity 222, projects 86, billing 49, analytics 310; más 10 de evaluación contra la IA real, opt-in), flujo completo `scripts/e2e-flow.mjs`, y navegador `web/` 370 (154 funcionales en Chromium y WebKit + 216 auditorías de pantalla en claro y oscuro, español e inglés, escritorio, WebKit, iPhone SE, iPhone 13, Pixel 5 y 320 px). Incluye las pantallas Sensores y Red. Aparte (no cuentan en el total): 3 pruebas de la cookie `Secure` por navegador con HTTPS real (`npm run test:e2e:https`, necesita `docker-compose.https.yml`) y `scripts/gateway-real-ip-check.sh` (8 comprobaciones de la IP real detrás de un balanceador); las dos corren en el job `stack` del CI. No probado: celular real, teclado virtual, Android real, Safari real.
+Pruebas medidas el 2026-11-01: **2.152 unitarias** (1.339 de servicios + 813 de web), **1.188 e2e**, **105 funcionales** en Chromium y **105** en WebKit (sin la intermitente «Session» de WebKit) y **912 auditorías de diseño** en 6 perfiles; 127 roturas deliberadas detectadas. No probado: celular real, Safari real, Android real, teclado virtual. Listo para producción salvo desplegar: `docs/DEPLOY.md`.
 
 ## Cómo correr
 ```sh
@@ -27,7 +31,8 @@ node scripts/e2e-flow.mjs                              # flujo de punta a punta 
 cd web && npm run test:e2e                             # navegador (necesita `npx playwright install chromium webkit` una vez)
 docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d   # además publica Swagger en 127.0.0.1:4101-4103/docs (solo demo)
 ```
-Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), diana.vega@ (manager: ve el Dashboard de Analytics y administra usuarios en la pestaña Users; 403 en el resto), todos `@nexus.example`.
+Datos de ejemplo para las pantallas: `./scripts/reset-demo.sh --examples` (sin la opción, la demo base de las pruebas y el guion).
+Logins de demostración (contraseña en `.env`, `DEMO_PASSWORD`; hay 7 roles, los de finanzas, ingeniero y técnico son fernanda.gil@, ana.torres@ y hugo.salazar@ `@nexus.example`): laura.rios@ (project_lead), andres.mora@ (billing_analyst), camila.soto@ (sales), diana.vega@ (manager: ve el Dashboard de Analytics y administra usuarios en la pestaña Users; 403 en el resto), todos `@nexus.example`.
 
 ## Trampas aprendidas
 - **`.env.example` lo leen docker compose Y el shell** (`set -a; . ./.env`, que usan `e2e-flow` y el job `stack` de la CI): un valor con espacios o paréntesis sin comillas (`EINVOICE_SUPPLIER_NAME=Velocity Softworks (sandbox)`) lo acepta compose y el shell lo rechaza como error de sintaxis, y además ` #` empieza un comentario. Van entre comillas y sin ` # `. Lo atrapó el CI (mi `.env` local era anterior y no lo veía); ahora `scripts/check-env-example.sh` lo comprueba y corre en el job `stack` antes de levantar nada.
