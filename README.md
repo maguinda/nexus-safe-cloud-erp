@@ -1,12 +1,20 @@
 # Nexus Safe-Cloud ERP (MVP)
 
-MVP for the Software Architecture course (Equipo 2, Velocity Softworks). Four services behind one gateway,
-a React frontend, PostgreSQL (one database per service) and RabbitMQ.
+MVP for the Software Architecture course (Equipo 2, Velocity Softworks). **Eight services** behind one gateway
+(identity-access, projects, billing-receivables, analytics, notifications, technical-capacity, operations, procurement),
+a React frontend with **seven roles**, PostgreSQL (one database per service) and RabbitMQ (events with a transactional outbox).
+
+**What it covers today (2026-11-01):** quote → approval creates the project, milestones and contract → each milestone has an
+engineer in charge who creates activities and assigns them to technicians → invoicing, payments and overdue detection → staff
+and capacity (nobody over 100 %) → purchasing, stock, installation and a physical count → maintenance work orders (not part of any
+project; they do spend capacity) → payroll, payables, cash flow and real cost against the quote → sensors and network data.
+The electronic invoice and the payroll are **tests/sandbox, without legal validity**. It is ready to deploy on one server
+(`docs/DEPLOY.md`) but it has not been deployed. The full, honest scope (and what is NOT there) is in `../corte_3/estado_del_sistema.md`.
 
 | Folder | What it is |
 |---|---|
-| `services/identity-access` | Login, JWT issuing and user administration for the manager (`GET/POST /users`, `PATCH /users/:id/role`) |
-| `services/projects` | Projects, milestones, approval (writes the event to an outbox) |
+| `services/identity-access` | Login, JWT issuing, session renewal and sign-out everywhere, seven roles, user administration for the manager (`GET/POST /users`, `PATCH /users/:id/role`); publishes `UserCreated` and `RoleChanged` |
+| `services/projects` | Projects, milestones, approval (writes the event to an outbox), sales quotes, the engineer in charge of each milestone and its activities for technicians |
 | `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
 | `services/analytics` | Read models built from the business events and the manager dashboard (`GET /dashboard`) |
 | `services/operations` | Operations & Telemetry: the Nexus network and IoT data from the course folder (`GET /telemetry/*`, `GET /network/*`), the telemetry ingestion API (service key) and the decision advisor (`POST /advisor/brief`). It publishes `ThresholdBreached` when a sensor gets worse. Own database, mTLS, port 4107 |
@@ -61,6 +69,9 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 | `andres.mora@nexus.example` | billing analyst | Ver facturas y emitir la factura (aparece «Due») |
 | `camila.soto@nexus.example` | sales | No ve Invoices: recibe 403 |
 | `diana.vega@nexus.example` | manager | Dashboard de Analytics y pestaña Users |
+| `fernanda.gil@nexus.example` | finance | Resumen del cierre del mes, Nómina, Cuentas por pagar y Flujo de caja |
+| `ana.torres@nexus.example` | engineer | «Mi trabajo»: su carga, sus asignaciones (seleccionables), sus hitos y las actividades que asigna a técnicos |
+| `hugo.salazar@nexus.example` | technician | «Mi trabajo»: su carga, sus asignaciones, sus actividades y sus órdenes de mantenimiento |
 
 **Recorrido corto de la demo** (el guion completo con tiempos está en `corte_2/`, en el archivo de pitch y demo)
 1. Entra como Laura y abre **Projects**.
@@ -76,7 +87,8 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 **Comprobar que todo funciona de punta a punta** (opcional)
 ```sh
 node scripts/e2e-flow.mjs      # debe terminar sin ❌ (72 comprobaciones)
-./scripts/reset-demo.sh        # deja la demo como al inicio
+./scripts/reset-demo.sh        # deja la demo como al inicio (la base: la que usan las pruebas y el guion)
+./scripts/reset-demo.sh --examples   # lo mismo + unos pocos datos de ejemplo por la API real para que ninguna pantalla se vea vacía
 ```
 
 **Migraciones de la base de datos** (no tienes que ejecutarlas)
