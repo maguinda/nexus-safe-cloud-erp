@@ -11,6 +11,8 @@ import { Checklist, type CheckItem } from './shared/Checklist';
 import { ProgressBar } from './shared/ProgressBar';
 import { StatusChip, type Tone } from './shared/StatusChip';
 import { KpiCard } from './KpiCard';
+import { MyActivities } from './MyActivities';
+import { MyMilestones } from './MyMilestones';
 import s from './MyWorkView.module.css';
 
 const FILTERS: OrderFilter[] = ['todo', 'doing', 'done', 'all'];
@@ -18,7 +20,7 @@ const PRIORITY_TONE: Record<WorkOrder['priority'], Tone> = { critical: 'bad', hi
 
 /** Mi trabajo (ingeniero y técnico): solo lo mío. Mi carga con semáforo, mi avance, una lista de lo hecho / en curso / por hacer y mis órdenes en una tabla. Nunca sueldos, costos ni lo de otras personas. */
 export function MyWorkView({ toast }: { toast: (m: string) => void }) {
-  const { api, t, lang } = useSession();
+  const { api, t, lang, user } = useSession();
   const alive = useAlive();
   const [cap, setCap] = useState<MyCapacity | null>(null);
   const [orders, setOrders] = useState<WorkOrder[] | null>(null);
@@ -28,6 +30,7 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
   const [noteError, setNoteError] = useState('');
   const [busy, setBusy] = useState('');
   const [filter, setFilter] = useState<OrderFilter>('all');
+  const [selId, setSelId] = useState<string | null>(null);
   const inflight = useRef(false);
 
   const load = useCallback(async () => {
@@ -50,11 +53,20 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
     void act(`d:${o.id}`, async () => { const r = await api.progressOrder(o.id, 'done', n || undefined); setFinishing(null); return t('mw.done', { n: r.number }); });
   }
 
+  /** El formulario de «terminar» con su nota: el mismo en la tabla de órdenes y en el detalle de una asignación. */
+  const finishForm = (o: WorkOrder) => (
+    <form noValidate aria-label={t('mw.finishFor', { n: o.number })} className={s.finishForm} onSubmit={(e) => finish(e, o)}>
+      <label className={ui.field}><span>{t('mw.note')}</span><input type="text" autoComplete="off" maxLength={320} value={note} onChange={(e) => setNote(e.target.value)} aria-invalid={!!noteError} />{noteError && <span className={ui.err} role="alert">{noteError}</span>}</label>
+      <div className={ui.formActions}><button type="submit" className={ui.btn} disabled={!!busy}>{t('mw.confirm')}</button><button type="button" className={ui.btnGhost} onClick={() => setFinishing(null)}>{t('mw.cancel')}</button></div>
+    </form>
+  );
   const day = (d: string) => formatDay(`${d}T00:00:00Z`, lang);
   const now = Date.now();
   const sum = useMemo(() => summarize(orders ?? [], Date.now()), [orders]);
   const list = useMemo(() => myList(orders ?? [], Date.now()), [orders]);
   const shown = useMemo(() => filterOrders(orders ?? [], filter, Date.now()), [orders, filter]);
+  const sel = cap?.me.allocations.find((a) => a.id === selId) ?? null;
+  const selOrder = sel?.kind === 'maintenance' ? (orders ?? []).find((o) => o.id === sel.workOrderId) ?? null : null;
   const counts: Record<OrderFilter, number> = { todo: sum.todo, doing: sum.doing, done: sum.done, all: sum.total };
 
   const dueCell = (o: WorkOrder) => {
@@ -126,10 +138,10 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
               <div className={ui.scroll}>
                 <table className={`${ui.tableDense} ${ui.cardsOnPhone}`}>
                   <caption className={s.sr}>{t('mw.alloc.caption')}</caption>
-                  <thead><tr><th>{t('mw.acol.kind')}</th><th>{t('mw.acol.name')}</th><th>{t('mw.acol.percent')}</th><th>{t('mw.acol.from')}</th><th>{t('mw.acol.to')}</th></tr></thead>
+                  <thead><tr><th>{t('mw.acol.kind')}</th><th>{t('mw.acol.name')}</th><th>{t('mw.acol.percent')}</th><th>{t('mw.acol.from')}</th><th>{t('mw.acol.to')}</th><th>{t('mw.col.pick')}</th></tr></thead>
                   <tbody>
                     {cap.me.allocations.map((a) => (
-                      <tr key={a.id} data-kind={a.kind}>
+                      <tr key={a.id} data-kind={a.kind} data-selected={a.id === selId ? 'true' : undefined} className={a.id === selId ? s.selectedRow : undefined}>
                         <td data-label={t('mw.acol.kind')}><StatusChip tone={a.kind === 'maintenance' ? 'info' : 'neutral'} icon={a.kind === 'maintenance' ? 'clock' : 'layers'}>{t(a.kind === 'maintenance' ? 'mw.kind.maintenance' : 'mw.kind.project')}</StatusChip></td>
                         <td data-label={t('mw.acol.name')}><span className={s.what}>{a.projectName}</span></td>
                         <td data-label={t('mw.acol.percent')}>
@@ -140,13 +152,44 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
                         </td>
                         <td data-label={t('mw.acol.from')} className={ui.muted}>{day(a.startDate)}</td>
                         <td data-label={t('mw.acol.to')} className={ui.muted}>{day(a.endDate)}</td>
+                        <td data-label={t('mw.col.pick')}><button type="button" className={a.id === selId ? ui.btn : ui.btnGhost} aria-pressed={a.id === selId} aria-label={t('mw.sel.select', { name: a.projectName })} onClick={() => setSelId(a.id === selId ? null : a.id)}>{t('mw.col.pick')}</button></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+            {cap.me.allocations.length > 0 && (
+              <section className={s.panel} aria-labelledby="mw-sel-h" aria-live="polite" data-selection={sel ? sel.kind : 'none'}>
+                <div className={s.panelHead}><h4 id="mw-sel-h" className={s.panelTitle}>{t('mw.sel.title')}</h4>{sel && <button type="button" className={ui.btnGhost} onClick={() => setSelId(null)}>{t('mw.sel.clear')}</button>}</div>
+                {!sel && <p className={ui.muted}>{t('mw.sel.hint')}</p>}
+                {sel && <p className={s.lead}>{sel.projectName} · {sel.percent} % · {day(sel.startDate)} – {day(sel.endDate)}</p>}
+                {sel?.kind === 'project' && <p className={ui.muted}>{t('mw.sel.project', { project: sel.projectName })}</p>}
+                {sel?.kind === 'maintenance' && <p className={ui.muted}>{t('mw.sel.maintenance')}</p>}
+                {sel?.kind === 'maintenance' && !selOrder && <p className={ui.muted} role="status">{t('mw.sel.noOrder')}</p>}
+                {selOrder && (
+                  <div className={s.cell} data-selected-order={selOrder.number}>
+                    <span className={s.what}>{selOrder.number} · {t(`wo.type.${selOrder.type}` as 'wo.type.inspection')} · {selOrder.targetName}</span>
+                    <span className={s.desc}>{selOrder.description}</span>
+                    <span className={s.dueCell}>
+                      <StatusChip tone={selOrder.status === 'done' ? 'ok' : selOrder.status === 'in_progress' ? 'info' : 'neutral'} icon={selOrder.status === 'done' ? 'check' : selOrder.status === 'in_progress' ? 'clock' : 'hourglass'}>{t(`wo.status.${selOrder.status}` as 'wo.status.open')}</StatusChip>
+                      {dueCell(selOrder)}
+                    </span>
+                    {isActive(selOrder) && (
+                      <span className={s.rowActions}>
+                        {selOrder.status === 'open' && <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('mw.startFor', { n: selOrder.number })} onClick={() => void act(`s:${selOrder.id}`, async () => { const r = await api.progressOrder(selOrder.id, 'in_progress'); return t('mw.started', { n: r.number }); })}>{t('mw.start')}</button>}
+                        {finishing !== selOrder.id && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('mw.finishFor', { n: selOrder.number })} onClick={() => { setFinishing(selOrder.id); setNote(''); setNoteError(''); }}>{t('mw.finish')}</button>}
+                      </span>
+                    )}
+                    {finishing === selOrder.id && finishForm(selOrder)}
+                  </div>
+                )}
+              </section>
+            )}
           </section>
+
+          {user?.role === 'engineer' && <MyMilestones project={sel?.kind === 'project' ? sel.projectName : null} onClearProject={() => setSelId(null)} toast={toast} />}
+          {user?.role === 'technician' && <MyActivities toast={toast} />}
 
           <section aria-labelledby="mw-ord-h" className={s.stack}>
             <h3 id="mw-ord-h" className={ui.h2}>{t('mw.orders')}</h3>
@@ -182,14 +225,11 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
                               </td>
                             </tr>
                           );
-                          if (finishing !== o.id) return [row];
+                          if (finishing !== o.id || selOrder?.id === o.id) return [row];
                           return [row, (
                             <tr key={`${o.id}-f`} className={s.finishRow}>
                               <td colSpan={7}>
-                                <form noValidate aria-label={t('mw.finishFor', { n: o.number })} className={s.finishForm} onSubmit={(e) => finish(e, o)}>
-                                  <label className={ui.field}><span>{t('mw.note')}</span><input type="text" autoComplete="off" maxLength={320} value={note} onChange={(e) => setNote(e.target.value)} aria-invalid={!!noteError} />{noteError && <span className={ui.err} role="alert">{noteError}</span>}</label>
-                                  <div className={ui.formActions}><button type="submit" className={ui.btn} disabled={!!busy}>{t('mw.confirm')}</button><button type="button" className={ui.btnGhost} onClick={() => setFinishing(null)}>{t('mw.cancel')}</button></div>
-                                </form>
+                                {finishForm(o)}
                               </td>
                             </tr>
                           )];

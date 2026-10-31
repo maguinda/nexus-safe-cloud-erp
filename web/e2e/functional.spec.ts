@@ -2474,6 +2474,11 @@ test('My work: an engineer and a technician sign in and see only their own load 
     await expect(tech.page.getByRole('list', { name: 'What I did, what I am doing and what is left' }).locator('[data-state="todo"]')).toHaveCount(1);
     await expect(tech.page.getByRole('group', { name: 'Filter the orders by status' }).getByRole('button', { name: 'All (1)' })).toHaveAttribute('aria-pressed', 'true');
     await expect(tech.page.getByRole('progressbar', { name: 'Orders finished' })).toHaveAttribute('aria-valuenow', '0');
+    // La asignación de mantenimiento es seleccionable y su detalle muestra la orden (no pertenece a ningún proyecto).
+    await tech.page.getByRole('button', { name: /^Select the assignment OT-/ }).first().click();
+    await expect(tech.page.locator('[data-selection="maintenance"]')).toContainText('not part of any project');
+    await expect(tech.page.locator('[data-selected-order]')).toContainText('Cambiar la fuente del sensor');
+    await tech.page.getByRole('button', { name: 'Clear the selection' }).click(); await expect(tech.page.locator('[data-selection="none"]')).toBeVisible();
     await card.getByRole('button', { name: `Start order ${number}` }).click(); await expect(tech.page.getByText(`Order ${number} started.`)).toBeVisible(); await expect(card).toContainText('In progress');
     await card.getByRole('button', { name: `Mark order ${number} as done` }).click();
     const ff = tech.page.getByRole('form', { name: `Mark order ${number} as done` }); // el formulario va en la fila de abajo de la tabla
@@ -2571,4 +2576,81 @@ test('Finance summary: finance lands on the month close; it moves from to-do to 
     await finance.page.getByRole('group', { name: 'Filter the payables by status' }).getByRole('button', { name: 'Paid (0)' }).click();
     await expect(finance.page.getByText('There are no payables with this filter.')).toBeVisible();
   } finally { for (const w of [manager, finance]) await w.ctx.close(); }
+});
+
+
+test('Milestone activities: the engineer in charge creates activities for technicians and follows them; the technician starts and finishes theirs; an engineer who is not in charge gets nothing', async ({ browser }) => {
+  test.setTimeout(240_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const sessions = await currentSessions();
+  const auth = (role: string) => ({ authorization: `Bearer ${sessions[role].token}` });
+  const ANA = '11111111-1111-4111-8111-111111111101';
+  const open = async (role: 'engineer' | 'technician') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const [eng, tech] = [await open('engineer'), await open('technician')];
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  try {
+    // Sin hitos asignados: el ingeniero lo ve y el técnico no tiene la sección de hitos.
+    await expect(eng.page.getByText('No milestones have been assigned to you yet.')).toBeVisible();
+    await expect(tech.page.getByRole('heading', { name: 'My milestones' })).toHaveCount(0); await expect(eng.page.getByRole('heading', { name: 'My activities' })).toHaveCount(0);
+    await expect(tech.page.getByText('No activities have been assigned to you yet.')).toBeVisible();
+    // El líder asigna el hito a Ana (por la API: la pantalla del líder llega en el PR 3).
+    const set = await eng.page.request.patch('/milestones/m2/owner', { headers: auth('lead'), data: { ownerId: ANA, ownerName: 'Ana Torres' } }); expect(set.status()).toBe(200);
+    await eng.page.reload();
+    const hito = eng.page.locator('[data-hito="m2"]');
+    await expect(hito).toContainText('Link redundancy design'); await expect(hito).toContainText('Pending approval'); await expect(hito).toContainText('This milestone has no activities yet.');
+    // Las asignaciones son seleccionables: elegir un proyecto filtra los hitos; otro proyecto no tiene hitos suyos.
+    await eng.page.getByRole('button', { name: 'Select the assignment Retail POS integration' }).click();
+    await expect(eng.page.getByText('You have no milestones in Retail POS integration.')).toBeVisible(); await expect(hito).toHaveCount(0);
+    await eng.page.getByRole('button', { name: 'Select the assignment Branch network upgrade' }).click();
+    await expect(eng.page.getByText('Showing only the milestones of Branch network upgrade')).toBeVisible(); await expect(hito).toBeVisible();
+    await eng.page.getByRole('button', { name: 'See all my milestones' }).click(); await expect(eng.page.getByText(/^Showing only the milestones of/)).toHaveCount(0);
+    // Crear una actividad: valida antes de enviar, elige al técnico de la lista y la crea.
+    await hito.getByRole('button', { name: 'Add an activity to the milestone Link redundancy design' }).click();
+    const form = eng.page.getByRole('form', { name: 'Add an activity to the milestone Link redundancy design' });
+    await form.getByRole('button', { name: 'Create activity' }).click();
+    await expect(form.getByText('The title must have 3 to 120 characters.')).toBeVisible(); await expect(form.getByText('Choose the technician in charge.')).toBeVisible();
+    await form.getByLabel('What has to be done').fill('Probar el enlace de respaldo');
+    await form.getByLabel('Detail (optional, up to 300 characters)').fill('<b>x</b>'); await form.getByRole('button', { name: 'Create activity' }).click();
+    await expect(form.getByText(/The detail must have up to 300 characters/)).toBeVisible();
+    await form.getByLabel('Detail (optional, up to 300 characters)').fill('Con el cable nuevo');
+    await form.getByRole('button', { name: /^Hugo Salazar/ }).click(); await form.getByLabel('Due date (optional)').fill(tomorrow);
+    await form.getByRole('button', { name: 'Create activity' }).click();
+    await expect(eng.page.getByText('Activity A-0001 created and assigned to Hugo Salazar.')).toBeVisible();
+    const row = hito.locator('[data-activity="A-0001"]');
+    await expect(row).toContainText('Probar el enlace de respaldo'); await expect(row.locator('[data-col="tech"]')).toHaveText('Hugo Salazar'); await expect(row).toContainText('To do');
+    await expect(hito).toContainText('0 of 1 activities finished');
+    // Hugo la ve (y solo la suya), la inicia y la termina con una nota.
+    await tech.page.reload();
+    const mine = tech.page.locator('[data-activity="A-0001"]');
+    await expect(mine).toContainText('Link redundancy design · Branch network upgrade'); await expect(mine).toContainText('Con el cable nuevo');
+    await mine.getByRole('button', { name: 'Start activity A-0001' }).click();
+    await expect(tech.page.getByText('Activity A-0001 started.')).toBeVisible(); await expect(mine).toContainText('In progress');
+    await mine.getByRole('button', { name: 'Mark activity A-0001 as done' }).click();
+    const ff = tech.page.getByRole('form', { name: 'Mark activity A-0001 as done' });
+    await ff.getByLabel('Note when finishing (optional)').fill('<b>x</b>'); await ff.getByRole('button', { name: 'Confirm: finished' }).click();
+    await expect(ff.getByText(/The note must be up to 300 characters/)).toBeVisible();
+    await ff.getByLabel('Note when finishing (optional)').fill('Enlace probado, conmuta en 2 s'); await ff.getByRole('button', { name: 'Confirm: finished' }).click();
+    await expect(tech.page.getByText('Activity A-0001 finished.')).toBeVisible(); await expect(mine).toContainText('Done'); await expect(mine).toContainText('Enlace probado, conmuta en 2 s');
+    await expect(tech.page.getByText('1 of 1 finished')).toBeVisible();
+    // Ana ve el avance completo; el hito sigue pendiente de aprobar (aprobar no depende de las actividades).
+    await eng.page.reload();
+    await expect(hito).toContainText('1 of 1 activities finished'); await expect(hito.locator('[data-activity="A-0001"]')).toContainText('Done'); await expect(hito).toContainText('Pending approval');
+    // Reasignar: Nelly la recibe y Hugo ya no la ve. Cancelar: sale del avance.
+    await hito.getByRole('button', { name: 'Add an activity to the milestone Link redundancy design' }).click();
+    const f2 = eng.page.getByRole('form', { name: 'Add an activity to the milestone Link redundancy design' });
+    await f2.getByLabel('What has to be done').fill('Rotular los cables del rack'); await f2.getByRole('button', { name: /^Hugo Salazar/ }).click(); await f2.getByRole('button', { name: 'Create activity' }).click();
+    await expect(eng.page.getByText('Activity A-0002 created and assigned to Hugo Salazar.')).toBeVisible();
+    const r2 = hito.locator('[data-activity="A-0002"]');
+    await r2.getByRole('button', { name: 'Reassign activity A-0002' }).click();
+    const pick = eng.page.getByRole('group', { name: 'Reassign activity A-0002' });
+    await pick.getByRole('button', { name: /^Nelly Ortiz/ }).click(); await pick.getByRole('button', { name: 'Confirm the new technician' }).click();
+    await expect(eng.page.getByText('Activity A-0002 assigned to Nelly Ortiz.')).toBeVisible(); await expect(r2.locator('[data-col="tech"]')).toHaveText('Nelly Ortiz');
+    await tech.page.reload(); await expect(tech.page.locator('[data-activity="A-0002"]')).toHaveCount(0); await expect(tech.page.locator('[data-activity="A-0001"]')).toBeVisible();
+    await r2.getByRole('button', { name: 'Cancel activity A-0002' }).click();
+    await expect(eng.page.getByText('Activity A-0002 cancelled.')).toBeVisible(); await expect(r2).toContainText('Cancelled'); await expect(hito).toContainText('1 of 1 activities finished');
+    // Un ingeniero que NO es el responsable no puede crear actividades en el hito (404, igual que si no existiera), ni un técnico (403).
+    const other = await eng.page.request.post('/milestones/m3/activities', { headers: auth('engineer'), data: { title: 'No debe entrar', assignedToId: ANA, assignedTo: 'Ana Torres' } }); expect(other.status()).toBe(404);
+    const byTech = await tech.page.request.post('/milestones/m2/activities', { headers: auth('technician'), data: { title: 'No debe entrar', assignedToId: ANA, assignedTo: 'Ana Torres' } }); expect(byTech.status()).toBe(403);
+  } finally { for (const w of [eng, tech]) await w.ctx.close(); }
 });

@@ -153,4 +153,13 @@ describe('work orders spend capacity: maintenance allocations (e2e, real Postgre
       for (const id of [a, b]) expect((await rows(id)).reduce((s, x) => s + x.percent, 0)).toBeLessThanOrEqual(100);
     }
   }, 240_000);
+
+  it('the allocations list says which work order a maintenance allocation belongs to (workOrderId) and null for project allocations, so the screen can open the order from the allocation', async () => {
+    const id = await person(); const o = randomUUID();
+    expect((await project(id, 20)).status).toBe(201);
+    expect((await reserve(o, id, 30)).status).toBeLessThan(300);
+    const list = await load(id);
+    expect(list.find((a) => a.kind === 'maintenance')).toMatchObject({ workOrderId: o });
+    expect(list.find((a) => a.kind === 'project')).toMatchObject({ workOrderId: null });
+  });
 });

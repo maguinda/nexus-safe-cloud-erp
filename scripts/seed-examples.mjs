@@ -13,7 +13,7 @@ const env = existsSync(join(ROOT, '.env')) ? Object.fromEntries(readFileSync(joi
 const BASE = process.env.BASE_URL ?? 'http://localhost:8080';
 const PASSWORD = process.env.DEMO_PASSWORD ?? env.DEMO_PASSWORD ?? 'demo-password-1';
 const INGEST_KEY = process.env.INGEST_KEY ?? env.INGEST_KEY ?? '';
-const ACCOUNTS = { ana: 'ana.torres@nexus.example', manager: 'diana.vega@nexus.example', finance: 'fernanda.gil@nexus.example', billing: 'andres.mora@nexus.example', hugo: 'hugo.salazar@nexus.example' };
+const ACCOUNTS = { lead: 'laura.rios@nexus.example', ana: 'ana.torres@nexus.example', manager: 'diana.vega@nexus.example', finance: 'fernanda.gil@nexus.example', billing: 'andres.mora@nexus.example', hugo: 'hugo.salazar@nexus.example' };
 const HUGO = { id: '11111111-1111-4111-8111-111111111107', name: 'Hugo Salazar' };
 const ANA = { id: '11111111-1111-4111-8111-111111111101', name: 'Ana Torres' };
 
@@ -55,7 +55,7 @@ async function step(name, fn) {
 }
 const need = (r, ok, what) => { if (r.status === 409) { const e = new Error(what); e.already = true; throw e; } if (!ok.includes(r.status)) throw new Error(`${what} → ${r.status} ${JSON.stringify(r.json)?.slice(0, 160)}`); return r.json; };
 
-const t = { manager: await login('manager'), finance: await login('finance'), billing: await login('billing'), hugo: await login('hugo'), ana: await login('ana') };
+const t = { manager: await login('manager'), finance: await login('finance'), billing: await login('billing'), hugo: await login('hugo'), ana: await login('ana'), lead: await login('lead') };
 
 // Si ya hay ejemplos, no se repiten (cada corrida compraría de nuevo): se reinicia con `./scripts/reset-demo.sh --examples`.
 {
@@ -164,6 +164,23 @@ await step('Conteo físico del inventario cerrado', async () => {
   return `${items.length} artículos`;
 });
 
+// 5c. Un hito con ingeniera responsable y sus actividades para técnicos (las órdenes de mantenimiento NO son parte de ningún proyecto: van aparte).
+await step('Hito con responsable y actividades para técnicos', async () => {
+  const NELLY = { id: '11111111-1111-4111-8111-111111111108', name: 'Nelly Ortiz' };
+  need(await api('PATCH', '/milestones/m2/owner', t.lead, { ownerId: ANA.id, ownerName: ANA.name }), [200], 'asignar el hito a Ana');
+  const mk = async (title, who, due, description) => need(await api('POST', '/milestones/m2/activities', t.ana, { title, assignedToId: who.id, assignedTo: who.name, dueDate: day(due), ...(description ? { description } : {}) }), [200, 201], `crear «${title}»`);
+  const a1 = await mk('Levantamiento de los equipos de la sede', HUGO, 1, 'Fotos y lista de lo que hay en cada rack');
+  const a2 = await mk('Instalar el switch de acceso en la oficina 2', HUGO, 4);
+  const a3 = await mk('Configurar las VLAN del piso 2', NELLY, 6);
+  const a4 = await mk('Probar el enlace de respaldo', HUGO, 2);
+  need(await api('PATCH', `/activities/${a1.id}/progress`, t.hugo, { status: 'done', note: 'Hecho: 14 equipos, fotos en la carpeta compartida' }), [200], 'actividad 1 → done');
+  need(await api('PATCH', `/activities/${a2.id}/progress`, t.hugo, { status: 'in_progress' }), [200], 'actividad 2 → en curso');
+  // La API no deja crear fechas pasadas: una se «fecha» hacia atrás para ver el semáforo rojo.
+  sql('projects', `UPDATE milestone_activities SET due_date = CURRENT_DATE - 2 WHERE id = '${a4.id}'`);
+  sql('projects', `UPDATE milestone_activities SET due_date = CURRENT_DATE - 1, done_at = now() - interval '1 day' WHERE id = '${a1.id}'`);
+  return `${[a1, a2, a3, a4].length} actividades`;
+});
+
 // 6. Un aviso de sensor (alimenta la campana y la bitácora). OJO con la fecha: los datos de sensores viven en TIEMPO VIRTUAL (13-sep-2026) y la pantalla mide sus
 // rangos desde la lectura más reciente; una lectura fechada «hoy» dejaría la ventana de 24 h casi vacía. Esta continúa la serie un minuto después de la última del Excel.
 await step('Aviso de un sensor en alerta', async () => {
@@ -189,6 +206,8 @@ await step('Verificación: nada quedó vacío', async () => {
   await count('contratos', '/contracts', t.manager, (j) => (Array.isArray(j) ? j : j.contracts ?? []).length, 1);
   await count('órdenes de trabajo', '/work-orders', t.manager, (j) => (Array.isArray(j) ? j : j.orders ?? []).length, 5);
   await count('mis órdenes (Hugo)', '/work-orders/mine', t.hugo, (j) => (Array.isArray(j) ? j : j.orders ?? []).length, 5);
+  await count('mis hitos (Ana)', '/my-milestones', t.ana, (j) => j.length, 1);
+  await count('actividades de Hugo', '/my-activities', t.hugo, (j) => j.length, 3);
   await count('mis órdenes (Ana)', '/work-orders/mine', t.ana, (j) => (Array.isArray(j) ? j : j.orders ?? []).length, 2);
   await count('bitácora', '/audit?limit=50', t.manager, (j) => j.entries.length, 8);
   await count('avisos (campana del gerente)', '/notifications', t.manager, (j) => (Array.isArray(j) ? j : j.notifications ?? j.items ?? []).length, 1);
