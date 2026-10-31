@@ -1,0 +1,22 @@
+.stack { display: grid; gap: var(--sp-4); min-width: 0; }
+.top { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: var(--sp-3); min-width: 0; }
+.panelHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.panelTitle { margin: 0; font-size: var(--fs-md); }
+.lead { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cell { display: grid; gap: 2px; min-width: 0; }
+.what { font-weight: 600; overflow-wrap: anywhere; }
+.desc { color: var(--muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.dueCell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.rowActions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.finishRow td { background: var(--surface-2); }
+.finishForm { display: grid; gap: var(--sp-2); padding: var(--sp-2) 0; }
+.empty { display: grid; gap: var(--sp-1); padding: var(--sp-4); border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
+.mini { display: grid; gap: 2px; min-width: 120px; }
+.seg { display: inline-flex; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .rowActions > button { flex: 1 1 auto; }
+  .seg { display: flex; }
+}
+.number { font-family: var(--mono); white-space: nowrap; }
