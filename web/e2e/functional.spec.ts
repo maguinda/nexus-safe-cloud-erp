@@ -2465,12 +2465,18 @@ test('My work: an engineer and a technician sign in and see only their own load 
     const card = tech.page.locator('[data-order]').first(); const number = (await card.getAttribute('data-order'))!;
     await expect(card).toContainText('Cambiar la fuente del sensor'); await expect(card).toContainText(/Takes 25% of you/);
     await expect(tech.page.locator('[data-kind="maintenance"]')).toHaveCount(1); await expect(tech.page.locator('[data-mw-load]')).toContainText('Today you are at 25%');
+    // El diseño nuevo: indicadores, semáforo de carga, mi lista y filtros con su cuenta.
+    await expect(tech.page.getByText('To do', { exact: true }).first()).toBeVisible(); await expect(tech.page.getByText('Comfortable').or(tech.page.getByText('Tight'))).toBeVisible();
+    await expect(tech.page.getByRole('list', { name: 'What I did, what I am doing and what is left' }).locator('[data-state="todo"]')).toHaveCount(1);
+    await expect(tech.page.getByRole('group', { name: 'Filter the orders by status' }).getByRole('button', { name: 'All (1)' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(tech.page.getByRole('progressbar', { name: 'Orders finished' })).toHaveAttribute('aria-valuenow', '0');
     await card.getByRole('button', { name: `Start order ${number}` }).click(); await expect(tech.page.getByText(`Order ${number} started.`)).toBeVisible(); await expect(card).toContainText('In progress');
     await card.getByRole('button', { name: `Mark order ${number} as done` }).click();
-    const ff = card.getByRole('form', { name: `Mark order ${number} as done` });
+    const ff = tech.page.getByRole('form', { name: `Mark order ${number} as done` }); // el formulario va en la fila de abajo de la tabla
     await ff.getByLabel('Note when finishing (optional)').fill('<b>x</b>'); await ff.getByRole('button', { name: 'Confirm: finished' }).click(); await expect(ff.getByText(/The note must be up to 300 characters/)).toBeVisible();
     await ff.getByLabel('Note when finishing (optional)').fill('Fuente cambiada y probada'); await ff.getByRole('button', { name: 'Confirm: finished' }).click();
     await expect(tech.page.getByText(`Order ${number} finished: your capacity is freed.`)).toBeVisible(); await expect(card).toContainText('Done');
+    await expect(tech.page.getByRole('progressbar', { name: 'Orders finished' })).toHaveAttribute('aria-valuenow', '1'); await expect(tech.page.getByRole('list', { name: 'What I did, what I am doing and what is left' }).locator('[data-state="done"]')).toHaveCount(1);
     await expect(async () => { await tech.page.reload(); await expect(tech.page.locator('[data-mw-load]')).toContainText('Today you are at 0%', { timeout: 1500 }); await expect(tech.page.locator('[data-kind="maintenance"]')).toHaveCount(0, { timeout: 1500 }); }).toPass({ timeout: 40_000 });
     await eng.page.reload(); await expect(eng.page.getByText('You have no work orders.')).toBeVisible();
     // Gerencia crea la cuenta de un ingeniero: elige a la persona del personal (solo ingenieros).

@@ -1,0 +1,8 @@
+/* Chip de estado compartido: color + ícono + texto (nunca solo color). Cada variante va completa: no depende del orden de las hojas. */
+.chip { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+.chip svg { width: 14px; height: 14px; flex: none; }
+.ok { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; border: 1px solid var(--ok); background: var(--ok-soft); color: var(--ok); }
+.warn { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; border: 1px solid var(--warn); background: var(--warn-soft); color: var(--warn); }
+.bad { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; border: 1px solid var(--bad); background: var(--bad-soft); color: var(--bad); }
+.info { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; border: 1px solid var(--accent-ink); background: var(--accent-soft); color: var(--accent-ink); }
+.neutral { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); }

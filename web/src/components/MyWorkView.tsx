@@ -1,13 +1,22 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAlive } from '../hooks/useAlive';
 import { errorText } from '../i18n/server';
 import { formatDay } from '../lib/format';
+import { dueChip } from '../lib/invoice-table';
+import { filterOrders, isActive, loadTone, myList, orderDue, summarize, type OrderFilter } from '../lib/mywork';
 import type { MyCapacity, WorkOrder } from '../lib/types';
 import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
-import s from './QuotesView.module.css';
+import { Checklist, type CheckItem } from './shared/Checklist';
+import { ProgressBar } from './shared/ProgressBar';
+import { StatusChip, type Tone } from './shared/StatusChip';
+import { KpiCard } from './KpiCard';
+import s from './MyWorkView.module.css';
 
-/** Mi trabajo (ingeniero y técnico): solo lo mío. Mi carga, mis asignaciones y mis órdenes de trabajo, que puedo iniciar y terminar. Nunca sueldos, costos ni lo de otras personas. */
+const FILTERS: OrderFilter[] = ['todo', 'doing', 'done', 'all'];
+const PRIORITY_TONE: Record<WorkOrder['priority'], Tone> = { critical: 'bad', high: 'warn', normal: 'neutral', low: 'neutral' };
+
+/** Mi trabajo (ingeniero y técnico): solo lo mío. Mi carga con semáforo, mi avance, una lista de lo hecho / en curso / por hacer y mis órdenes en una tabla. Nunca sueldos, costos ni lo de otras personas. */
 export function MyWorkView({ toast }: { toast: (m: string) => void }) {
   const { api, t, lang } = useSession();
   const alive = useAlive();
@@ -18,6 +27,7 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
   const [note, setNote] = useState('');
   const [noteError, setNoteError] = useState('');
   const [busy, setBusy] = useState('');
+  const [filter, setFilter] = useState<OrderFilter>('all');
   const inflight = useRef(false);
 
   const load = useCallback(async () => {
@@ -41,51 +51,158 @@ export function MyWorkView({ toast }: { toast: (m: string) => void }) {
   }
 
   const day = (d: string) => formatDay(`${d}T00:00:00Z`, lang);
-  const active = (o: WorkOrder) => o.status === 'open' || o.status === 'in_progress';
+  const now = Date.now();
+  const sum = useMemo(() => summarize(orders ?? [], Date.now()), [orders]);
+  const list = useMemo(() => myList(orders ?? [], Date.now()), [orders]);
+  const shown = useMemo(() => filterOrders(orders ?? [], filter, Date.now()), [orders, filter]);
+  const counts: Record<OrderFilter, number> = { todo: sum.todo, doing: sum.doing, done: sum.done, all: sum.total };
+
+  const dueCell = (o: WorkOrder) => {
+    if (o.status === 'done') return <span className={ui.muted}>{o.closedAt ? t('mw.closedOn', { date: formatDay(o.closedAt, lang) }) : t('mw.state.done')}</span>;
+    const due = orderDue(o, now);
+    const chip = dueChip(due, t);
+    return (
+      <span className={s.dueCell}>
+        {o.dueDate ? <span className={ui.muted}>{day(o.dueDate)}</span> : <span className={ui.muted}>{t('mw.due.none')}</span>}
+        {chip && <StatusChip tone={due.state === 'overdue' ? 'bad' : 'warn'}>{chip}</StatusChip>}
+      </span>
+    );
+  };
+
+  const items: CheckItem[] = list.map(({ order: o, state }) => {
+    const due = orderDue(o, now);
+    const chip = dueChip(due, t);
+    return {
+      key: o.id, state,
+      label: <><strong>{o.number}</strong> · {o.targetName}</>,
+      detail: t(`wo.type.${o.type}` as 'wo.type.inspection'),
+      trailing: o.status === 'done' ? <span className={ui.muted}>{o.closedAt ? formatDay(o.closedAt, lang) : ''}</span> : chip ? <StatusChip tone={due.state === 'overdue' ? 'bad' : 'warn'}>{chip}</StatusChip> : null,
+    };
+  });
+
+  const loadPct = cap?.me.loadToday ?? 0;
+  const tone = loadTone(loadPct);
+  const peakTone = loadTone(cap?.me.peakNext30 ?? 0);
 
   return (
     <section aria-labelledby="mw-h" className={s.stack}>
       <h2 id="mw-h" className={ui.h2}>{t('mw.title')}</h2>
       <p className={ui.muted}>{t('mw.intro')}</p>
       {error && <div className={ui.panelError} role="alert"><strong>{error}</strong><button type="button" className={ui.btnGhost} onClick={() => void load()}>{t('capacity.retry')}</button></div>}
-      {cap === null && !error ? <p role="status" className={ui.muted}>{t('mw.loading')}</p> : cap && (
+      {(cap === null || orders === null) && !error ? <p role="status" className={ui.muted}>{t('mw.loading')}</p> : cap && orders && (
         <>
-          <p className={s.total} data-mw-load>{t('mw.load', { load: cap.me.loadToday, free: cap.me.freeToday, peak: cap.me.peakNext30 })}</p>
-          <h3 className={ui.h2}>{t('mw.allocations')}</h3>
-          {cap.me.allocations.length === 0 ? <p className={ui.muted}>{t('mw.noAllocations')}</p> : (
-            <ul className={s.rates}>
-              {cap.me.allocations.map((a) => <li key={a.id} className={s.rate} data-kind={a.kind}>{t(a.kind === 'maintenance' ? 'mw.alloc.maintenance' : 'mw.alloc', { project: a.projectName, percent: a.percent, from: day(a.startDate), to: day(a.endDate) })}</li>)}
-            </ul>
-          )}
-        </>
-      )}
-      <h3 className={ui.h2}>{t('mw.orders')}</h3>
-      {orders !== null && (orders.length === 0 ? <p className={ui.muted}>{t('mw.noOrders')}</p> : (
-        <ul className={s.list}>
-          {orders.map((o) => (
-            <li key={o.id} className={s.card} data-order={o.number} data-status={o.status}>
-              <div className={s.head}>
-                <div>
-                  <h3 className={s.title}>{t('mw.order.line', { number: o.number, type: t(`wo.type.${o.type}` as 'wo.type.inspection'), target: o.targetName, description: o.description })} <span className={active(o) ? s.badgeWarn : s.badgeOk}>{t(`wo.status.${o.status}` as 'wo.status.open')}</span></h3>
-                  <span className={s.note}>{o.dueDate ? t('mw.order.due', { date: day(o.dueDate) }) : ''}{o.capacityPercent && o.capacityStart && o.capacityEnd ? `${o.dueDate ? ' · ' : ''}${t('mw.order.cap', { percent: o.capacityPercent, from: day(o.capacityStart), to: day(o.capacityEnd) })}` : ''}</span>
+          <div className={ui.kpis}>
+            <KpiCard label={t('mw.kpi.todo')} value={sum.todo} icon="hourglass" sub={t('mw.kpi.ofTotal', { total: sum.total })} />
+            <KpiCard label={t('mw.kpi.doing')} value={sum.doing} icon="clock" tone={sum.doing > 0 ? 'warn' : undefined} />
+            <KpiCard label={t('mw.kpi.overdue')} value={sum.overdue} icon={sum.overdue > 0 ? 'alert' : 'check'} tone={sum.overdue > 0 ? 'bad' : 'ok'} sub={sum.overdue === 0 ? t('mw.kpi.none') : undefined} />
+            <KpiCard label={t('mw.kpi.done')} value={sum.done} icon="check" tone={sum.done > 0 ? 'ok' : undefined} />
+          </div>
+
+          <div className={s.top}>
+            <section className={s.panel} aria-labelledby="mw-load-h">
+              <div className={s.panelHead}>
+                <h3 id="mw-load-h" className={s.panelTitle}>{t('mw.load.title')}</h3>
+                <StatusChip tone={tone}>{t(`mw.tone.${tone}` as 'mw.tone.ok')}</StatusChip>
+              </div>
+              <p className={s.lead} data-mw-load>{t('mw.load', { load: cap.me.loadToday, free: cap.me.freeToday, peak: cap.me.peakNext30 })}</p>
+              <ProgressBar value={Math.min(loadPct, 100)} tone={tone} label={t('mw.load.bar')} caption={t('mw.load.barCaption', { load: cap.me.loadToday, free: cap.me.freeToday })} />
+              <div><StatusChip tone={peakTone}>{t('mw.load.peak', { peak: cap.me.peakNext30 })}</StatusChip></div>
+            </section>
+            <section className={s.panel} aria-labelledby="mw-prog-h">
+              <h3 id="mw-prog-h" className={s.panelTitle}>{t('mw.progress.title')}</h3>
+              {sum.total === 0 ? <p className={ui.muted}>{t('mw.progress.empty')}</p> : (
+                <ProgressBar value={sum.done} max={sum.total} tone={sum.done === sum.total ? 'ok' : undefined} label={t('mw.progress.bar')} caption={t('mw.progress.caption', { done: sum.done, total: sum.total })} />
+              )}
+              <h4 className={s.panelTitle}>{t('mw.list.title')}</h4>
+              {items.length === 0 ? <p className={ui.muted}>{t('mw.list.empty')}</p> : (
+                <Checklist items={items} ariaLabel={t('mw.list.label')} labels={{ done: t('mw.state.done'), doing: t('mw.state.doing'), todo: t('mw.state.todo'), bad: t('mw.state.bad') }} />
+              )}
+            </section>
+          </div>
+
+          <section aria-labelledby="mw-alloc-h" className={s.stack}>
+            <h3 id="mw-alloc-h" className={ui.h2}>{t('mw.allocations')}</h3>
+            {cap.me.allocations.length === 0 ? <p className={ui.muted}>{t('mw.noAllocations')}</p> : (
+              <div className={ui.scroll}>
+                <table className={`${ui.tableDense} ${ui.cardsOnPhone}`}>
+                  <caption className={s.sr}>{t('mw.alloc.caption')}</caption>
+                  <thead><tr><th>{t('mw.acol.kind')}</th><th>{t('mw.acol.name')}</th><th>{t('mw.acol.percent')}</th><th>{t('mw.acol.from')}</th><th>{t('mw.acol.to')}</th></tr></thead>
+                  <tbody>
+                    {cap.me.allocations.map((a) => (
+                      <tr key={a.id} data-kind={a.kind}>
+                        <td data-label={t('mw.acol.kind')}><StatusChip tone={a.kind === 'maintenance' ? 'info' : 'neutral'} icon={a.kind === 'maintenance' ? 'clock' : 'layers'}>{t(a.kind === 'maintenance' ? 'mw.kind.maintenance' : 'mw.kind.project')}</StatusChip></td>
+                        <td data-label={t('mw.acol.name')}><span className={s.what}>{a.projectName}</span></td>
+                        <td data-label={t('mw.acol.percent')}>
+                          <span className={s.mini}>
+                            <ProgressBar value={Math.min(a.percent, 100)} tone={a.overAllocated ? 'bad' : loadTone(a.percent)} label={t('mw.acol.percent')} caption={`${a.percent} %`} />
+                            {a.overAllocated && <StatusChip tone="bad">{t('mw.over')}</StatusChip>}
+                          </span>
+                        </td>
+                        <td data-label={t('mw.acol.from')} className={ui.muted}>{day(a.startDate)}</td>
+                        <td data-label={t('mw.acol.to')} className={ui.muted}>{day(a.endDate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section aria-labelledby="mw-ord-h" className={s.stack}>
+            <h3 id="mw-ord-h" className={ui.h2}>{t('mw.orders')}</h3>
+            {orders.length === 0 ? <p className={ui.muted}>{t('mw.noOrders')}</p> : (
+              <>
+                <div className={`${ui.seg} ${s.seg}`} role="group" aria-label={t('mw.filter.label')}>
+                  {FILTERS.map((f) => <button key={f} type="button" className={filter === f ? ui.segBtnOn : ui.segBtn} aria-pressed={filter === f} onClick={() => setFilter(f)}>{t(`mw.filter.${f}` as 'mw.filter.all')} ({counts[f]})</button>)}
                 </div>
-                {active(o) && (
-                  <div className={s.actions}>
-                    {o.status === 'open' && <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('mw.startFor', { n: o.number })} onClick={() => void act(`s:${o.id}`, async () => { const r = await api.progressOrder(o.id, 'in_progress'); return t('mw.started', { n: r.number }); })}>{t('mw.start')}</button>}
-                    {finishing !== o.id && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('mw.finishFor', { n: o.number })} onClick={() => { setFinishing(o.id); setNote(''); setNoteError(''); }}>{t('mw.finish')}</button>}
+                {shown.length === 0 ? <div className={s.empty} role="status">{t('mw.noMatch')}</div> : (
+                  <div className={ui.scroll}>
+                    <table className={`${ui.tableDense} ${ui.cardsOnPhone}`}>
+                      <caption className={s.sr}>{t('mw.caption')}</caption>
+                      <thead><tr><th>{t('mw.col.number')}</th><th>{t('mw.col.target')}</th><th>{t('mw.col.priority')}</th><th>{t('mw.col.status')}</th><th>{t('mw.col.due')}</th><th>{t('mw.col.capacity')}</th><th>{t('mw.col.action')}</th></tr></thead>
+                      <tbody>
+                        {shown.flatMap((o) => {
+                          const row = (
+                            <tr key={o.id} data-order={o.number} data-status={o.status}>
+                              <td className={s.number}>{o.number}</td>
+                              <td data-label={t('mw.col.target')}>
+                                <span className={s.cell}><span className={s.what}>{t(`wo.type.${o.type}` as 'wo.type.inspection')} · {o.targetName}</span><span className={s.desc}>{o.description}</span></span>
+                              </td>
+                              <td data-label={t('mw.col.priority')}><StatusChip tone={PRIORITY_TONE[o.priority]} icon={o.priority === 'critical' ? 'alert' : o.priority === 'high' ? 'warning' : null}>{t(`wo.priority.${o.priority}` as 'wo.priority.low')}</StatusChip></td>
+                              <td data-label={t('mw.col.status')}><StatusChip tone={o.status === 'done' ? 'ok' : o.status === 'in_progress' ? 'info' : 'neutral'} icon={o.status === 'done' ? 'check' : o.status === 'in_progress' ? 'clock' : 'hourglass'}>{t(`wo.status.${o.status}` as 'wo.status.open')}</StatusChip></td>
+                              <td data-label={t('mw.col.due')}>{dueCell(o)}</td>
+                              <td data-label={t('mw.col.capacity')} className={ui.muted}>{o.capacityPercent && o.capacityStart && o.capacityEnd ? t('mw.order.cap', { percent: o.capacityPercent, from: day(o.capacityStart), to: day(o.capacityEnd) }) : t('mw.cap.none')}</td>
+                              <td data-label={t('mw.col.action')}>
+                                {isActive(o) ? (
+                                  <span className={s.rowActions}>
+                                    {o.status === 'open' && <button type="button" className={ui.btnGhost} disabled={!!busy} aria-label={t('mw.startFor', { n: o.number })} onClick={() => void act(`s:${o.id}`, async () => { const r = await api.progressOrder(o.id, 'in_progress'); return t('mw.started', { n: r.number }); })}>{t('mw.start')}</button>}
+                                    {finishing !== o.id && <button type="button" className={ui.btn} disabled={!!busy} aria-label={t('mw.finishFor', { n: o.number })} onClick={() => { setFinishing(o.id); setNote(''); setNoteError(''); }}>{t('mw.finish')}</button>}
+                                  </span>
+                                ) : <span className={ui.muted}>—</span>}
+                              </td>
+                            </tr>
+                          );
+                          if (finishing !== o.id) return [row];
+                          return [row, (
+                            <tr key={`${o.id}-f`} className={s.finishRow}>
+                              <td colSpan={7}>
+                                <form noValidate aria-label={t('mw.finishFor', { n: o.number })} className={s.finishForm} onSubmit={(e) => finish(e, o)}>
+                                  <label className={ui.field}><span>{t('mw.note')}</span><input type="text" autoComplete="off" maxLength={320} value={note} onChange={(e) => setNote(e.target.value)} aria-invalid={!!noteError} />{noteError && <span className={ui.err} role="alert">{noteError}</span>}</label>
+                                  <div className={ui.formActions}><button type="submit" className={ui.btn} disabled={!!busy}>{t('mw.confirm')}</button><button type="button" className={ui.btnGhost} onClick={() => setFinishing(null)}>{t('mw.cancel')}</button></div>
+                                </form>
+                              </td>
+                            </tr>
+                          )];
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
-              </div>
-              {finishing === o.id && (
-                <form noValidate aria-label={t('mw.finishFor', { n: o.number })} className={ui.formCard} onSubmit={(e) => finish(e, o)}>
-                  <label className={ui.field}><span>{t('mw.note')}</span><input type="text" autoComplete="off" maxLength={320} value={note} onChange={(e) => setNote(e.target.value)} aria-invalid={!!noteError} />{noteError && <span className={ui.err}>{noteError}</span>}</label>
-                  <div className={ui.formActions}><button type="submit" className={ui.btn} disabled={!!busy}>{t('mw.confirm')}</button><button type="button" className={ui.btnGhost} onClick={() => setFinishing(null)}>{t('mw.cancel')}</button></div>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
-      ))}
+              </>
+            )}
+          </section>
+        </>
+      )}
     </section>
   );
 }
