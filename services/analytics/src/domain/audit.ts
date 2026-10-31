@@ -5,7 +5,7 @@ const CORR = /^[A-Za-z0-9._-]{8,64}$/;
 const TYPE = /^[A-Za-z]{1,60}$/;
 const EMAIL = /^[^\s@<>]{1,64}@[^\s@<>]{1,120}$/;
 const NAME = /^[^<>\u0000-\u001f]{1,120}$/u;
-const ACTOR_FIELDS = ['approvedBy', 'issuedBy', 'registeredBy'] as const;
+const ACTOR_FIELDS = ['approvedBy', 'issuedBy', 'registeredBy', 'createdBy', 'changedBy'] as const;
 
 export interface AuditEntry { eventId: string; type: string; occurredAt: Date; actor: string | null; summary: string; correlationId: string }
 
@@ -33,6 +33,8 @@ export function summarize(type: string, d: Record<string, unknown>): string {
     case 'PayrollPaid': return `Payroll of ${str(d.period)} paid (${cop(d.totalCop)})`;
     case 'SupplierPaid': return `Supplier payment ${str(d.payableNumber)} to ${str(d.supplierName)} (${cop(d.amountCop)})`;
     case 'QuoteApproved': return `Quote ${str(d.quoteNumber)} approved for ${str(d.projectName)} (${cop(d.amountCop)})`;
+    case 'UserCreated': return `User “${str(d.userName)}” created with role ${str(d.role)}`;
+    case 'RoleChanged': return `Role of “${str(d.userName)}” changed from ${str(d.previousRole)} to ${str(d.role)}`;
     case 'EquipmentPurchased': return `Equipment purchased: ${str(d.itemName)} (order ${str(d.orderNumber)})`;
     default: return `Event ${type}`;
   }

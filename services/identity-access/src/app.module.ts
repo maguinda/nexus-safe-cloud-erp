@@ -1,4 +1,4 @@
-import { Module, OnModuleDestroy } from '@nestjs/common';
+import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaClient } from '@prisma/client';
@@ -14,6 +14,7 @@ import { HealthController } from './http/health.controller';
 import { MeController, SET_LANGUAGE_USE_CASE, SET_THEME_USE_CASE } from './http/me.controller';
 import { CHANGE_ROLE_USE_CASE, CREATE_USER_USE_CASE, LIST_USERS_USE_CASE, REVOKE_SESSIONS_USE_CASE, UsersController } from './http/users.controller';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
+import { OutboxRelay } from './infrastructure/outbox-relay';
 import { PrismaRefreshTokenStore } from './infrastructure/prisma-refresh-token.store';
 import { PrismaUserAdminStore } from './infrastructure/prisma-user-admin.store';
 import { PrismaUserPreferencesStore } from './infrastructure/prisma-user-preferences.store';
@@ -21,6 +22,7 @@ import { PrismaUserRepository } from './infrastructure/prisma-user.repository';
 import { Rs256TokenIssuer } from './infrastructure/rs256-token-issuer';
 
 const prisma = new PrismaClient();
+let relay: OutboxRelay | undefined;
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 1000) }])],
@@ -58,8 +60,19 @@ const prisma = new PrismaClient();
     },
   ],
 })
-export class AppModule implements OnModuleDestroy {
+export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
+  onApplicationBootstrap() {
+    const c = loadConfig();
+    // Sin broker configurado Identity sigue funcionando: los eventos esperan en la tabla hasta que haya relé.
+    if (c.rabbitUrl && process.env.RELAY_ENABLED !== 'false') {
+      relay = new OutboxRelay(prisma, { url: c.rabbitUrl, pollMs: c.outboxPollMs, mandatory: c.relayMandatory, compactAfterDays: c.outboxCompactDays });
+      relay.start();
+    }
+  }
+
   async onModuleDestroy() {
+    await relay?.stop();
+    relay = undefined;
     await prisma.$disconnect();
   }
 }

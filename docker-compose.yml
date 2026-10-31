@@ -48,6 +48,7 @@ services:
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://identity:${DB_IDENTITY_PASSWORD}@postgres:5432/identity
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private
@@ -58,6 +59,7 @@ services:
       REFRESH_IDLE_MINUTES: ${REFRESH_IDLE_MINUTES:-30}
       SESSION_MAX_HOURS: ${SESSION_MAX_HOURS:-8}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       SEED_DEMO: ${SEED_DEMO:-false}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
       TLS_ENABLED: "true"

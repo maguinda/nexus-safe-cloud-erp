@@ -39,14 +39,16 @@ export interface RoleChangeTx {
   findById(id: string): Promise<UserSummary | null>;
   countManagers(): Promise<number>;
   setRole(id: string, role: Role): Promise<UserSummary>;
+  /** Guarda un evento en la MISMA transacción del cambio (outbox): o pasan los dos o ninguno. */
+  addToOutbox(event: import('./events').IdentityEvent, aggregateId: string): Promise<void>;
 }
 
 export interface UserAdminStore {
   /** Rol ACTUAL en la base (el del token puede ser de hace 15 minutos). */
   isManager(id: string): Promise<boolean>;
   list(): Promise<UserSummary[]>;
-  /** Lanza EmailTakenError si el email ya existe. */
-  create(user: NewUser): Promise<UserSummary>;
+  /** Lanza EmailTakenError si el email ya existe. Si se pasa `makeEvent`, el evento queda en el outbox dentro de la MISMA transacción que el alta. */
+  create(user: NewUser, makeEvent?: (created: UserSummary) => import('./events').IdentityEvent): Promise<UserSummary>;
   runRoleChange<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T>;
 }
 

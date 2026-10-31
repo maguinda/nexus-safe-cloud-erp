@@ -15,6 +15,7 @@ export const USERS_WRITE_RATE_LIMIT = Number(process.env.USERS_WRITE_RATE_LIMIT 
 /** Contrato público: solo estos campos. Nunca la contraseña ni su hash. */
 const toDto = (u: UserSummary) => ({ id: u.id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: u.createdAt.toISOString() });
 const actorOf = (req: { user: AuthUser }) => req.user.id; // sale del token firmado, jamás del cuerpo
+const ctxOf = (req: { user: AuthUser; correlationId?: string }) => ({ actorEmail: req.user.email, correlationId: req.correlationId });
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -46,8 +47,8 @@ export class UsersController {
   @ApiResponse({ status: 401, description: 'Missing, invalid, tampered or expired token' })
   @ApiResponse({ status: 403, description: 'The role is not manager' })
   @ApiResponse({ status: 409, description: 'That email is already registered' })
-  async create(@Req() req: { user: AuthUser }, @Body() dto: CreateUserDto) {
-    return toDto(await this.createUser.execute(actorOf(req), dto));
+  async create(@Req() req: { user: AuthUser; correlationId?: string }, @Body() dto: CreateUserDto) {
+    return toDto(await this.createUser.execute(actorOf(req), dto, ctxOf(req)));
   }
 
   @Post(':id/sessions/revoke')
@@ -72,7 +73,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: 'The role is not manager' })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 409, description: 'Own role, or the last manager' })
-  async role(@Req() req: { user: AuthUser }, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: ChangeRoleDto) {
-    return toDto(await this.changeRole.execute(actorOf(req), id, dto.role));
+  async role(@Req() req: { user: AuthUser; correlationId?: string }, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: ChangeRoleDto) {
+    return toDto(await this.changeRole.execute(actorOf(req), id, dto.role, ctxOf(req)));
   }
 }

@@ -9,7 +9,7 @@ describe('parseAudit', () => {
     expect(a).toEqual({ eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a01', type: 'InvoiceIssued', occurredAt: new Date('2026-10-30T10:00:00.000Z'), actor: 'andres.mora@nexus.example', summary: 'Invoice INV-0103 issued (22.015.000 COP)', correlationId: 'corr-12345678' });
     expect(JSON.stringify(a)).not.toContain('secret');
   });
-  it.each([['approvedBy'], ['registeredBy'], ['issuedBy']])('takes the actor from %s', (f) => { expect(parseAudit(ev({ issuedBy: undefined, [f]: 'a@b.co' })).actor).toBe('a@b.co'); });
+  it.each([['approvedBy'], ['registeredBy'], ['issuedBy'], ['createdBy'], ['changedBy']])('takes the actor from %s', (f) => { expect(parseAudit(ev({ issuedBy: undefined, [f]: 'a@b.co' })).actor).toBe('a@b.co'); });
   it('an event with no actor field has no actor; a strange value is not taken as one', () => {
     expect(parseAudit(ev({ issuedBy: undefined })).actor).toBeNull();
     expect(parseAudit(ev({ issuedBy: '<script>@x' })).actor).toBeNull();
@@ -33,5 +33,13 @@ describe('parseAudit', () => {
       ['EquipmentPurchased', { itemName: 'Router', orderNumber: 'PO-0001' }, 'Equipment purchased: Router (order PO-0001)'],
     ];
     for (const [type, data, text] of t) expect(summarize(type, data as any)).toBe(text);
+  });
+  it('summarizes the identity events with the person’s name and roles, takes the actor, and never copies anything else', () => {
+    const base = { eventId: '0b8f2c1e-5d4a-4e7b-9a63-1c2d3e4f5a02', occurredAt: '2026-11-01T10:00:00.000Z', correlationId: 'corr-12345678' };
+    const c = parseAudit({ ...base, type: 'UserCreated', data: { userId: 'u1', userName: 'Carlos Pérez', role: 'sales', staffId: null, createdBy: 'Diana.Vega@nexus.example', secret: 'x' } });
+    expect(c).toMatchObject({ type: 'UserCreated', actor: 'diana.vega@nexus.example', summary: 'User “Carlos Pérez” created with role sales' });
+    const r = parseAudit({ ...base, type: 'RoleChanged', data: { userId: 'u1', userName: 'Carlos Pérez', previousRole: 'sales', role: 'manager', changedBy: 'diana.vega@nexus.example' } });
+    expect(r.summary).toBe('Role of “Carlos Pérez” changed from sales to manager');
+    expect(JSON.stringify([c, r])).not.toContain('secret');
   });
 });

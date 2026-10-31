@@ -16,6 +16,11 @@ export interface Config {
   sessionMaxHours: number;
   /** Con HTTPS, la cookie de renovación lleva Secure. En la demo local (http://localhost) va apagado. */
   cookieSecure: boolean;
+  /** Sin RABBITMQ_URL Identity funciona igual (no publica eventos): el relé solo arranca si hay broker. */
+  rabbitUrl: string | null;
+  relayMandatory: boolean;
+  outboxPollMs: number;
+  outboxCompactDays: number;
 }
 
 function required(name: string): string {
@@ -43,5 +48,9 @@ export function loadConfig(): Config {
     refreshIdleMinutes: idle,
     sessionMaxHours: maxHours,
     cookieSecure: process.env.COOKIE_SECURE === 'true',
+    rabbitUrl: process.env.RABBITMQ_URL || null,
+    relayMandatory: process.env.RELAY_MANDATORY === 'true',
+    outboxPollMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
+    outboxCompactDays: Number(process.env.OUTBOX_COMPACT_DAYS ?? 30),
   };
 }
