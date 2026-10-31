@@ -406,7 +406,7 @@ test('Language: the choice follows the person to another computer: a browser tha
   await page.getByRole('dialog', { name: 'Mi perfil' }).getByRole('button', { name: 'English', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Invoices', exact: true })).toBeVisible();
   expect(serverLanguage(null, 'laura.rios@nexus.example')).toBe('en');
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible(); // en ESTE navegador la pantalla de entrada recuerda el último idioma
 
   // Otra computadora: un contexto nuevo, sin localStorage ni sesión. La entrada sale en español (el predeterminado)...
@@ -2158,7 +2158,7 @@ test('Session: signing out also ends the session on the server: the old cookie r
   // La pantalla vuelve al inicio de sesión al instante y el servidor responde después (en CI, más lento): se retrasa a propósito su respuesta para que la
   // prueba no dependa de la velocidad de la máquina. La cookie se borra cuando esa respuesta llega, no antes.
   await page.route('**/auth/logout', async (route) => { await new Promise((r) => setTimeout(r, 1_500)); await route.continue(); });
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect.poll(() => refreshCookie(page), { timeout: 10_000, message: 'el servidor borró la cookie' }).toBeUndefined();
   const replay = await request.post('/auth/refresh', { headers: { 'X-Requested-With': 'erp-web', Cookie: `erp_refresh=${cookie}` } });

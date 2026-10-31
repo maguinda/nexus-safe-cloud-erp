@@ -54,7 +54,7 @@ test('HTTPS: signing out over TLS revokes the session and clears the Secure cook
   test.setTimeout(90_000);
   await signIn(page);
   const value = (await cookieOf(page))!.value;
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect.poll(() => cookieOf(page), { timeout: 10_000, message: 'el servidor borró la cookie Secure' }).toBeUndefined();
   const replay = await request.post('/auth/refresh', { headers: { 'X-Requested-With': 'erp-web', Cookie: `erp_refresh=${value}` } });
