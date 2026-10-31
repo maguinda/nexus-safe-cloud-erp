@@ -187,3 +187,8 @@ export interface PayrollLine { engineerId: string; name: string; position: Staff
 
 export interface Payable { id: string; number: string; orderId: string; supplierName: string; amountCop: number; dueDate: string; projectName: string | null; status: 'open' | 'paid'; overdue: boolean; createdAt: string; paidAt: string | null; paidBy: string | null; method: 'transfer' | 'cash' | 'card' | 'check' | null; reference: string | null }
 export interface PayablesResponse { payables: Payable[]; openCop: number; overdueCop: number }
+
+export interface CashMonth { month: string; inCop: number; payrollCop: number; supplierCop: number; outCop: number; netCop: number; balanceCop: number }
+export interface CashflowResponse { months: CashMonth[]; totals: { inCop: number; outCop: number; netCop: number }; balanceCop: number }
+export interface ProjectCostRow { quoteNumber: string; projectName: string; quotedPriceCop: number; quotedCostCop: number; quotedMarginPct: number; laborCostCop: number; purchasesPaidCop: number; realCostCop: number; varianceCop: number; usedPct: number | null; approvedAt: string }
+export interface ProjectCostsResponse { asOf: string; projects: ProjectCostRow[] }

@@ -1873,12 +1873,12 @@ test('Layout: on a phone the menu stays a compact bar at the top and does not gr
 test('Menu: the manager\'s options are grouped under labels, with icons that only decorate', async ({ page }) => {
   await openAs(page, 'manager');
   const nav = page.getByRole('navigation', { name: 'Modules' });
-  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Payroll', 'Payables', 'Contracts', 'Profitability']);
+  await expect(nav.getByRole('group', { name: 'Business' }).getByRole('button')).toHaveText(['Quotes', 'Payroll', 'Payables', 'Cash flow', 'Contracts', 'Profitability']);
   await expect(nav.getByRole('group', { name: 'Nexus data' }).getByRole('button')).toHaveText(['Sensors', 'Network', 'Cameras', 'Work orders']);
   await expect(nav.getByRole('group', { name: 'Team' }).getByRole('button')).toHaveText(['Capacity', 'Procurement']);
   await expect(nav.getByRole('group', { name: 'Administration' }).getByRole('button')).toHaveText(['Users', 'Audit']);
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(14);
+  expect(await nav.locator('svg[aria-hidden="true"]').count(), 'un ícono decorativo por opción').toBe(15);
   await nav.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(nav.getByRole('button', { name: 'Network', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('button', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
@@ -1916,7 +1916,7 @@ test('Menu: on a 320 px phone every option of the manager\'s menu is inside the 
   const nav = page.getByRole('navigation', { name: 'Modules' });
   await expect(nav.getByRole('button', { name: 'Users', exact: true })).toBeVisible();
   const edges = await nav.getByRole('button').evaluateAll((bs) => bs.map((b) => [b.textContent?.trim(), Math.round(b.getBoundingClientRect().right)] as const));
-  expect(edges.length).toBe(14);
+  expect(edges.length).toBe(15);
   for (const [label, right] of edges) expect(right, `«${label}» termina dentro de los 320 px`).toBeLessThanOrEqual(320);
   expect(await nav.evaluate((n) => n.scrollWidth > n.clientWidth), 'el menú no necesita desplazarse de lado').toBe(false);
 });
@@ -2319,8 +2319,8 @@ test('Payroll: the manager and finance generate the month with a snapshot of wha
   const [manager, finance, sales, lead] = [await open('manager'), await open('finance'), await open('sales'), await open('lead')];
   try {
     for (const w of [sales, lead]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Payroll', exact: true })).toHaveCount(0);
-    // Finanzas solo ve la nómina: es su única opción y ya está abierta.
-    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll']);
+    // Finanzas solo ve lo suyo (nómina, cuentas por pagar y flujo de caja); la nómina es la primera y ya está abierta.
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables', 'Cash flow']);
     await expect(finance.page.getByRole('heading', { name: 'Monthly payroll' })).toBeVisible();
     // Gerencia genera: un mes mal escrito avisa sin enviar.
     await nav(manager.page, 'Payroll');
@@ -2359,7 +2359,7 @@ test('Payables: receiving an order creates the debt with the supplier (tied to i
   const [manager, finance, lead, billing] = [await open('manager'), await open('finance'), await open('lead'), await open('billing')];
   try {
     for (const w of [lead, billing]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Payables', exact: true })).toHaveCount(0);
-    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables']);
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables', 'Cash flow']);
     // Un pedido ligado a un proyecto, recibido: nace la deuda.
     await nav(manager.page, 'Procurement');
     const form = manager.page.getByRole('form', { name: 'New order' });
@@ -2389,4 +2389,52 @@ test('Payables: receiving an order creates the debt with the supplier (tied to i
     await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Payables');
     await expect(manager.page.locator(`[data-payable="${number}"]`)).toContainText('Paid');
   } finally { for (const w of [manager, finance, lead, billing]) await w.ctx.close(); }
+});
+
+test('Cash flow: the payroll paid and the suppliers paid go out, the month shows them; an approved quote appears with what it said it would cost against what it has cost; finance sees it, other roles do not', async ({ browser }) => {
+  test.setTimeout(240_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'finance' | 'lead' | 'sales') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const [manager, finance, lead, sales] = [await open('manager'), await open('finance'), await open('lead'), await open('sales')];
+  const month = new Date().toISOString().slice(0, 7);
+  try {
+    for (const w of [lead, sales]) await expect(w.page.getByRole('navigation').getByRole('button', { name: 'Cash flow', exact: true })).toHaveCount(0);
+    await expect(finance.page.getByRole('navigation').getByRole('button')).toHaveText(['Payroll', 'Payables', 'Cash flow']);
+    // Sale la nómina del mes.
+    await nav(finance.page, 'Payroll');
+    await finance.page.getByRole('form', { name: 'Generate payroll' }).getByRole('button', { name: 'Generate payroll' }).click();
+    await expect(finance.page.getByText(new RegExp(`Payroll of ${month} generated`))).toBeVisible();
+    await finance.page.locator(`[data-payroll="${month}"]`).getByRole('button', { name: `Mark the payroll of ${month} as paid` }).click();
+    await expect(finance.page.getByText(`Payroll of ${month} paid.`)).toBeVisible();
+    // Sale un pago a un proveedor, ligado al proyecto.
+    await nav(manager.page, 'Procurement');
+    const form = manager.page.getByRole('form', { name: 'New order' });
+    await form.getByRole('button', { name: 'Redes del Norte (example)' }).click(); await form.getByRole('button', { name: 'Switch de acceso 24 puertos' }).click();
+    await form.getByLabel('Quantity (1 to 100,000)').fill('2'); await form.getByRole('button', { name: 'Branch network upgrade' }).click(); await form.getByRole('button', { name: 'Create order' }).click();
+    const ord = manager.page.locator('[data-order]').first(); await ord.getByRole('button', { name: /^Receive order/ }).click(); await expect(ord).toContainText('Received');
+    await nav(finance.page, 'Payables'); await finance.page.reload(); await nav(finance.page, 'Payables');
+    const row = finance.page.locator('[data-payable]').first(); const number = (await row.getAttribute('data-payable'))!;
+    await row.getByRole('button', { name: `Pay payable ${number}` }).click();
+    const pf = row.getByRole('form', { name: `Pay payable ${number}` }); await pf.getByRole('button', { name: 'Cash' }).click(); await pf.getByRole('button', { name: 'Confirm payment' }).click();
+    await expect(finance.page.getByText(`Payable ${number} paid.`)).toBeVisible();
+    // Gerencia aprueba la cotización pendiente de la demostración.
+    await nav(manager.page, 'Quotes');
+    await manager.page.getByRole('button', { name: 'Approve quote COT-0002' }).click(); await expect(manager.page.getByText(/Quote COT-0002 approved/)).toBeVisible();
+    // El flujo de caja lo muestra (llega por el bus: se reintenta hasta que aparezca).
+    await expect(async () => {
+      await nav(finance.page, 'Payables'); await nav(finance.page, 'Cash flow');
+      const m = finance.page.locator(`[data-month="${month}"]`);
+      await expect(m).toContainText('suppliers 4.800.000', { timeout: 1500 }); await expect(m).not.toContainText('payroll 0 ');
+      await expect(finance.page.locator('[data-cost="COT-0002"]')).toContainText('Cámaras y control de acceso', { timeout: 1500 });
+    }).toPass({ timeout: 60_000 });
+    const m = finance.page.locator(`[data-month="${month}"]`);
+    await expect(m).toContainText('in 0'); await expect(finance.page.locator('[data-cf-totals]')).toContainText('came in');
+    const cost = finance.page.locator('[data-cost="COT-0002"]');
+    await expect(cost).toContainText('quoted 4.049.092 COP'); await expect(cost).toContainText('margin 25%'); await expect(cost).toContainText('real so far 0 COP'); await expect(cost).toContainText('0% of the quoted cost');
+    // Cambiar la ventana y que gerencia lo vea igual.
+    await finance.page.getByRole('button', { name: 'Last 3 months' }).click(); await expect(finance.page.locator('[data-month]')).toHaveCount(3);
+    await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Cash flow'); await expect(manager.page.locator(`[data-month="${month}"]`)).toContainText('suppliers 4.800.000');
+  } finally { for (const w of [manager, finance, lead, sales]) await w.ctx.close(); }
 });

@@ -344,6 +344,12 @@ Planteamiento original (ya implementado): Hoy una orden de mantenimiento (preven
 - Pruebas: procurement 77 unit + 84 e2e (8 de deudas; carreras ×15: 8 recepciones a la vez = 1 deuda, 8 pagos = 1 y un solo evento; 3 mutaciones fallan), web 761, navegador (flujo completo con finanzas), auditoría en 6 perfiles. `reset-demo.sh` hace `TRUNCATE payables`.
 - Límites: pagos completos, no parciales; sin intereses por mora; el plazo es siempre 30 días (no usa los «términos» del proveedor).
 
+## Finanzas F4: flujo de caja y costo real contra lo cotizado (🔴, 2026-10-31)
+- **Analytics** consume (cola propia `q.analytics.cash`) cobros de clientes (`PaymentReceived`), `PayrollPaid`, `SupplierPaid` y `QuoteApproved`. `cash_entries` (solo agregar, idempotente por evento) y `quote_facts` (migración `0011`). Endpoints `GET /cashflow?months=` (entra, sale en nómina y proveedores, neto y saldo acumulado por mes) y `GET /project-costs` (por cotización aprobada: lo cotizado contra lo real hasta hoy = mano de obra de las asignaciones + proveedores pagados ligados al proyecto), para gerencia y finanzas. `reset-demo.sh` hace `TRUNCATE` de ambas tablas.
+- Web: **Flujo de caja** (gerencia y finanzas; finanzas ya tiene Nómina, Cuentas por pagar y Flujo de caja), ventanas de 3, 6 y 12 meses.
+- Pruebas: analytics 160 unit + e2e del flujo (carrera de 60 eventos a la vez, repetidos, inválidos a la cola de muertos; 3 mutaciones fallan), web 761, navegador (nómina pagada + proveedor pagado + cotización aprobada → flujo y costo real), auditoría en 6 perfiles con datos.
+- Límites: solo cuenta lo que pasa por el bus (sin bancos, impuestos, préstamos ni saldo inicial); una deuda sin pagar o una nómina sin pagar aún no es salida de caja; el costo real incluye mano de obra solo de las asignaciones de proyecto (no de las órdenes de mantenimiento).
+
 ## Pendiente (actualizado el 2026-10-30; lista completa)
 **Cómo se usa esta lista:** es el único lugar donde se juntan todos los límites y pendientes que quedaron dispersos en las secciones de arriba. Cada vez que un cambio deje algo sin hacer, se agrega aquí con su motivo y su riesgo (🟢🟡🔴); al hacerlo, se tacha o se borra. Las secciones de arriba cuentan qué se hizo; esta cuenta qué falta.
 

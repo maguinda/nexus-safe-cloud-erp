@@ -30,6 +30,9 @@ export function summarize(type: string, d: Record<string, unknown>): string {
     case 'WorkOrderClosed': return `Work order ${str(d.orderNumber)} ${str(d.outcome)} on ${str(d.targetName)}`;
     case 'EquipmentRetired': return `Equipment ${str(d.installNumber)} ${d.destination === 'storage' ? 'returned to storage' : 'retired'} (${str(d.itemName)})`;
     case 'EquipmentInstalled': return `Equipment installed: ${str(d.itemName)} (${str(d.installNumber)})`;
+    case 'PayrollPaid': return `Payroll of ${str(d.period)} paid (${cop(d.totalCop)})`;
+    case 'SupplierPaid': return `Supplier payment ${str(d.payableNumber)} to ${str(d.supplierName)} (${cop(d.amountCop)})`;
+    case 'QuoteApproved': return `Quote ${str(d.quoteNumber)} approved for ${str(d.projectName)} (${cop(d.amountCop)})`;
     case 'EquipmentPurchased': return `Equipment purchased: ${str(d.itemName)} (order ${str(d.orderNumber)})`;
     default: return `Event ${type}`;
   }

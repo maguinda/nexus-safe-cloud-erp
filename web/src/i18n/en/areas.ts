@@ -28,3 +28,4 @@ export { workorders } from './workorders';
 export { quotes } from './quotes';
 export { payroll } from './payroll';
 export { payables } from './payables';
+export { cashflow } from './cashflow';

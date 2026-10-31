@@ -98,3 +98,36 @@ model AuditEntry {
   @@index([type])
   @@map("audit_entries")
 }
+
+/// Un movimiento de dinero (solo agregar): entra lo que pagan los clientes; sale la nómina y lo que se paga a proveedores.
+model CashEntry {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId     String   @unique @map("event_id") @db.Uuid
+  entryDate   DateTime @map("entry_date") @db.Date
+  direction   String
+  category    String
+  amountCop   BigInt   @map("amount_cop")
+  ref         String
+  projectName String?  @map("project_name")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([entryDate])
+  @@index([projectName])
+  @@map("cash_entries")
+}
+
+/// Lo que se cotizó de un proyecto aprobado: precio, costo y margen.
+model QuoteFact {
+  quoteNumber String   @id @map("quote_number")
+  eventId     String   @unique @map("event_id") @db.Uuid
+  projectId   String   @map("project_id")
+  projectName String   @map("project_name")
+  priceCop    Int      @map("price_cop")
+  costCop     Int      @map("cost_cop")
+  marginPct   Int      @map("margin_pct")
+  approvedBy  String   @map("approved_by")
+  approvedAt  DateTime @map("approved_at") @db.Timestamptz(6)
+
+  @@index([projectName])
+  @@map("quote_facts")
+}

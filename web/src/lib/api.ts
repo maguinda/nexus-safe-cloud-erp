@@ -1,5 +1,5 @@
 import type { Lang } from '../i18n/core';
-import type { PayablesResponse, Payable, PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
+import type { CashflowResponse, ProjectCostsResponse, PayablesResponse, Payable, PayrollLine, PayrollRun, PositionRate, Quote, QuoteCatalogItem, EquipmentInstall, WorkOrder, WorkOrderLogLine, StockCount, StockCountLine, PurchasedDevice, StockMovement, AuditResponse, Profitability, TeamMember, Contract, InvoicePayment, PurchaseOrder, RestockSuggestion, StockItem, Supplier, AllocationInput, CapacityResponse, NotificationsPage, Advice, ApproveResponse, Customer, CustomerInput, EInvoice, RangeKey, Invoice, LoginResponse, ManagedUser, Milestone, Project, Dashboard, Role, TelemetrySummary, Theme, Trends, ReadingsQuery, ReadingItem, Page, TelemetryFacets, NetworkSummary, DevicesQuery, NetworkDeviceItem, LinksQuery, NetworkLinkItem, NetworkFacets } from './types';
 
 /** Error con la forma de docs/openapi.yaml (schema Error). */
 export class ApiError extends Error {
@@ -98,6 +98,8 @@ export function createApi({ getToken, onUnauthorized, baseUrl = '', fetchImpl = 
     createOrder: (b: { supplierId: string; itemId: string; quantity: number; unitPriceCop?: number; projectName?: string }) => request<{ id: string; number: string; unitPriceCop: number }>('POST', '/orders', b),
     setCatalog: (supplierId: string, itemId: string, b: { refPriceCop: number; leadDays: number }) => request<{ supplierId: string; itemId: string }>('PUT', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`, b),
     removeCatalog: (supplierId: string, itemId: string) => request<void>('DELETE', `/suppliers/${encodeURIComponent(supplierId)}/catalog/${encodeURIComponent(itemId)}`),
+    cashflow: (months: number) => request<CashflowResponse>('GET', `/cashflow?months=${months}`),
+    projectCosts: () => request<ProjectCostsResponse>('GET', '/project-costs'),
     payables: () => request<PayablesResponse>('GET', '/payables'),
     payPayable: (id: string, method: string, reference?: string) => request<Payable>('POST', `/payables/${encodeURIComponent(id)}/pay`, { method, ...(reference ? { reference } : {}) }),
     payrolls: () => request<PayrollRun[]>('GET', '/payroll'),

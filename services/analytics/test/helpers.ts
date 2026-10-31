@@ -10,6 +10,7 @@ export const USERS = {
   billing: { id: randomUUID(), email: 'andres.mora@nexus.example', role: 'billing_analyst' },
   sales: { id: randomUUID(), email: 'camila.soto@nexus.example', role: 'sales' },
   manager: { id: randomUUID(), email: 'diana.vega@nexus.example', role: 'manager' },
+  finance: { id: randomUUID(), email: 'fernanda.gil@nexus.example', role: 'finance' },
 };
 
 /** Firma como lo haría identity-access; las opciones permiten fabricar tokens defectuosos a propósito. */
@@ -29,6 +30,7 @@ export async function wipeAudit(prisma: PrismaClient) {
 }
 
 export async function resetState(prisma: PrismaClient) {
+  await prisma.$executeRawUnsafe('TRUNCATE cash_entries, quote_facts'); // solo agregar (trigger): TRUNCATE no lo dispara
   await wipeAudit(prisma);
   await prisma.milestoneFact.deleteMany({ where: { milestoneId: { notIn: ['m1', 'm4'] } } });
   await prisma.processedEvent.deleteMany();

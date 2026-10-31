@@ -28,6 +28,7 @@ import { workorders } from './workorders';
 import { quotes } from './quotes';
 import { payroll } from './payroll';
 import { payables } from './payables';
+import { cashflow } from './cashflow';
 
 /** El español es la fuente de las claves: el inglés tiene que tener exactamente las mismas (si falta una, no compila). */
-export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders, ...quotes, ...payroll, ...payables } as const;
+export const es = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders, ...quotes, ...payroll, ...payables, ...cashflow } as const;
