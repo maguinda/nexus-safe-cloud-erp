@@ -173,6 +173,21 @@ No personal data. Notifications requires `deviceName` ≤ 120, `location` ≤ 12
 - Published by `technical-capacity` in the same transaction that deletes an allocation. Routing key `capacity.allocation.removed`; data `{ allocationId, projectName }`. Deleting something that does not exist publishes nothing.
 - Consumed by `projects` (the engineer leaves the project team) and `analytics` (the cost leaves the profitability). Both take a database lock per allocation id and keep a mark of the removed id, so **the order of arrival does not matter**: a removal that arrives before its allocation is remembered and the allocation never shows up.
 
+## UserCreated and RoleChanged (identity-access)
+Published by Identity through its own outbox (same pattern as the other services; the event row is written in the SAME transaction as the user or the role change, so there is never a user without its event or an event for a user that does not exist). Exchange `erp.events`, routing keys `identity.user.created` and `identity.user.role-changed`.
+
+```json
+{ "eventId": "uuid", "type": "UserCreated", "occurredAt": "ISO", "correlationId": "trace-id",
+  "data": { "userId": "uuid", "userName": "Carlos Pérez", "role": "sales", "staffId": null, "createdBy": "diana.vega@nexus.example" } }
+{ "eventId": "uuid", "type": "RoleChanged", "occurredAt": "ISO", "correlationId": "trace-id",
+  "data": { "userId": "uuid", "userName": "Carlos Pérez", "previousRole": "sales", "role": "manager", "changedBy": "diana.vega@nexus.example" } }
+```
+- **Personal data:** only the person’s NAME (as with `engineerName`), never the email or any password data. The actor travels as an email (`createdBy`, `changedBy`), like `approvedBy`; it comes from the signed token, never from the request body. `createdBy`/`changedBy` are omitted if unknown.
+- `RoleChanged` is published only when the role really changed (same role again, changing your own role and demoting the last manager publish nothing). Each change is its own event: the outbox key is the event id, because a person can change role many times and the unique index `(aggregate_id, type)` must not swallow the later ones. `UserCreated` uses the user id.
+- Engineer and technician accounts never change role, so `RoleChanged` never concerns them; `UserCreated` does carry their `staffId`.
+- Identity works without a broker (no `RABBITMQ_URL`): the events wait in the table. Nobody consumes them except the Analytics audit log (`#`), which shows “User … created with role …” and “Role of … changed from … to …” with the actor.
+- Session revocations are **not** events (decision: nobody needs them yet).
+
 ## Analytics consumer: audit log
 
 - `analytics` has a second queue, `q.analytics.audit` (dead-letter queue `q.analytics.audit.dlq`), bound to **`#`**: it sees every event on the exchange, including types that do not exist yet. It stores one row per event in `audit_entries`: event id, type, `occurredAt`, a short summary built only from known fields of each type, and the **actor** when the event says it (`approvedBy`, `issuedBy` or `registeredBy`; the last one was added to `PaymentReceived`).

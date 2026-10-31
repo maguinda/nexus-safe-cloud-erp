@@ -56,3 +56,18 @@ model RefreshToken {
   @@index([familyExpiresAt])
   @@map("refresh_tokens")
 }
+
+/// Outbox transaccional (mismo patrón que los demás servicios). El índice único evita emitir dos veces el mismo hecho: UserCreated usa el id de la persona; RoleChanged, el id del evento (una persona puede cambiar de rol muchas veces).
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  aggregateId String    @map("aggregate_id")
+  type        String
+  routingKey  String    @map("routing_key")
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+
+  @@unique([aggregateId, type])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}

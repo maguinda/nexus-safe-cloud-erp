@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { EmailTakenError, StaffTakenError } from '../domain/errors';
 import { NewUser, RoleChangeTx, UserAdminStore, UserSummary } from '../domain/ports';
 import { Role } from '../domain/role';
+import { IdentityEvent, routingKeyOf } from '../domain/events';
 
 const SUMMARY = { id: true, email: true, name: true, role: true, staffId: true, createdAt: true } as const; // sin passwordHash: nunca sale de aquí
 
@@ -20,9 +21,16 @@ export class PrismaUserAdminStore implements UserAdminStore {
     return this.prisma.user.findMany({ select: SUMMARY, orderBy: [{ createdAt: 'asc' }, { email: 'asc' }] });
   }
 
-  async create(user: NewUser): Promise<UserSummary> {
+  async create(user: NewUser, makeEvent?: (created: UserSummary) => IdentityEvent): Promise<UserSummary> {
     try {
-      return await this.prisma.user.create({ data: user, select: SUMMARY });
+      if (!makeEvent) return await this.prisma.user.create({ data: user, select: SUMMARY });
+      // El alta y su evento en UNA transacción: nunca hay una persona creada sin evento, ni un evento de una persona que no existe.
+      return await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({ data: user, select: SUMMARY });
+        const ev = makeEvent(created);
+        await tx.outboxEvent.create({ data: { id: ev.eventId, aggregateId: created.id, type: ev.type, routingKey: routingKeyOf(ev), payload: ev as any } });
+        return created;
+      });
     } catch (e) {
       // Carrera entre dos altas del mismo email: la restricción única de la base decide y gana una sola.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw (String(e.meta?.target ?? '').includes('staff_id') ? new StaffTakenError() : new EmailTakenError());
@@ -52,6 +60,7 @@ export class PrismaUserAdminStore implements UserAdminStore {
         },
         countManagers: () => tx.user.count({ where: { role: 'manager' } }),
         setRole: (id: string, role: Role) => tx.user.update({ where: { id }, data: { role }, select: SUMMARY }),
+        addToOutbox: async (ev, aggregateId) => { await tx.outboxEvent.create({ data: { id: ev.eventId, aggregateId, type: ev.type, routingKey: routingKeyOf(ev), payload: ev as any } }); },
       });
     }, ROLE_CHANGE_TX);
   }

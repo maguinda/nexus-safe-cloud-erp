@@ -8,3 +8,5 @@ if (existsSync('.env')) {
   }
 }
 process.env.NODE_ENV = 'test';
+// Las pruebas no publican eventos al RabbitMQ de la demo salvo la que lo pide a propósito (user-events.e2e.ts): así la bitácora de Analytics no se llena de usuarios de prueba.
+process.env.RELAY_ENABLED = 'false';

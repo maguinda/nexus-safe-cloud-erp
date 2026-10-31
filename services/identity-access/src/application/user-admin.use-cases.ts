@@ -2,6 +2,7 @@ import { CannotChangeOwnRoleError, LastManagerError, NotAManagerError, StaffRole
 import { checkPassword } from '../domain/password-policy';
 import { PasswordHasher, UserAdminStore, UserSummary } from '../domain/ports';
 import { isStaffRole, Role } from '../domain/role';
+import { EventContext, roleChanged, userCreated } from '../domain/events';
 import { decideRoleChange, normalizeEmail, normalizeName } from '../domain/user-admin';
 
 /** El token puede tener hasta 15 minutos: antes de administrar usuarios se mira el rol ACTUAL en la base. */
@@ -24,7 +25,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class CreateUserUseCase {
   constructor(private readonly store: UserAdminStore, private readonly hasher: PasswordHasher) {}
 
-  async execute(actorId: string, input: CreateUserInput): Promise<UserSummary> {
+  async execute(actorId: string, input: CreateUserInput, ctx: EventContext = {}): Promise<UserSummary> {
     await ensureManager(this.store, actorId);
     // Un ingeniero o un técnico va ligado a UNA persona del personal; los demás roles no tienen persona.
     const staffId = input.staffId === undefined || input.staffId === null || input.staffId === '' ? null : input.staffId;
@@ -34,7 +35,7 @@ export class CreateUserUseCase {
     const problem = checkPassword(input.password, email);
     if (problem) throw new WeakPasswordError(problem); // antes de gastar tiempo en bcrypt o de escribir nada
     const passwordHash = await this.hasher.hash(input.password);
-    return this.store.create({ email, name: normalizeName(input.name), role: input.role, staffId: staffId === null ? null : staffId.toLowerCase(), passwordHash });
+    return this.store.create({ email, name: normalizeName(input.name), role: input.role, staffId: staffId === null ? null : staffId.toLowerCase(), passwordHash }, (created) => userCreated(created, ctx, new Date()));
   }
 }
 
@@ -56,7 +57,7 @@ export class ChangeRoleUseCase {
    * Todo se lee DENTRO de la transacción que ya bloqueó las filas de los gerentes: quien llama, el usuario y el número de gerentes.
    * Así dos gerentes que se quitan el rol a la vez no pueden dejar al sistema sin ninguno (el segundo ve que ya no es gerente).
    */
-  execute(actorId: string, targetId: string, newRole: Role): Promise<UserSummary> {
+  execute(actorId: string, targetId: string, newRole: Role, ctx: EventContext = {}): Promise<UserSummary> {
     return this.store.runRoleChange(async (tx) => {
       const actor = await tx.findById(actorId);
       if (actor?.role !== 'manager') throw new NotAManagerError();
@@ -68,7 +69,11 @@ export class ChangeRoleUseCase {
       }
       const decision = decideRoleChange({ actorId, targetId, targetRole: target.role, newRole, managerCount: await tx.countManagers() });
       if (!decision.ok) throw decision.reason === 'self' ? new CannotChangeOwnRoleError() : new LastManagerError();
-      return decision.changed ? tx.setRole(targetId, newRole) : target;
+      if (!decision.changed) return target;
+      const updated = await tx.setRole(targetId, newRole);
+      const ev = roleChanged(target, target.role, newRole, ctx, new Date());
+      await tx.addToOutbox(ev, ev.eventId); // cada cambio es un hecho distinto: el id del evento es su clave
+      return updated;
     });
   }
 }

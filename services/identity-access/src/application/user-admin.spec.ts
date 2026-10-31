@@ -1,5 +1,6 @@
 import { StaffRoleError, CannotChangeOwnRoleError, EmailTakenError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
 import { NewUser, PasswordHasher, RoleChangeTx, UserAdminStore, UserSummary } from '../domain/ports';
+import { IdentityEvent } from '../domain/events';
 import { Role } from '../domain/role';
 import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './user-admin.use-cases';
 
@@ -7,16 +8,20 @@ import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './user-a
 class FakeStore implements UserAdminStore {
   users = new Map<string, UserSummary & { passwordHash?: string }>();
   writes = 0;
+  /** Lo que quedó en el outbox: se descarta junto con la transacción si algo falla. */
+  events: IdentityEvent[] = [];
   insideTx = false;
   setRoleOutsideTx = 0;
   constructor(seed: [string, string, Role][] = []) { seed.forEach(([id, email, role]) => this.users.set(id, { id, email, name: email.split('@')[0], role, staffId: null, createdAt: new Date('2026-10-19T10:00:00Z') })); }
   async isManager(id: string) { return this.users.get(id)?.role === 'manager'; }
   async list() { return [...this.users.values()].map(({ passwordHash: _p, ...u }) => u); }
-  async create(u: NewUser) {
+  async create(u: NewUser, makeEvent?: (c: UserSummary) => IdentityEvent) {
     if ([...this.users.values()].some((x) => x.email === u.email)) throw new EmailTakenError();
     const id = `id-${this.users.size + 1}`; this.writes++;
     const row = { id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: new Date('2026-10-19T11:00:00Z'), passwordHash: u.passwordHash };
-    this.users.set(id, row); const { passwordHash: _p, ...summary } = row; return summary;
+    this.users.set(id, row); const { passwordHash: _p, ...summary } = row;
+    if (makeEvent) this.events.push(makeEvent(summary));
+    return summary;
   }
   private queue: Promise<unknown> = Promise.resolve();
   /** Una transacción a la vez: es lo que garantiza SELECT … FOR UPDATE sobre las filas de los gerentes en PostgreSQL. */
@@ -28,13 +33,15 @@ class FakeStore implements UserAdminStore {
   private async runLocked<T>(work: (tx: RoleChangeTx) => Promise<T>): Promise<T> {
     this.insideTx = true;
     const snapshot = new Map([...this.users].map(([k, v]) => [k, { ...v }]));
+    const eventsBefore = this.events.length;
     try {
       return await work({
         findById: async (id) => { const u = this.users.get(id); return u ? { id: u.id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: u.createdAt } : null; },
         countManagers: async () => [...this.users.values()].filter((u) => u.role === 'manager').length,
         setRole: async (id, role) => { this.writes++; const u = this.users.get(id)!; u.role = role; return { id: u.id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: u.createdAt }; },
+        addToOutbox: async (ev) => { this.events.push(ev); },
       });
-    } catch (e) { this.users = snapshot; throw e; } finally { this.insideTx = false; }
+    } catch (e) { this.users = snapshot; this.events.length = eventsBefore; throw e; } finally { this.insideTx = false; }
   }
 }
 const hasher: PasswordHasher & { calls: string[] } = { calls: [], verify: async () => true, hash: async function (p) { hasher.calls.push(p); return `hashed:${p}`; } };
@@ -144,5 +151,54 @@ describe('engineer and technician accounts (staff roles)', () => {
     await expect(role.execute(ADMIN, 's1', 'technician')).rejects.toBeInstanceOf(StaffRoleError);
     expect((await role.execute(ADMIN, eng.id, 'engineer')).role).toBe('engineer');
     expect(s.writes).toBe(before);
+  });
+});
+
+describe('user events (UserCreated, RoleChanged) in the outbox', () => {
+  const CTX = { actorEmail: 'diana.vega@nexus.example', correlationId: 'trace-user-0001' };
+  const newUser = { email: 'carlos.perez@nexus.example', name: 'Carlos Pérez', role: 'sales' as Role, password: 'correct horse battery' };
+
+  it('creating a user leaves ONE UserCreated with the person, role, who did it and the trace, and never the email or the password', async () => {
+    const s = seed();
+    const out = await new CreateUserUseCase(s, hasher).execute(ADMIN, newUser, CTX);
+    expect(s.events).toHaveLength(1);
+    const ev = s.events[0];
+    expect(ev).toMatchObject({ type: 'UserCreated', correlationId: 'trace-user-0001', data: { userId: out.id, userName: 'Carlos Pérez', role: 'sales', staffId: null, createdBy: 'diana.vega@nexus.example' } });
+    expect(JSON.stringify(ev)).not.toMatch(/carlos\.perez@|correct horse|hash|password/i);
+    expect(ev.eventId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+  it('without a context it still works: the trace is «no-correlation» and there is no createdBy', async () => {
+    const s = seed();
+    await new CreateUserUseCase(s, hasher).execute(ADMIN, newUser);
+    expect(s.events[0].correlationId).toBe('no-correlation');
+    expect((s.events[0].data as any).createdBy).toBeUndefined();
+  });
+  it('a refused creation (weak password, taken email, not a manager) leaves NO event', async () => {
+    const s = seed(); const uc = new CreateUserUseCase(s, hasher);
+    await uc.execute(ADMIN, { ...newUser, password: 'short' }).catch(() => undefined);
+    await uc.execute(ADMIN, { ...newUser, email: 'laura.rios@nexus.example' }).catch(() => undefined);
+    await uc.execute('s1', newUser).catch(() => undefined);
+    expect(s.events).toHaveLength(0);
+  });
+  it('a role change leaves ONE RoleChanged with the previous and the new role, who did it and the trace, and not the person’s email', async () => {
+    const s = seed();
+    await new ChangeRoleUseCase(s).execute(ADMIN, 's1', 'manager', CTX);
+    expect(s.events).toHaveLength(1);
+    expect(s.events[0]).toMatchObject({ type: 'RoleChanged', correlationId: 'trace-user-0001', data: { userId: 's1', previousRole: 'sales', role: 'manager', changedBy: 'diana.vega@nexus.example' } });
+    expect(JSON.stringify(s.events[0])).not.toMatch(/camila\.soto@/i);
+  });
+  it('the same role again, changing your own role and demoting the last manager leave NO event', async () => {
+    const s = seed(); const uc = new ChangeRoleUseCase(s);
+    await uc.execute(ADMIN, 's1', 'sales', CTX);
+    await uc.execute(ADMIN, ADMIN, 'sales', CTX).catch(() => undefined);
+    const solo = new FakeStore([[ADMIN, 'diana.vega@nexus.example', 'manager'], ['x', 'x@nexus.example', 'sales']]);
+    await new ChangeRoleUseCase(solo).execute('x', ADMIN, 'sales', CTX).catch(() => undefined);
+    expect(s.events).toHaveLength(0); expect(solo.events).toHaveLength(0);
+  });
+  it('two changes of the same person are two different events (each change is its own fact)', async () => {
+    const s = seed(); const uc = new ChangeRoleUseCase(s);
+    await uc.execute(ADMIN, 's1', 'finance', CTX); await uc.execute(ADMIN, 's1', 'sales', CTX);
+    expect(s.events.map((e) => (e.data as any).role)).toEqual(['finance', 'sales']);
+    expect(new Set(s.events.map((e) => e.eventId)).size).toBe(2);
   });
 });
