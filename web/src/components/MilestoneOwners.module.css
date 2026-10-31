@@ -1,0 +1,15 @@
+.stack { display: grid; gap: var(--sp-3); min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.what { font-weight: 600; overflow-wrap: anywhere; }
+.rowActions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.subRow td { background: var(--surface-2); }
+.form { display: grid; gap: var(--sp-2); padding: var(--sp-2) 0; }
+@media (max-width: 640px) {
+  .rowActions > button { flex: 1 1 auto; }
+}
+/* El nombre del hito es el ENCABEZADO de su fila (no una celda de datos). Debe ganarle a «.tableDense th», que da estilo de encabezado de columna. */
+.stack th.rowHead { text-align: left; font-family: inherit; font-size: inherit; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--fg); background: transparent; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .stack th.rowHead { display: block; border-bottom: 0; padding: 0 0 var(--sp-2); }
+}
+.headCell { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }

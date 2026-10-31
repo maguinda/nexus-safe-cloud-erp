@@ -2,6 +2,7 @@ import { ProjectTeam } from './ProjectTeam';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { AddMilestoneForm, NewProjectForm } from './CreateForms';
+import { MilestoneOwners } from './MilestoneOwners';
 import { KpiCard } from './KpiCard';
 import { errorText } from '../i18n/server';
 import { formatCop } from '../lib/format';
@@ -203,6 +204,7 @@ export function ProjectsView({ toast }: { toast: (m: string) => void }) {
         </section>
       )}
 
+      {canApprove && sel && msReady && <MilestoneOwners key={sel.id} projectId={sel.id} milestones={milestones} toast={toast} />}
       {canCreate && sel && <AddMilestoneForm api={api} project={sel} onCreated={(m) => { toast(t('projects.milestoneAdded', { name: m.name })); void load(); }} />}
 
       <section className={ui.card} aria-labelledby="flow-h" aria-live="polite">

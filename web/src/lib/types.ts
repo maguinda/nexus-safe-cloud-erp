@@ -199,5 +199,7 @@ export interface MilestoneActivity { id: string; code: string; milestoneId: stri
 export interface MyActivity extends MilestoneActivity { milestoneName: string; projectId: string; projectName: string }
 export interface ActivityProgress { total: number; done: number; inProgress: number; open: number; pct: number }
 export interface MyMilestone { milestoneId: string; name: string; status: 'pending' | 'approved'; projectId: string; projectName: string; progress: ActivityProgress; activities: MilestoneActivity[] }
+/** El responsable de un hito y cómo van sus actividades (lo ve el líder de proyecto). */
+export interface MilestoneOwnerInfo { milestoneId: string; ownerId: string | null; ownerName: string | null; progress: ActivityProgress }
 export interface TechnicianOption { id: string; name: string; position: StaffPosition; loadToday: number; freeToday: number }
 export interface MyCapacity { today: string; me: { id: string; name: string; position: StaffPosition; kind: 'engineer' | 'technician'; loadToday: number; freeToday: number; peakNext30: number; allocations: CapacityAllocation[] } }
