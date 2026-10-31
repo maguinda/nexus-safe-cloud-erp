@@ -6,7 +6,7 @@ import { SessionService } from './session.service';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
-const diana: User = { id: 'u-diana', email: 'diana.vega@nexus.example', name: 'Diana Vega', role: 'manager', language: 'es', theme: 'system', passwordHash: 'x' };
+const diana: User = { id: 'u-diana', email: 'diana.vega@nexus.example', name: 'Diana Vega', role: 'manager', staffId: null, language: 'es', theme: 'system', passwordHash: 'x' };
 
 type Row = RefreshRecord & { hash: string };
 /** Un almacén en memoria con las mismas reglas que el de PostgreSQL: el gasto de un token es atómico (JavaScript no se interrumpe entre la comprobación y la marca). */
@@ -69,7 +69,7 @@ describe('SessionService.renew', () => {
     const r = await svc.renew(first);
     expect(r.accessToken).toBe('access-u-diana-manager');
     expect(r.expiresIn).toBe(900);
-    expect(r.user).toEqual({ email: 'diana.vega@nexus.example', name: 'Diana Vega', role: 'manager', language: 'es', theme: 'system' });
+    expect(r.user).toEqual({ email: 'diana.vega@nexus.example', name: 'Diana Vega', role: 'manager', staffId: null, language: 'es', theme: 'system' });
     expect(r.refreshToken).toMatch(REFRESH_TOKEN_PATTERN);
     expect(r.refreshToken).not.toBe(first);
     expect(store.rows.find((x) => x.hash === hashRefreshToken(first))!.usedAt).not.toBeNull();

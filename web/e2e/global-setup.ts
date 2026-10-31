@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Un solo inicio de sesión por rol para toda la corrida: el gateway limita el login (10 por minuto por IP).
+// Un solo inicio de sesión por rol para toda la corrida: el gateway limita el login (10 por minuto por IP). Son 7 roles: si el límite ya se gastó, se espera a que pase la ventana y se reintenta.
 export default async function globalSetup() {
   const base = process.env.BASE_URL ?? 'http://localhost:8080';
   const password = process.env.DEMO_PASSWORD ?? 'demo-password-1';
-  const accounts: Record<string, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example' };
+  const accounts: Record<string, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example', finance: 'fernanda.gil@nexus.example', engineer: 'ana.torres@nexus.example', technician: 'hugo.salazar@nexus.example' };
   const dir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
   const file = join(dir, 'sessions.json');
   // Si ya hay sesiones guardadas y a todas les quedan más de 2 minutos, se reutilizan (menos logins contra el gateway).
@@ -19,7 +19,8 @@ export default async function globalSetup() {
   }
   const sessions: Record<string, { token: string; user: unknown }> = {};
   for (const [role, email] of Object.entries(accounts)) {
-    const res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    let res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    for (let i = 0; i < 6 && res.status === 429; i++) { await new Promise((r) => setTimeout(r, 15_000)); res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) }); }
     if (!res.ok) throw new Error(`Login of ${role} failed (${res.status}). Is the stack up and seeded (SEED_DEMO=true)?`);
     const j = await res.json();
     sessions[role] = { token: j.accessToken, user: j.user };

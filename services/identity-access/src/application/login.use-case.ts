@@ -8,7 +8,7 @@ import type { SessionService } from './session.service';
 export interface LoginResult {
   accessToken: string;
   expiresIn: number;
-  user: { email: string; name: string; role: Role; language: Language; theme: Theme };
+  user: { email: string; name: string; role: Role; staffId: string | null; language: Language; theme: Theme };
 }
 
 /** Lo que devuelve el login al controlador: el `refreshToken` va SOLO en la cookie, nunca en el cuerpo de la respuesta. */
@@ -35,7 +35,7 @@ export class LoginUseCase {
       ...(refreshToken ? { refreshToken } : {}),
       accessToken: token,
       expiresIn,
-      user: { email: user.email, name: user.name, role: user.role, language: user.language, theme: user.theme },
+      user: { email: user.email, name: user.name, role: user.role, staffId: user.staffId, language: user.language, theme: user.theme },
     };
   }
 }

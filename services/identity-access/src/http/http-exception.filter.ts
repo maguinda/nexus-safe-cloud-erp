@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { CannotChangeOwnRoleError, EmailTakenError, InvalidCredentialsError, InvalidSessionError, SessionRetryError, InvalidLanguageError, InvalidThemeError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
+import { StaffRoleError, StaffTakenError, CannotChangeOwnRoleError, EmailTakenError, InvalidCredentialsError, InvalidSessionError, SessionRetryError, InvalidLanguageError, InvalidThemeError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
 
 /** Todas las respuestas de error tienen la misma forma (ver docs/openapi.yaml, schema Error). */
 @Catch()
@@ -26,7 +26,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       statusCode = 403; error = 'Forbidden'; message = err.message;
     } else if (err instanceof UserNotFoundError) {
       statusCode = 404; error = 'Not Found'; message = err.message;
-    } else if (err instanceof EmailTakenError || err instanceof CannotChangeOwnRoleError || err instanceof LastManagerError) {
+    } else if (err instanceof StaffRoleError) {
+      statusCode = 400; error = 'Bad Request'; message = err.message;
+    } else if (err instanceof EmailTakenError || err instanceof StaffTakenError || err instanceof CannotChangeOwnRoleError || err instanceof LastManagerError) {
       statusCode = 409; error = 'Conflict'; message = err.message;
     } else if (err instanceof HttpException) {
       statusCode = err.getStatus();

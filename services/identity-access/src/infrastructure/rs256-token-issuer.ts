@@ -15,7 +15,7 @@ export class Rs256TokenIssuer implements TokenIssuer {
   constructor(private readonly opts: TokenOptions) {}
 
   issue(user: User): AccessToken {
-    const token = sign({ email: user.email, name: user.name, role: user.role }, this.opts.privateKey, {
+    const token = sign({ email: user.email, name: user.name, role: user.role, ...(user.staffId ? { staffId: user.staffId } : {}) }, this.opts.privateKey, {
       algorithm: 'RS256',
       subject: user.id,
       issuer: this.opts.issuer,

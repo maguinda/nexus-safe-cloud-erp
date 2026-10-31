@@ -1,0 +1,59 @@
+# Producción en UN servidor con Docker (la forma más barata de vender el ERP a una empresa pequeña). Se usa SIEMPRE junto al compose base:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile edge up -d --build
+# Lo que cambia respecto al desarrollo: nada de puertos de bases de datos ni de RabbitMQ hacia fuera, reinicio automático, registros que no llenan el disco,
+# topes de memoria, la cookie de sesión solo por HTTPS y un servidor HTTPS delante (Caddy, con certificado automático de Let's Encrypt).
+# Antes de levantar: ./scripts/prod-preflight.sh (revisa que no queden contraseñas de ejemplo, datos de demostración ni llaves de desarrollo).
+x-prod: &prod
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  postgres:
+    <<: *prod
+    ports: !reset []
+    mem_limit: 1g
+  rabbitmq:
+    <<: *prod
+    ports: !reset []
+    mem_limit: 512m
+  identity:
+    <<: *prod
+    mem_limit: 384m
+    environment:
+      COOKIE_SECURE: "true"
+      SEED_DEMO: "false"
+  projects: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  billing: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  analytics: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  notifications: { <<: *prod, mem_limit: 256m, environment: { SEED_DEMO: "false" } }
+  capacity: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  operations: { <<: *prod, mem_limit: 512m, environment: { SEED_DEMO: "false" } }
+  procurement: { <<: *prod, mem_limit: 384m, environment: { SEED_DEMO: "false" } }
+  web: { <<: *prod, mem_limit: 128m }
+  gateway:
+    <<: *prod
+    mem_limit: 192m
+    # El gateway solo se habla con el servidor HTTPS de delante, en la misma máquina.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  # Servidor HTTPS de delante: certificado automático y encabezados de seguridad. DOMAIN y ACME_EMAIL salen del .env.
+  caddy:
+    <<: *prod
+    profiles: ["edge"]
+    image: caddy:2.8-alpine
+    mem_limit: 128m
+    network_mode: host
+    environment:
+      DOMAIN: ${DOMAIN:?Pon DOMAIN en el .env (el dominio de la empresa)}
+      ACME_EMAIL: ${ACME_EMAIL:?Pon ACME_EMAIL en el .env}
+    volumes:
+      - ./infra/prod/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

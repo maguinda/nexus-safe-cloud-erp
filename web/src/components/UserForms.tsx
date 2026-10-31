@@ -4,6 +4,7 @@ import type { Api } from '../lib/api';
 import type { TFn } from '../i18n';
 import { errorText } from '../i18n/server';
 import { roleKey } from '../lib/types';
+import { StaffPicker, type StaffChoice } from './StaffPicker';
 import type { ManagedUser, Role } from '../lib/types';
 import { MAX_EMAIL, checkEmail, checkPassword } from '../lib/user-validate';
 import { MAX_TEXT, checkText } from '../lib/validate';
@@ -11,17 +12,20 @@ import { useSession } from '../session';
 import ui from '../styles/ui.module.css';
 import s from './UsersView.module.css';
 
-const ROLES: Role[] = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance'];
+const ROLES: Role[] = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance', 'engineer', 'technician'];
+/** Ingeniero y técnico no se asignan después: la cuenta nace ligada a una persona del personal. */
+const STAFF_ROLES: Role[] = ['engineer', 'technician'];
+const CHANGEABLE: Role[] = ROLES.filter((r) => !STAFF_ROLES.includes(r));
 const failMessage = (e: unknown, t: TFn) => (e instanceof ApiError && e.status === 403 ? t('users.form.forbidden') : errorText(e, t, 'users.form.saveFailed'));
 
 /** Grupo de botones para elegir un rol (no es un <select> nativo: en WebKit mide menos de 32 px y la auditoría lo rechaza). */
-function RoleChoice({ value, onChange, label }: { value: Role; onChange: (r: Role) => void; label: string }) {
+function RoleChoice({ value, onChange, label, roles = ROLES }: { value: Role; onChange: (r: Role) => void; label: string; roles?: Role[] }) {
   const { t } = useSession();
   return (
     <fieldset className={s.group}>
       <legend>{label}</legend>
       <div className={s.roles}>
-        {ROLES.map((r) => (
+        {roles.map((r) => (
           <button key={r} type="button" className={value === r ? ui.segBtnOn : ui.segBtn} aria-pressed={value === r} onClick={() => onChange(r)}>{t(roleKey(r))}</button>
         ))}
       </div>
@@ -35,6 +39,8 @@ export function NewUserForm({ api, onCreated }: { api: Api; onCreated: (u: Manag
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('sales');
+  const [staff, setStaff] = useState<StaffChoice | null>(null);
+  const [staffError, setStaffError] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; name?: string; password?: string; form?: string }>({});
@@ -45,14 +51,16 @@ export function NewUserForm({ api, onCreated }: { api: Api; onCreated: (u: Manag
     const next = { email: checkEmail(t, email), name: checkText(t, name, 'name'), password: '' };
     next.password = checkPassword(t, password, email);
     setErrors({ email: next.email || undefined, name: next.name || undefined, password: next.password || undefined });
-    if (next.email || next.name || next.password) return;
+    const needsStaff = STAFF_ROLES.includes(role);
+    setStaffError(needsStaff && !staff ? t('users.v.staff') : '');
+    if (next.email || next.name || next.password || (needsStaff && !staff)) return;
     setBusy(true);
     try {
-      const u = await api.createUser({ email: email.trim().toLowerCase(), name, role, password });
-      setEmail(''); setName(''); setPassword(''); setShow(false); setRole('sales');
+      const u = await api.createUser({ email: email.trim().toLowerCase(), name, role, password, ...(needsStaff && staff ? { staffId: staff.id } : {}) });
+      setEmail(''); setName(''); setPassword(''); setShow(false); setRole('sales'); setStaff(null);
       onCreated(u);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) setErrors({ email: t('users.form.emailTaken') });
+      if (err instanceof ApiError && err.status === 409) { if (/staff member/i.test(err.message)) setStaffError(t('users.staffTaken')); else setErrors({ email: t('users.form.emailTaken') }); }
       else setErrors({ form: failMessage(err, t) });
     } finally { setBusy(false); }
   }
@@ -72,7 +80,8 @@ export function NewUserForm({ api, onCreated }: { api: Api; onCreated: (u: Manag
           {errors.name && <span id="nu-name-err" className={ui.err}>{errors.name}</span>}
         </label>
       </div>
-      <RoleChoice value={role} onChange={setRole} label={t('users.form.role')} />
+      <RoleChoice value={role} onChange={(r) => { setRole(r); setStaff(null); setStaffError(''); }} label={t('users.form.role')} />
+      {STAFF_ROLES.includes(role) && <><StaffPicker key={role} kind={role === 'engineer' ? 'engineer' : 'technician'} label={t('users.form.staff')} value={staff} onChange={setStaff} />{staffError && <span className={ui.err} role="alert">{staffError}</span>}</>}
       <div className={ui.field}>
         <label htmlFor="nu-password">{t('users.form.initialPassword')}</label>
         <div className={s.pwRow}>
@@ -103,10 +112,19 @@ export function ChangeRoleForm({ api, user, onSaved, onCancel }: { api: Api; use
     finally { setBusy(false); }
   }
 
+  if (STAFF_ROLES.includes(user.role)) {
+    return (
+      <div className={ui.formCard} role="group" aria-label={t('users.change.title', { name: user.name })}>
+        <h3 className={ui.h2}>{t('users.change.title', { name: user.name })} <span className={s.who}>({user.email})</span></h3>
+        <p className={ui.muted}>{t('users.change.staffFixed', { name: user.name })}</p>
+        <div className={ui.formActions}><button type="button" className={ui.btnGhost} onClick={onCancel}>{t('users.change.cancel')}</button></div>
+      </div>
+    );
+  }
   return (
     <form onSubmit={submit} noValidate aria-labelledby="change-role-h" className={ui.formCard}>
       <h3 id="change-role-h" className={ui.h2}>{t('users.change.title', { name: user.name })} <span className={s.who}>({user.email})</span></h3>
-      <RoleChoice value={role} onChange={(r) => { setRole(r); setError(''); }} label={t('users.change.newRole')} />
+      <RoleChoice roles={CHANGEABLE} value={role} onChange={(r) => { setRole(r); setError(''); }} label={t('users.change.newRole')} />
       <p className={s.note}>{t('users.change.note')}</p>
       {error && <p role="alert" className={ui.err}>{error}</p>}
       <div className={s.actions}>

@@ -1,0 +1,25 @@
+# HTTPS delante del gateway. Caddy pide y renueva solo el certificado (Let's Encrypt) para {$DOMAIN}.
+# El dominio debe apuntar a este servidor y los puertos 80 y 443 deben estar abiertos.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Nadie se queda hablando por HTTP: HSTS le dice al navegador que use siempre HTTPS (un año).
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# El gateway (nginx) ya pone el resto: la política de contenido y el identificador de cada petición.
+	reverse_proxy 127.0.0.1:8080 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

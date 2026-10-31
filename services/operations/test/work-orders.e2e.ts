@@ -283,4 +283,79 @@ describe('work orders from the monitoring screens (e2e, real PostgreSQL)', () =>
       }
     }, 120_000);
   });
+
+  describe('an engineer or a technician sees and moves ONLY their own orders', () => {
+    const HUGO = randomUUID(), ANA = randomUUID();
+    const tech = { id: randomUUID(), email: 'hugo.salazar@nexus.example', role: 'technician' };
+    const eng = { id: randomUUID(), email: 'ana.torres@nexus.example', role: 'engineer' };
+    const tok = (u: any, staffId?: string) => bearer(token(u, staffId ? { extra: { staffId } } : {}));
+    const callAs = (m: 'get' | 'patch', p: string, auth?: string, body?: object) => { let r = (request(app.getHttpServer()) as any)[m](p); if (auth) r = r.set('Authorization', auth); return body ? r.send(body) : r; };
+    const assigned = async (staffId: string, name: string, over: object = {}) => (await create({ assignedTo: name, assignedToId: staffId, capacityPercent: 20, capacityStart: dayPlus(1), capacityEnd: dayPlus(3), ...over })).body;
+    const closedEvents = () => prisma.outboxEvent.count({ where: { type: 'WorkOrderClosed' } });
+
+    it('GET /work-orders/mine lists only my orders (newest first); the manager and the other roles do not use it (403), no token is 401', async () => {
+      const a = await assigned(HUGO, 'Hugo Salazar'); const b = await assigned(ANA, 'Ana Torres', { type: 'preventive' }); const c = await assigned(HUGO, 'Hugo Salazar', { targetKind: 'device', targetRef: deviceId, type: 'inspection' });
+      const mine = (await callAs('get', '/work-orders/mine', tok(tech, HUGO))).body; expect(mine.map((o: any) => o.id).sort()).toEqual([a.id, c.id].sort());
+      expect((await callAs('get', '/work-orders/mine', tok(eng, ANA))).body.map((o: any) => o.id)).toEqual([b.id]);
+      for (const u of [M, USERS.lead, USERS.sales, USERS.billing]) expect((await callAs('get', '/work-orders/mine', tok(u))).status).toBe(403);
+      expect((await callAs('get', '/work-orders/mine')).status).toBe(401);
+      expect((await callAs('get', '/work-orders', tok(tech, HUGO))).status).toBe(403); // la lista general sigue siendo de gerencia y del líder
+      expect((await callAs('get', `/work-orders/${b.id}`, tok(tech, HUGO))).status).toBe(403);
+      expect((await callAs('get', '/work-orders/mine', tok(tech, randomUUID()))).body).toEqual([]);
+    });
+
+    it('a staff token without the person it belongs to, or a person on another role, is not a valid token (401)', async () => {
+      expect((await callAs('get', '/work-orders/mine', tok(tech))).status).toBe(401);
+      expect((await callAs('get', '/work-orders/mine', tok(USERS.sales, HUGO))).status).toBe(401);
+      expect((await callAs('get', '/work-orders/mine', tok(tech, 'not-a-uuid'))).status).toBe(401);
+    });
+
+    it('I can start and finish my order (with a note); finishing publishes WorkOrderClosed once; a closed order is final (409)', async () => {
+      const o = await assigned(HUGO, 'Hugo Salazar');
+      const r1 = await callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), { status: 'in_progress' }); expect(r1.status).toBe(200); expect(r1.body.status).toBe('in_progress');
+      const r2 = await callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), { status: 'done', note: 'Cambié la fuente' }); expect(r2.status).toBe(200); expect(r2.body).toMatchObject({ status: 'done', closedBy: tech.email });
+      expect(await closedEvents()).toBe(1);
+      expect((await callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), { status: 'done' })).status).toBe(409);
+      const g = (await call('get', `/work-orders/${o.id}`, M)).body; expect(g.log.map((l: any) => [l.to, l.actor, l.note])).toEqual([['open', M.email, null], ['in_progress', tech.email, null], ['done', tech.email, 'Cambié la fuente']]);
+    });
+
+    it('another person’s order answers 404 (as if it did not exist) and stays untouched; spoofing the person with a header or the body changes nothing', async () => {
+      const o = await assigned(ANA, 'Ana Torres');
+      for (const extra of [{}, { staffId: ANA }, { assignedToId: ANA }]) {
+        const r = await (request(app.getHttpServer()) as any).patch(`/work-orders/${o.id}/progress`).set('Authorization', tok(tech, HUGO)).set('x-staff-id', ANA).send({ status: 'done', ...extra });
+        expect([400, 404]).toContain(r.status);
+      }
+      expect((await callAs('patch', `/work-orders/${randomUUID()}/progress`, tok(tech, HUGO), { status: 'done' })).status).toBe(404);
+      expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('open'); expect(await closedEvents()).toBe(0);
+    });
+
+    it('only start or finish (400 for cancelling or anything else); the manager and the other roles cannot use this route (403)', async () => {
+      const o = await assigned(HUGO, 'Hugo Salazar');
+      for (const bad of [{ status: 'cancelled' }, { status: 'open' }, { status: 'x' }, {}, { status: 'done', note: '<b>x</b>' }]) expect((await callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), bad)).status).toBe(400);
+      for (const u of [M, USERS.lead, USERS.sales, USERS.billing]) expect((await callAs('patch', `/work-orders/${o.id}/progress`, tok(u), { status: 'done' })).status).toBe(403);
+      expect((await callAs('patch', `/work-orders/${o.id}/progress`, undefined, { status: 'done' })).status).toBe(401);
+      expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('open');
+    });
+
+    it('CONCURRENCY: finishing my order while the manager reassigns it → nobody finishes an order that is no longer theirs, and it never closes twice', async () => {
+      for (let r = 0; r < 20; r++) {
+        await wipe(); stub.reset();
+        const o = await assigned(HUGO, 'Hugo Salazar');
+        const res = await Promise.all([callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), { status: 'done' }), callAs('patch', `/work-orders/${o.id}/assign`, tok(M), { assignedTo: 'Ana Torres', assignedToId: ANA, capacityPercent: 20, capacityStart: dayPlus(1), capacityEnd: dayPlus(3) }), callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), { status: 'done' })]);
+        for (const x of res) expect([200, 404, 409]).toContain(x.status);
+        const row = await prisma.workOrder.findUniqueOrThrow({ where: { id: o.id } });
+        if (row.status === 'done') { expect(row.closedBy).toBe(tech.email); expect(row.assignedToId).toBe(HUGO); expect(await closedEvents()).toBe(1); }
+        else { expect(row.assignedToId).toBe(ANA); expect(await closedEvents()).toBe(0); }
+      }
+    }, 120_000);
+
+    it('CONCURRENCY: 8 simultaneous «done» on my order → one succeeds, one WorkOrderClosed', async () => {
+      for (let r = 0; r < 15; r++) {
+        await wipe(); stub.reset();
+        const o = await assigned(HUGO, 'Hugo Salazar');
+        const res = await Promise.all(Array.from({ length: 8 }, () => callAs('patch', `/work-orders/${o.id}/progress`, tok(tech, HUGO), { status: 'done' })));
+        expect(res.filter((x) => x.status === 200)).toHaveLength(1); expect(res.filter((x) => x.status === 409)).toHaveLength(7); expect(await closedEvents()).toBe(1);
+      }
+    }, 120_000);
+  });
 });

@@ -1,7 +1,7 @@
-import { CannotChangeOwnRoleError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
+import { CannotChangeOwnRoleError, LastManagerError, NotAManagerError, StaffRoleError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
 import { checkPassword } from '../domain/password-policy';
 import { PasswordHasher, UserAdminStore, UserSummary } from '../domain/ports';
-import { Role } from '../domain/role';
+import { isStaffRole, Role } from '../domain/role';
 import { decideRoleChange, normalizeEmail, normalizeName } from '../domain/user-admin';
 
 /** El token puede tener hasta 15 minutos: antes de administrar usuarios se mira el rol ACTUAL en la base. */
@@ -18,18 +18,23 @@ export class ListUsersUseCase {
   }
 }
 
-export interface CreateUserInput { email: string; name: string; role: Role; password: string }
+export interface CreateUserInput { email: string; name: string; role: Role; password: string; staffId?: string | null }
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class CreateUserUseCase {
   constructor(private readonly store: UserAdminStore, private readonly hasher: PasswordHasher) {}
 
   async execute(actorId: string, input: CreateUserInput): Promise<UserSummary> {
     await ensureManager(this.store, actorId);
+    // Un ingeniero o un técnico va ligado a UNA persona del personal; los demás roles no tienen persona.
+    const staffId = input.staffId === undefined || input.staffId === null || input.staffId === '' ? null : input.staffId;
+    if (isStaffRole(input.role) && (staffId === null || !UUID.test(staffId))) throw new StaffRoleError('An engineer or a technician account needs the staff member it belongs to (staffId)');
+    if (!isStaffRole(input.role) && staffId !== null) throw new StaffRoleError('Only engineer and technician accounts belong to a staff member');
     const email = normalizeEmail(input.email);
     const problem = checkPassword(input.password, email);
     if (problem) throw new WeakPasswordError(problem); // antes de gastar tiempo en bcrypt o de escribir nada
     const passwordHash = await this.hasher.hash(input.password);
-    return this.store.create({ email, name: normalizeName(input.name), role: input.role, passwordHash });
+    return this.store.create({ email, name: normalizeName(input.name), role: input.role, staffId: staffId === null ? null : staffId.toLowerCase(), passwordHash });
   }
 }
 
@@ -46,6 +51,10 @@ export class ChangeRoleUseCase {
       if (actor?.role !== 'manager') throw new NotAManagerError();
       const target = await tx.findById(targetId);
       if (!target) throw new UserNotFoundError();
+      if (isStaffRole(newRole) || isStaffRole(target.role)) {
+        if (newRole === target.role) return target; // repetir el mismo rol no cambia nada
+        throw new StaffRoleError('Engineer and technician accounts are created for a staff member and do not change role: create a new account instead');
+      }
       const decision = decideRoleChange({ actorId, targetId, targetRole: target.role, newRole, managerCount: await tx.countManagers() });
       if (!decision.ok) throw decision.reason === 'self' ? new CannotChangeOwnRoleError() : new LastManagerError();
       return decision.changed ? tx.setRole(targetId, newRole) : target;

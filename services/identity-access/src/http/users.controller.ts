@@ -12,7 +12,7 @@ export const CHANGE_ROLE_USE_CASE = 'CHANGE_ROLE_USE_CASE';
 export const USERS_WRITE_RATE_LIMIT = Number(process.env.USERS_WRITE_RATE_LIMIT ?? 30);
 
 /** Contrato público: solo estos campos. Nunca la contraseña ni su hash. */
-const toDto = (u: UserSummary) => ({ id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt.toISOString() });
+const toDto = (u: UserSummary) => ({ id: u.id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: u.createdAt.toISOString() });
 const actorOf = (req: { user: AuthUser }) => req.user.id; // sale del token firmado, jamás del cuerpo
 
 @ApiTags('Users')

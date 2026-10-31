@@ -29,5 +29,6 @@ import { quotes } from './quotes';
 import { payroll } from './payroll';
 import { payables } from './payables';
 import { cashflow } from './cashflow';
+import { mywork } from './mywork';
 
-export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders, ...quotes, ...payroll, ...payables, ...cashflow };
+export const en = { ...common, ...auth, ...projects, ...users, ...invoices, ...dashboard, ...server, ...theme, ...charts, ...sensors, ...netview, ...summary, ...advisor, ...einvoice, ...notifications, ...capacity, ...procurement, ...payments, ...contracts, ...team, ...profitability, ...audit, ...cameras, ...configure, ...history, ...count, ...workorders, ...quotes, ...payroll, ...payables, ...cashflow, ...mywork };

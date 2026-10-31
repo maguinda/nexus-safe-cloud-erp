@@ -6,10 +6,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export type RoleKey = 'lead' | 'billing' | 'sales' | 'manager' | 'finance';
+export type RoleKey = 'lead' | 'billing' | 'sales' | 'manager' | 'finance' | 'engineer' | 'technician';
 
 /** Abre la app con la sesión de ese rol ya iniciada (se inyecta en sessionStorage, como la guarda la app). */
-const ACCOUNTS: Record<RoleKey, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example', finance: 'fernanda.gil@nexus.example' };
+const ACCOUNTS: Record<RoleKey, string> = { lead: 'laura.rios@nexus.example', billing: 'andres.mora@nexus.example', sales: 'camila.soto@nexus.example', manager: 'diana.vega@nexus.example', finance: 'fernanda.gil@nexus.example', engineer: 'ana.torres@nexus.example', technician: 'hugo.salazar@nexus.example' };
 const secondsLeft = (t: string): number => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString()).exp - Date.now() / 1000;
 
 /** Sesiones guardadas por el setup. Los tokens duran 15 min y una corrida completa dura más: si a uno le quedan menos de 5 min se inicia sesión de nuevo
@@ -21,7 +21,8 @@ export async function currentSessions(): Promise<Record<string, { token: string;
   for (const role of Object.keys(ACCOUNTS) as RoleKey[]) {
     if (sessions[role] && secondsLeft(sessions[role].token) > 300) continue;
     const base = process.env.BASE_URL ?? 'http://localhost:8080';
-    const res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: ACCOUNTS[role], password: process.env.DEMO_PASSWORD ?? 'demo-password-1' }) });
+    let res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: ACCOUNTS[role], password: process.env.DEMO_PASSWORD ?? 'demo-password-1' }) });
+    for (let n = 0; n < 6 && res.status === 429; n++) { await new Promise((r) => setTimeout(r, 15_000)); res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: ACCOUNTS[role], password: process.env.DEMO_PASSWORD ?? 'demo-password-1' }) }); } // el límite de login es de 10 por minuto: se espera a que pase la ventana
     if (!res.ok) throw new Error(`Login of ${role} failed (${res.status}) while renewing the saved test session`);
     const j = await res.json();
     sessions[role] = { token: j.accessToken, user: j.user };

@@ -16,7 +16,7 @@ export interface SessionConfig {
 export interface Renewed {
   accessToken: string;
   expiresIn: number;
-  user: { email: string; name: string; role: Role; language: Language; theme: Theme };
+  user: { email: string; name: string; role: Role; staffId: string | null; language: Language; theme: Theme };
   /** Solo viaja en la cookie HttpOnly: el controlador NUNCA lo pone en el cuerpo de la respuesta. */
   refreshToken: string;
 }
@@ -70,7 +70,7 @@ export class SessionService {
     const user = await this.users.findById(won.userId);
     if (!user) { await this.store.revokeFamily(won.familyId, now); throw new InvalidSessionError(); }
     const access = this.tokens.issue(user);
-    return { accessToken: access.token, expiresIn: access.expiresIn, user: { email: user.email, name: user.name, role: user.role, language: user.language, theme: user.theme }, refreshToken: next.token };
+    return { accessToken: access.token, expiresIn: access.expiresIn, user: { email: user.email, name: user.name, role: user.role, staffId: user.staffId, language: user.language, theme: user.theme }, refreshToken: next.token };
   }
 
   /** Cierra la sesión entera (todos los tokens de su familia). Si el token no existe o ya no sirve, no hay nada que hacer: no es un error. */

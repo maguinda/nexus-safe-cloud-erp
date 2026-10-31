@@ -96,7 +96,7 @@ describe('session renewal: login cookie, POST /auth/refresh and POST /auth/logou
       expect(res.headers['cache-control']).toBe('no-store');
       expect(Object.keys(res.body).sort()).toEqual(['accessToken', 'expiresIn', 'user']);
       expect(res.body.expiresIn).toBe(900);
-      expect(res.body.user).toEqual({ email: u.email, name: 'Renew Test', role: 'sales', language: 'es', theme: 'system' });
+      expect(res.body.user).toEqual({ email: u.email, name: 'Renew Test', role: 'sales', staffId: null, language: 'es', theme: 'system' });
       const claims: any = verify(res.body.accessToken, PUBLIC_KEY, { algorithms: ['RS256'], issuer: 'identity-access', audience: 'erp-api' });
       expect(claims.sub).toBe(u.id);
       const t1 = cookieOf(res)!;

@@ -240,4 +240,18 @@ describe('capacity: authentication, roles, the 100% rule and events (e2e, real P
     await expect(prisma.$executeRawUnsafe(`UPDATE engineers SET daily_cost_cop = 227273 WHERE id = '${id}'`)).rejects.toThrow();
     await prisma.$executeRawUnsafe(`UPDATE engineers SET daily_cost_cop = 314436 WHERE id = '${id}'`);
   });
+
+  it('my capacity: an engineer or a technician sees only their own load and allocations, never a salary or a cost; the other roles use the general list (403 here)', async () => {
+    const eng = { id: randomUUID(), email: 'ana.torres@nexus.example', role: 'engineer' };
+    const tok = (u: any, staffId?: string) => bearer(token(u, staffId ? { extra: { staffId } } : {}));
+    const get = (auth?: string) => { let r = request(app.getHttpServer()).get('/my-capacity'); if (auth) r = r.set('Authorization', auth); return r; };
+    const ana = SEED_ENGINEERS[0];
+    const r = await get(tok(eng, ana)); expect(r.status).toBe(200);
+    expect(r.body.me).toMatchObject({ id: ana, name: 'Ana Torres', kind: 'engineer' }); expect(r.body.me.allocations.length).toBeGreaterThan(0);
+    expect(JSON.stringify(r.body)).not.toMatch(/dailyCostCop|monthlySalaryCop/);
+    const hugo = await get(tok({ id: randomUUID(), email: 'hugo.salazar@nexus.example', role: 'technician' }, SEED_ENGINEERS[6])); expect(hugo.body.me.name).toBe('Hugo Salazar');
+    expect((await get(tok(eng, randomUUID()))).status).toBe(404);
+    for (const u of [USERS.manager, USERS.lead, USERS.sales, USERS.billing, USERS.finance]) expect((await get(tok(u))).status).toBe(403);
+    expect((await get()).status).toBe(401); expect((await get(tok(eng))).status).toBe(401);
+  });
 });

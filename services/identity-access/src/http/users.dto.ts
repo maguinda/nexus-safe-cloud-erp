@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
 import { ROLES, Role } from '../domain/role';
 import { normalizeEmail, normalizeName } from '../domain/user-admin';
 
@@ -24,6 +24,11 @@ export class CreateUserDto {
   @ApiProperty({ enum: ROLES })
   @IsIn(ROLES)
   role!: Role;
+
+  @ApiPropertyOptional({ description: 'Required for engineer and technician (the staff member the account belongs to) and forbidden for the other roles' })
+  @IsOptional()
+  @IsUUID()
+  staffId?: string;
 
   @ApiProperty({ description: 'Initial password: 12 characters at least, 72 bytes at most (the rules are checked by the domain)', maxLength: 128 })
   @IsString()
