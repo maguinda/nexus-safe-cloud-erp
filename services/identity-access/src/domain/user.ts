@@ -7,6 +7,8 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  /** Solo ingeniero y técnico: la persona del personal técnico. */
+  staffId: string | null;
   language: Language;
   theme: Theme;
   passwordHash: string;

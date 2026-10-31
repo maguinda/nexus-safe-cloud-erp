@@ -16,6 +16,8 @@ export const common = {
   'role.project_lead': 'Líder de proyecto',
   'role.billing_analyst': 'Analista de facturación',
   'role.finance': 'Finanzas',
+  'role.engineer': 'Ingeniero',
+  'role.technician': 'Técnico',
   'role.sales': 'Ventas',
   'role.manager': 'Gerente',
   'profile.open': 'Perfil de {name}: {role}',

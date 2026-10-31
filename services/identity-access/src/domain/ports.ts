@@ -31,8 +31,8 @@ export interface UserPreferencesStore {
 }
 
 /** Lo que se muestra de un usuario: NUNCA incluye la contraseña ni su hash. */
-export interface UserSummary { id: string; email: string; name: string; role: Role; createdAt: Date }
-export interface NewUser { email: string; name: string; role: Role; passwordHash: string }
+export interface UserSummary { id: string; email: string; name: string; role: Role; staffId: string | null; createdAt: Date }
+export interface NewUser { email: string; name: string; role: Role; staffId: string | null; passwordHash: string }
 
 /** Operaciones dentro de la transacción que ya tiene bloqueadas las filas de los gerentes (ver prisma-user-admin.store.ts). */
 export interface RoleChangeTx {

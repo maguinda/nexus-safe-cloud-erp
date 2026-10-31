@@ -2438,3 +2438,52 @@ test('Cash flow: the payroll paid and the suppliers paid go out, the month shows
     await nav(manager.page, 'Dashboard'); await nav(manager.page, 'Cash flow'); await expect(manager.page.locator(`[data-month="${month}"]`)).toContainText('suppliers 4.800.000');
   } finally { for (const w of [manager, finance, lead, sales]) await w.ctx.close(); }
 });
+
+test('My work: an engineer and a technician sign in and see only their own load and orders; the technician starts and finishes an order and the capacity is freed; the manager creates an account tied to a staff member', async ({ browser }) => {
+  test.setTimeout(240_000);
+  execSync('./scripts/reset-demo.sh', { cwd: join(here, '..', '..'), stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 15_000));
+  const open = async (role: 'manager' | 'engineer' | 'technician') => { const ctx = await browser.newContext(); const page = await ctx.newPage(); await openAs(page, role); return { ctx, page }; };
+  const nav = (page: import('@playwright/test').Page, name: string) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const [manager, eng, tech] = [await open('manager'), await open('engineer'), await open('technician')];
+  try {
+    // Cada uno ve una sola opción: su trabajo.
+    for (const w of [eng, tech]) { await expect(w.page.getByRole('navigation').getByRole('button')).toHaveText(['My work']); await expect(w.page.getByRole('heading', { name: 'My work' })).toBeVisible(); }
+    // Ana (ingeniera): sus asignaciones de proyecto; ni sueldos ni costos ni lo de otros.
+    await expect(eng.page.locator('[data-mw-load]')).toContainText(/Today you are at \d+%/);
+    await expect(eng.page.locator('[data-kind="project"]').first()).toContainText('Branch network upgrade');
+    await expect(eng.page.getByText(/COP|Hugo|Salazar/)).toHaveCount(0); // ni un monto ni otra persona
+    await expect(eng.page.getByText('You have no work orders.')).toBeVisible();
+    // Gerencia le crea una orden a Hugo (25 % por omisión).
+    await nav(manager.page, 'Sensors'); await manager.page.getByRole('button', { name: 'See detail: Alerts' }).click();
+    await manager.page.getByRole('button', { name: /^Create a work order for / }).first().click();
+    const d = manager.page.getByRole('dialog');
+    await d.getByLabel('What has to be done').fill('Cambiar la fuente del sensor'); await d.getByRole('button', { name: 'Hugo Salazar · Technician' }).click(); await d.getByRole('button', { name: 'Create order' }).click();
+    await expect(manager.page.getByText(/Order OT-\d+ created\./)).toBeVisible();
+    // Hugo la ve, la inicia y la termina con una nota. Ana no la ve.
+    await tech.page.reload();
+    const card = tech.page.locator('[data-order]').first(); const number = (await card.getAttribute('data-order'))!;
+    await expect(card).toContainText('Cambiar la fuente del sensor'); await expect(card).toContainText(/Takes 25% of you/);
+    await expect(tech.page.locator('[data-kind="maintenance"]')).toHaveCount(1); await expect(tech.page.locator('[data-mw-load]')).toContainText('Today you are at 25%');
+    await card.getByRole('button', { name: `Start order ${number}` }).click(); await expect(tech.page.getByText(`Order ${number} started.`)).toBeVisible(); await expect(card).toContainText('In progress');
+    await card.getByRole('button', { name: `Mark order ${number} as done` }).click();
+    const ff = card.getByRole('form', { name: `Mark order ${number} as done` });
+    await ff.getByLabel('Note when finishing (optional)').fill('<b>x</b>'); await ff.getByRole('button', { name: 'Confirm: finished' }).click(); await expect(ff.getByText(/The note must be up to 300 characters/)).toBeVisible();
+    await ff.getByLabel('Note when finishing (optional)').fill('Fuente cambiada y probada'); await ff.getByRole('button', { name: 'Confirm: finished' }).click();
+    await expect(tech.page.getByText(`Order ${number} finished: your capacity is freed.`)).toBeVisible(); await expect(card).toContainText('Done');
+    await expect(async () => { await tech.page.reload(); await expect(tech.page.locator('[data-mw-load]')).toContainText('Today you are at 0%', { timeout: 1500 }); await expect(tech.page.locator('[data-kind="maintenance"]')).toHaveCount(0, { timeout: 1500 }); }).toPass({ timeout: 40_000 });
+    await eng.page.reload(); await expect(eng.page.getByText('You have no work orders.')).toBeVisible();
+    // Gerencia crea la cuenta de un ingeniero: elige a la persona del personal (solo ingenieros).
+    await nav(manager.page, 'Users');
+    const nf = manager.page.getByRole('form', { name: 'New user' });
+    await nf.getByLabel('Email').fill('qa.nuevo.ing@nexus.example'); await nf.getByLabel('Full name').fill('Julián Pardo'); await nf.getByRole('button', { name: 'Engineer', exact: true }).click();
+    await expect(nf.getByRole('button', { name: /Hugo Salazar/ })).toHaveCount(0); await expect(nf.getByRole('button', { name: /Julián Pardo · Engineer/ })).toBeVisible();
+    await nf.getByLabel(/Initial password/).fill('Qa-Passw0rd-long!'); await nf.getByRole('button', { name: /^Create/ }).click();
+    await expect(nf.getByText('Choose the staff member the account belongs to.')).toBeVisible();
+    await nf.getByRole('button', { name: /Julián Pardo · Engineer/ }).click(); await nf.getByRole('button', { name: /^Create/ }).click();
+    await expect(manager.page.getByText(/qa\.nuevo\.ing@nexus\.example/).first()).toBeVisible();
+    // Esa cuenta no cambia de rol.
+    await manager.page.getByRole('button', { name: 'Change role for Julián Pardo' }).first().click();
+    await expect(manager.page.getByText(/the account belongs to a person and does not change role/)).toBeVisible();
+  } finally { for (const w of [manager, eng, tech]) await w.ctx.close(); }
+});

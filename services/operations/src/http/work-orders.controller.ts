@@ -72,6 +72,21 @@ export class WorkOrdersController {
     return this.svc.list({ status, limit: n });
   }
 
+  @Get('mine')
+  @Roles('engineer', 'technician')
+  @ApiOperation({ summary: 'My work orders: only the ones where I am the responsible person (roles engineer and technician; the person comes from the signed token)' })
+  mine(@Req() req: Request & { user: AuthUser }) { return this.svc.mine(req.user.staffId as string); }
+
+  @Patch(':id/progress')
+  @Roles('engineer', 'technician')
+  @ApiOperation({ summary: 'Start (in_progress) or finish (done) one of MY work orders (roles engineer and technician). Cancelling is the manager’s; another person’s order answers 404' })
+  @ApiResponse({ status: 404, description: 'There is no such order, or it is not mine' })
+  @ApiResponse({ status: 409, description: 'That change is not allowed from the current status' })
+  async progress(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: StatusDto, @Req() req: Request & { user: AuthUser; correlationId?: string }) {
+    if (dto.status !== 'in_progress' && dto.status !== 'done') throw new BadRequestException('status must be in_progress or done');
+    try { return await this.svc.changeStatus(id, dto.status, dto.note, req.user.email, req.correlationId ?? 'no-correlation', req.user.staffId as string); } catch (e) { return http(e); }
+  }
+
   @Get(':id')
   @Roles('manager', 'project_lead')
   @ApiOperation({ summary: 'One work order with its history' })

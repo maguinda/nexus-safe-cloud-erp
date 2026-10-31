@@ -142,6 +142,6 @@ describe('theme preference: PATCH /me/theme (e2e, real PostgreSQL)', () => {
     const manager = await tokenOf('diana.vega@nexus.example');
     const r = await request(app.getHttpServer()).get('/users').set('Authorization', bearer(manager));
     expect(r.status).toBe(200);
-    expect(Object.keys(r.body[0]).sort()).toEqual(['createdAt', 'email', 'id', 'name', 'role']);
+    expect(Object.keys(r.body[0]).sort()).toEqual(['createdAt', 'email', 'id', 'name', 'role', 'staffId']);
   });
 });

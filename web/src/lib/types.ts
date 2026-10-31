@@ -1,14 +1,14 @@
 /** Tipos según docs/openapi.yaml. */
-export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager' | 'finance';
+export type Role = 'project_lead' | 'billing_analyst' | 'sales' | 'manager' | 'finance' | 'engineer' | 'technician';
 
 import type { Lang } from '../i18n/core';
 
 /** Tema de la interfaz: «system» sigue el modo claro u oscuro del equipo. */
 export type Theme = 'system' | 'light' | 'dark';
 
-export interface User { email: string; name: string; role: Role; /** Idioma de la interfaz de esta persona (viene del servidor). */ language?: Lang; /** Tema de la interfaz de esta persona (viene del servidor). */ theme?: Theme }
+export interface User { email: string; name: string; role: Role; /** Solo ingeniero y técnico: la persona del personal a la que pertenece la cuenta. */ staffId?: string | null; /** Idioma de la interfaz de esta persona (viene del servidor). */ language?: Lang; /** Tema de la interfaz de esta persona (viene del servidor). */ theme?: Theme }
 /** Usuario tal como lo devuelve la administración de usuarios (identity-access): nunca trae contraseña ni hash. */
-export interface ManagedUser { id: string; email: string; name: string; role: Role; createdAt: string }
+export interface ManagedUser { id: string; email: string; name: string; role: Role; staffId?: string | null; createdAt: string }
 export interface LoginResponse { accessToken: string; expiresIn: number; user: User }
 
 export interface Project { id: string; name: string; client: string; milestonesApproved: number; milestonesTotal: number }
@@ -192,3 +192,5 @@ export interface CashMonth { month: string; inCop: number; payrollCop: number; s
 export interface CashflowResponse { months: CashMonth[]; totals: { inCop: number; outCop: number; netCop: number }; balanceCop: number }
 export interface ProjectCostRow { quoteNumber: string; projectName: string; quotedPriceCop: number; quotedCostCop: number; quotedMarginPct: number; laborCostCop: number; purchasesPaidCop: number; realCostCop: number; varianceCop: number; usedPct: number | null; approvedAt: string }
 export interface ProjectCostsResponse { asOf: string; projects: ProjectCostRow[] }
+
+export interface MyCapacity { today: string; me: { id: string; name: string; position: StaffPosition; kind: 'engineer' | 'technician'; loadToday: number; freeToday: number; peakNext30: number; allocations: CapacityAllocation[] } }

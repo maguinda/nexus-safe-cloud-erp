@@ -1,9 +1,9 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { EmailTakenError } from '../domain/errors';
+import { EmailTakenError, StaffTakenError } from '../domain/errors';
 import { NewUser, RoleChangeTx, UserAdminStore, UserSummary } from '../domain/ports';
 import { Role } from '../domain/role';
 
-const SUMMARY = { id: true, email: true, name: true, role: true, createdAt: true } as const; // sin passwordHash: nunca sale de aquí
+const SUMMARY = { id: true, email: true, name: true, role: true, staffId: true, createdAt: true } as const; // sin passwordHash: nunca sale de aquí
 
 /** Cuánto espera una petición su turno (por una conexión y por el bloqueo) antes de rendirse: una ráfaga de cambios de rol debe formarse en fila, no fallar. */
 const ROLE_CHANGE_TX = { maxWait: 20_000, timeout: 20_000 };
@@ -25,7 +25,7 @@ export class PrismaUserAdminStore implements UserAdminStore {
       return await this.prisma.user.create({ data: user, select: SUMMARY });
     } catch (e) {
       // Carrera entre dos altas del mismo email: la restricción única de la base decide y gana una sola.
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new EmailTakenError();
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw (String(e.meta?.target ?? '').includes('staff_id') ? new StaffTakenError() : new EmailTakenError());
       throw e;
     }
   }
@@ -47,7 +47,7 @@ export class PrismaUserAdminStore implements UserAdminStore {
       await tx.$queryRaw`SELECT id FROM users WHERE role = 'manager'::"Role" ORDER BY id FOR UPDATE`;
       return work({
         findById: async (id) => {
-          const rows = await tx.$queryRaw<UserSummary[]>`SELECT id, email, name, role::text AS role, created_at AS "createdAt" FROM users WHERE id = ${id}::uuid`;
+          const rows = await tx.$queryRaw<UserSummary[]>`SELECT id, email, name, role::text AS role, staff_id AS "staffId", created_at AS "createdAt" FROM users WHERE id = ${id}::uuid`;
           return rows[0] ?? null;
         },
         countManagers: () => tx.user.count({ where: { role: 'manager' } }),

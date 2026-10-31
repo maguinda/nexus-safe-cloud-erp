@@ -11,6 +11,8 @@ enum Role {
   project_lead
   billing_analyst
   finance
+  engineer
+  technician
   sales
   manager
 }
@@ -20,6 +22,8 @@ model User {
   email        String   @unique
   name         String
   role         Role
+  /// La persona del personal técnico (Capacidad) a la que pertenece la cuenta: solo ingeniero y técnico la tienen (CHECK en la base).
+  staffId      String?  @unique @map("staff_id") @db.Uuid
   /// Idioma de la interfaz de esta persona: es o en (CHECK en la base).
   language     String   @default("es")
   /// Tema de la interfaz de esta persona: system, light o dark (CHECK en la base).

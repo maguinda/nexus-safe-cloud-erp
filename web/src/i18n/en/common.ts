@@ -17,6 +17,8 @@ export const common: Record<keyof typeof es, string> = {
   'role.project_lead': 'Project lead',
   'role.billing_analyst': 'Billing analyst',
   'role.finance': 'Finance',
+  'role.engineer': 'Engineer',
+  'role.technician': 'Technician',
   'role.sales': 'Sales',
   'role.manager': 'Manager',
   'profile.open': 'Profile of {name}: {role}',

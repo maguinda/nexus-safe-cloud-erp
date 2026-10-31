@@ -20,7 +20,7 @@ const call = async (method: 'get' | 'post' | 'patch', path: string, tok: string 
   return res;
 };
 const login = async (email: string, password = DEMO_PASSWORD) => (await request(app.getHttpServer()).post('/auth/login').send({ email, password })).body.accessToken as string;
-const create = (tok: string, o: Partial<{ email: string; name: string; role: string; password: string }> = {}) => call('post', '/users', tok, { email: 'qa.nuevo@nexus.example', name: 'Carlos Pérez', role: 'sales', password: GOOD, ...o });
+const create = (tok: string, o: Partial<{ email: string; name: string; role: string; password: string; staffId: string | null }> = {}) => call('post', '/users', tok, { email: 'qa.nuevo@nexus.example', name: 'Carlos Pérez', role: 'sales', password: GOOD, ...o });
 const wipe = async () => {
   await prisma.user.deleteMany({ where: { email: { startsWith: 'qa.' } } });
   for (const [email, role] of SEED) await prisma.user.update({ where: { email }, data: { role: role as any } });
@@ -88,7 +88,7 @@ describe('GET /users', () => {
     const res = await call('get', '/users', diana);
     expect(res.status).toBe(200);
     expect(res.body.map((u: any) => u.email)).toEqual(expect.arrayContaining(SEED.map(([e]) => e)));
-    for (const u of res.body) { expect(Object.keys(u).sort()).toEqual(['createdAt', 'email', 'id', 'name', 'role']); expect(u.email).toBe(u.email.toLowerCase()); }
+    for (const u of res.body) { expect(Object.keys(u).sort()).toEqual(['createdAt', 'email', 'id', 'name', 'role', 'staffId']); expect(u.email).toBe(u.email.toLowerCase()); }
   });
 });
 
@@ -96,12 +96,12 @@ describe('POST /users', () => {
   it('creates a salesperson who can then sign in, and stores only a bcrypt hash', async () => {
     const res = await create(diana, { email: 'qa.vendedor1@nexus.example', name: 'Carlos Pérez', role: 'sales' });
     expect(res.status).toBe(201);
-    expect(Object.keys(res.body).sort()).toEqual(['createdAt', 'email', 'id', 'name', 'role']);
+    expect(Object.keys(res.body).sort()).toEqual(['createdAt', 'email', 'id', 'name', 'role', 'staffId']);
     expect(res.body).toMatchObject({ email: 'qa.vendedor1@nexus.example', name: 'Carlos Pérez', role: 'sales' });
     const row = await prisma.user.findUnique({ where: { email: 'qa.vendedor1@nexus.example' } });
     expect(row?.passwordHash).toMatch(/^\$2[aby]\$10\$/); expect(row?.passwordHash).not.toContain(GOOD);
     const signIn = await request(app.getHttpServer()).post('/auth/login').send({ email: 'QA.Vendedor1@Nexus.Example ', password: GOOD });
-    expect(signIn.status).toBe(200); expect(signIn.body.user).toEqual({ email: 'qa.vendedor1@nexus.example', name: 'Carlos Pérez', role: 'sales', language: 'es', theme: 'system' });
+    expect(signIn.status).toBe(200); expect(signIn.body.user).toEqual({ email: 'qa.vendedor1@nexus.example', name: 'Carlos Pérez', role: 'sales', staffId: null, language: 'es', theme: 'system' });
     expect((await call('get', '/users', signIn.body.accessToken)).status).toBe(403); // el nuevo vendedor no administra usuarios
     expect((await request(app.getHttpServer()).post('/auth/login').send({ email: 'qa.vendedor1@nexus.example', password: GOOD + 'x' })).status).toBe(401);
   });
@@ -290,4 +290,47 @@ describe('what a token proves', () => {
     expect((await create(ghost, { email: 'qa.ghost@nexus.example' })).status).toBe(403);
     expect(await prisma.user.count({ where: { email: 'qa.ghost@nexus.example' } })).toBe(0);
   });
+});
+
+describe('engineer and technician accounts (they belong to a person of the staff)', () => {
+  const ANA = '11111111-1111-4111-8111-1111111111aa', HUGO = '11111111-1111-4111-8111-1111111111bb';
+  beforeEach(wipe);
+  it('creates them with the staff member, the token carries it, and the response lists it', async () => {
+    const e = await create(diana, { email: 'qa.ing@nexus.example', role: 'engineer', staffId: ANA.toUpperCase() }); expect(e.status).toBe(201);
+    expect(e.body).toMatchObject({ role: 'engineer', staffId: ANA });
+    const t = await create(diana, { email: 'qa.tec@nexus.example', role: 'technician', staffId: HUGO }); expect(t.status).toBe(201);
+    const signIn = await request(app.getHttpServer()).post('/auth/login').send({ email: 'qa.ing@nexus.example', password: GOOD });
+    expect(signIn.status).toBe(200); expect(signIn.body.user).toEqual({ email: 'qa.ing@nexus.example', name: 'Carlos Pérez', role: 'engineer', staffId: ANA, language: 'es', theme: 'system' });
+    const claims: any = JSON.parse(Buffer.from(signIn.body.accessToken.split('.')[1], 'base64url').toString());
+    expect(claims).toMatchObject({ role: 'engineer', staffId: ANA });
+    const other = await request(app.getHttpServer()).post('/auth/login').send({ email: 'camila.soto@nexus.example', password: DEMO_PASSWORD });
+    expect(JSON.parse(Buffer.from(other.body.accessToken.split('.')[1], 'base64url').toString())).not.toHaveProperty('staffId');
+    expect((await call('get', '/users', signIn.body.accessToken)).status).toBe(403); // no administran usuarios
+    expect((await create(signIn.body.accessToken, { email: 'qa.x@nexus.example' })).status).toBe(403);
+  });
+  it('refuses a staff role without the person, a bad id, a person on another role, and one person with two accounts (409)', async () => {
+    for (const bad of [{ role: 'engineer' }, { role: 'technician', staffId: null }, { role: 'engineer', staffId: 'zz' }, { role: 'technician', staffId: 5 as any }, { role: 'sales', staffId: ANA }, { role: 'manager', staffId: ANA }, { role: 'finance', staffId: ANA }]) {
+      expect((await create(diana, { email: 'qa.bad@nexus.example', ...bad })).status).toBe(400);
+    }
+    expect(await prisma.user.count({ where: { email: 'qa.bad@nexus.example' } })).toBe(0);
+    expect((await create(diana, { email: 'qa.ing1@nexus.example', role: 'engineer', staffId: ANA })).status).toBe(201);
+    expect((await create(diana, { email: 'qa.ing2@nexus.example', role: 'technician', staffId: ANA })).status).toBe(409);
+    expect(await prisma.user.count({ where: { email: 'qa.ing2@nexus.example' } })).toBe(0);
+  });
+  it('their role never changes and nobody becomes staff by a role change (400); the database keeps the pairing', async () => {
+    const e = (await create(diana, { email: 'qa.ing@nexus.example', role: 'engineer', staffId: ANA })).body;
+    const sales = (await create(diana, { email: 'qa.v@nexus.example', role: 'sales' })).body;
+    for (const [id, role] of [[e.id, 'sales'], [e.id, 'technician'], [e.id, 'manager'], [sales.id, 'engineer'], [sales.id, 'technician']] as const) expect((await call('patch', `/users/${id}/role`, diana, { role })).status).toBe(400);
+    expect((await call('patch', `/users/${e.id}/role`, diana, { role: 'engineer' })).status).toBe(200);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: e.id } })).role).toBe('engineer');
+    await expect(prisma.$executeRawUnsafe(`UPDATE users SET staff_id = NULL WHERE id = '${e.id}'`)).rejects.toThrow();
+    await expect(prisma.$executeRawUnsafe(`UPDATE users SET staff_id = '${HUGO}' WHERE id = '${sales.id}'`)).rejects.toThrow();
+  });
+  it('CONCURRENCY: 8 simultaneous accounts for the same person → exactly one is created', async () => {
+    for (let r = 0; r < 10; r++) {
+      await wipe();
+      const res = await Promise.all(Array.from({ length: 8 }, (_, k) => create(diana, { email: `qa.c${k}@nexus.example`, role: k % 2 ? 'technician' : 'engineer', staffId: ANA })));
+      expect(res.filter((x) => x.status === 201)).toHaveLength(1); expect(res.filter((x) => x.status === 409)).toHaveLength(7);
+    }
+  }, 120_000);
 });

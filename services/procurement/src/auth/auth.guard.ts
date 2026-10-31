@@ -2,9 +2,11 @@ import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, 
 import { Reflector } from '@nestjs/core';
 import { verify } from 'jsonwebtoken';
 
-export const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance'] as const;
+export const ROLES = ['project_lead', 'billing_analyst', 'sales', 'manager', 'finance', 'engineer', 'technician'] as const;
 export type Role = (typeof ROLES)[number];
-export interface AuthUser { id: string; email: string; role: Role }
+/** `staffId` solo lo traen el ingeniero y el técnico: la persona del personal técnico a la que pertenece la cuenta (viene del token firmado). */
+export interface AuthUser { id: string; email: string; role: Role; staffId?: string }
+const STAFF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const IS_PUBLIC = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC, true);
@@ -28,7 +30,10 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const c: any = verify(match[1], this.opts.publicKey, { algorithms: ['RS256'], issuer: this.opts.issuer, audience: this.opts.audience, clockTolerance: 5 });
       if (!ROLES.includes(c.role) || typeof c.sub !== 'string' || typeof c.email !== 'string') throw new Error('bad claims');
-      req.user = { id: c.sub, email: c.email, role: c.role } as AuthUser;
+      // Un ingeniero o un técnico sin la persona a la que pertenece no es un token válido.
+      const staffId = typeof c.staffId === 'string' && STAFF_UUID.test(c.staffId) ? c.staffId.toLowerCase() : undefined;
+      if ((c.role === 'engineer' || c.role === 'technician') !== (staffId !== undefined)) throw new Error('bad staff claim');
+      req.user = { id: c.sub, email: c.email, role: c.role, ...(staffId ? { staffId } : {}) } as AuthUser;
       return true;
     } catch {
       // Mismo mensaje para firma mala, token vencido, audiencia errónea...: no se da pistas.

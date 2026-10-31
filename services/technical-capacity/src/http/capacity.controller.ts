@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, NotFoundException, Get, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AllocateEngineerUseCase, CreateEngineerUseCase, DeleteAllocationUseCase, ListCapacityUseCase, SetSalaryUseCase } from '../application/capacity.use-cases';
@@ -32,6 +32,18 @@ export class CapacityController {
     // El sueldo y el costo diario son datos de gerencia: los demás roles no los reciben.
     if (req.user.role === 'manager') return r;
     return { ...r, engineers: r.engineers.map(({ dailyCostCop: _cost, monthlySalaryCop: _salary, ...rest }) => rest) };
+  }
+
+  @Get('my-capacity')
+  @Roles('engineer', 'technician')
+  @ApiOperation({ summary: 'My own load: today, the peak of the next 30 days and my allocations (projects and maintenance). Only me (the person comes from the signed token), never salaries or costs (roles engineer and technician)' })
+  @ApiResponse({ status: 404, description: 'The account points to a person that is not in the staff' })
+  async mine(@Req() req: Request & { user: AuthUser }) {
+    const r = await this.list.execute();
+    const me = r.engineers.find((e) => e.id === req.user.staffId);
+    if (!me) throw new NotFoundException('You are not in the staff list');
+    const { dailyCostCop: _cost, monthlySalaryCop: _salary, ...rest } = me;
+    return { today: r.today, me: rest };
   }
 
   @Post('engineers')

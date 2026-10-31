@@ -85,11 +85,21 @@ export class WorkOrdersService {
     await tx.outboxEvent.create({ data: { id: ev.eventId, aggregateId: r.id, type: ev.type, routingKey: WORK_ORDER_CREATED_ROUTING_KEY, payload: ev as unknown as Prisma.InputJsonValue } });
   }
 
-  async changeStatus(id: string, rawStatus: unknown, rawNote: unknown, actor: string | null, correlationId: string): Promise<WorkOrderView> {
+  /** Las órdenes de UNA persona del personal (ingeniero o técnico): las abiertas primero, las más recientes arriba. */
+  async mine(staffId: string, limit = 100): Promise<WorkOrderView[]> {
+    const rows = await this.prisma.$queryRaw<any[]>`SELECT * FROM work_orders WHERE assigned_to_id = ${staffId}::uuid ORDER BY (status IN ('open','in_progress')) DESC, created_at DESC, number DESC LIMIT ${limit}`;
+    return rows.map(view);
+  }
+
+  /**
+   * Cambiar el estado. `ownerId` (el ingeniero o técnico que lo pide) hace que SOLO pueda tocar una orden que es suya: una ajena responde «no existe» (404), igual que un id inventado,
+   * y la comprobación se hace con la fila ya bloqueada, así que reasignar a la vez no deja pasar a quien ya no es el responsable.
+   */
+  async changeStatus(id: string, rawStatus: unknown, rawNote: unknown, actor: string | null, correlationId: string, ownerId?: string): Promise<WorkOrderView> {
     const { status, note } = validateStatusChange(rawStatus, rawNote);
     return this.prisma.$transaction(async (tx) => {
       const cur = (await tx.$queryRaw<any[]>`SELECT * FROM work_orders WHERE id = ${id}::uuid FOR UPDATE`)[0];
-      if (!cur) throw new WorkOrderNotFoundError('Work order not found');
+      if (!cur || (ownerId !== undefined && cur.assigned_to_id !== ownerId)) throw new WorkOrderNotFoundError('Work order not found');
       if (cur.capacity_state === 'pending') throw new WorkOrderStateError('The capacity of this work order is being confirmed: try again in a moment');
       if (!canTransition(cur.status as WoStatus, status)) throw new WorkOrderStateError(`The work order is ${cur.status}: it cannot go to ${status}`);
       const closing = isClosing(status);

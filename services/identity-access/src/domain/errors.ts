@@ -18,6 +18,14 @@ export class InvalidThemeError extends Error {
   constructor() { super('Theme must be system, light or dark'); this.name = 'InvalidThemeError'; }
 }
 
+/** Un cambio de rol que toca los roles del personal técnico (400): esas cuentas se crean ligadas a una persona y no cambian de rol. */
+export class StaffRoleError extends Error {
+  constructor(message: string) { super(message); this.name = 'StaffRoleError'; }
+}
+/** Esa persona del personal ya tiene una cuenta (409). */
+export class StaffTakenError extends Error {
+  constructor() { super('That staff member already has an account'); this.name = 'StaffTakenError'; }
+}
 export class EmailTakenError extends Error {
   constructor() { super('That email is already registered'); this.name = 'EmailTakenError'; }
 }

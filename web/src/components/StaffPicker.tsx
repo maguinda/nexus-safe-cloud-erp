@@ -7,7 +7,7 @@ import ui from '../styles/ui.module.css';
 export interface StaffChoice { id: string; name: string }
 
 /** Elegir a una persona del personal técnico (ingenieros y técnicos de Capacidad técnica) con botones; tocar de nuevo a la elegida la quita. */
-export function StaffPicker({ label, value, onChange }: { label: string; value: StaffChoice | null; onChange: (v: StaffChoice | null) => void }) {
+export function StaffPicker({ label, value, onChange, kind }: { label: string; value: StaffChoice | null; onChange: (v: StaffChoice | null) => void; kind?: 'engineer' | 'technician' }) {
   const { api, t } = useSession();
   const [staff, setStaff] = useState<CapacityEngineer[] | null>(null);
   const [error, setError] = useState('');
@@ -23,7 +23,7 @@ export function StaffPicker({ label, value, onChange }: { label: string; value: 
       {error && <p className={ui.err} role="alert">{t('staff.error', { reason: error })}</p>}
       {staff !== null && (
         <div className={ui.chips}>
-          {staff.map((p) => (
+          {staff.filter((p) => !kind || p.kind === kind).map((p) => (
             <button key={p.id} type="button" className={value?.id === p.id ? ui.chipOn : ui.chip} aria-pressed={value?.id === p.id} onClick={() => onChange(value?.id === p.id ? null : { id: p.id, name: p.name })}>
               {p.name} · {t(`kind.${p.kind}` as 'kind.engineer')}
             </button>

@@ -2,12 +2,14 @@ import { PrismaClient, Role } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
 // Usuarios de DEMOSTRACIÓN (datos inventados). La contraseña viene de DEMO_PASSWORD.
-const demo: { email: string; name: string; role: Role }[] = [
+const demo: { email: string; name: string; role: Role; staffId?: string }[] = [
   { email: 'laura.rios@nexus.example', name: 'Laura Ríos', role: 'project_lead' },
   { email: 'andres.mora@nexus.example', name: 'Andrés Mora', role: 'billing_analyst' },
   { email: 'camila.soto@nexus.example', name: 'Camila Soto', role: 'sales' },
   { email: 'diana.vega@nexus.example', name: 'Diana Vega', role: 'manager' },
   { email: 'fernanda.gil@nexus.example', name: 'Fernanda Gil', role: 'finance' },
+  { email: 'ana.torres@nexus.example', name: 'Ana Torres', role: 'engineer', staffId: '11111111-1111-4111-8111-111111111101' },
+  { email: 'hugo.salazar@nexus.example', name: 'Hugo Salazar', role: 'technician', staffId: '11111111-1111-4111-8111-111111111107' },
 ];
 
 async function main() {
@@ -16,7 +18,7 @@ async function main() {
   const prisma = new PrismaClient();
   const passwordHash = await hash(pw, 10);
   for (const u of demo) {
-    await prisma.user.upsert({ where: { email: u.email }, update: { name: u.name, role: u.role, passwordHash }, create: { ...u, passwordHash } });
+    await prisma.user.upsert({ where: { email: u.email }, update: { name: u.name, role: u.role, staffId: u.staffId ?? null, passwordHash }, create: { ...u, passwordHash } });
   }
   console.log(`Seeded ${demo.length} demo users`);
   await prisma.$disconnect();

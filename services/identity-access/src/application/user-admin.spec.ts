@@ -1,4 +1,4 @@
-import { CannotChangeOwnRoleError, EmailTakenError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
+import { StaffRoleError, CannotChangeOwnRoleError, EmailTakenError, LastManagerError, NotAManagerError, UserNotFoundError, WeakPasswordError } from '../domain/errors';
 import { NewUser, PasswordHasher, RoleChangeTx, UserAdminStore, UserSummary } from '../domain/ports';
 import { Role } from '../domain/role';
 import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './user-admin.use-cases';
@@ -9,13 +9,13 @@ class FakeStore implements UserAdminStore {
   writes = 0;
   insideTx = false;
   setRoleOutsideTx = 0;
-  constructor(seed: [string, string, Role][] = []) { seed.forEach(([id, email, role]) => this.users.set(id, { id, email, name: email.split('@')[0], role, createdAt: new Date('2026-10-19T10:00:00Z') })); }
+  constructor(seed: [string, string, Role][] = []) { seed.forEach(([id, email, role]) => this.users.set(id, { id, email, name: email.split('@')[0], role, staffId: null, createdAt: new Date('2026-10-19T10:00:00Z') })); }
   async isManager(id: string) { return this.users.get(id)?.role === 'manager'; }
   async list() { return [...this.users.values()].map(({ passwordHash: _p, ...u }) => u); }
   async create(u: NewUser) {
     if ([...this.users.values()].some((x) => x.email === u.email)) throw new EmailTakenError();
     const id = `id-${this.users.size + 1}`; this.writes++;
-    const row = { id, email: u.email, name: u.name, role: u.role, createdAt: new Date('2026-10-19T11:00:00Z'), passwordHash: u.passwordHash };
+    const row = { id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: new Date('2026-10-19T11:00:00Z'), passwordHash: u.passwordHash };
     this.users.set(id, row); const { passwordHash: _p, ...summary } = row; return summary;
   }
   private queue: Promise<unknown> = Promise.resolve();
@@ -30,9 +30,9 @@ class FakeStore implements UserAdminStore {
     const snapshot = new Map([...this.users].map(([k, v]) => [k, { ...v }]));
     try {
       return await work({
-        findById: async (id) => { const u = this.users.get(id); return u ? { id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt } : null; },
+        findById: async (id) => { const u = this.users.get(id); return u ? { id: u.id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: u.createdAt } : null; },
         countManagers: async () => [...this.users.values()].filter((u) => u.role === 'manager').length,
-        setRole: async (id, role) => { this.writes++; const u = this.users.get(id)!; u.role = role; return { id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt }; },
+        setRole: async (id, role) => { this.writes++; const u = this.users.get(id)!; u.role = role; return { id: u.id, email: u.email, name: u.name, role: u.role, staffId: u.staffId, createdAt: u.createdAt }; },
       });
     } catch (e) { this.users = snapshot; throw e; } finally { this.insideTx = false; }
   }
@@ -117,5 +117,32 @@ describe('ChangeRoleUseCase', () => {
     const s = seed(); const before = JSON.stringify([...s.users]);
     await expect(s.runRoleChange(async (tx) => { await tx.setRole('s1', 'manager'); throw new Error('boom'); })).rejects.toThrow('boom');
     expect(JSON.stringify([...s.users])).toBe(before);
+  });
+});
+
+describe('engineer and technician accounts (staff roles)', () => {
+  const STAFF = '11111111-1111-4111-8111-111111111101';
+  const make = (s = seed()) => ({ s, uc: new CreateUserUseCase(s, hasher), role: new ChangeRoleUseCase(s) });
+  const pw = 'correct horse battery';
+  it('creates an engineer or a technician only with the staff member it belongs to, stored in lowercase', async () => {
+    const { uc } = make();
+    const a = await uc.execute(ADMIN, { email: 'ana@nexus.example', name: 'Ana', role: 'engineer', password: pw, staffId: STAFF.toUpperCase() });
+    expect(a).toMatchObject({ role: 'engineer', staffId: STAFF });
+    expect(await uc.execute(ADMIN, { email: 'hugo@nexus.example', name: 'Hugo', role: 'technician', password: pw, staffId: '11111111-1111-4111-8111-111111111107' })).toMatchObject({ role: 'technician' });
+  });
+  it.each([['engineer without staff', 'engineer', undefined], ['technician with empty staff', 'technician', ''], ['engineer with a bad id', 'engineer', 'zz'], ['sales with a staff member', 'sales', STAFF], ['manager with a staff member', 'manager', STAFF], ['finance with a staff member', 'finance', STAFF]] as const)('refuses %s and writes nothing', async (_n, role, staffId) => {
+    const { s, uc } = make();
+    await expect(uc.execute(ADMIN, { email: 'x@nexus.example', name: 'X', role, password: pw, staffId: staffId as any })).rejects.toBeInstanceOf(StaffRoleError);
+    expect(s.writes).toBe(0);
+  });
+  it('a staff account never changes role, and nobody becomes staff by a role change; repeating the same role is harmless', async () => {
+    const { s, uc, role } = make();
+    const eng = await uc.execute(ADMIN, { email: 'ana@nexus.example', name: 'Ana', role: 'engineer', password: pw, staffId: STAFF });
+    const before = s.writes;
+    for (const to of ['sales', 'technician', 'manager'] as const) await expect(role.execute(ADMIN, eng.id, to)).rejects.toBeInstanceOf(StaffRoleError);
+    await expect(role.execute(ADMIN, 's1', 'engineer')).rejects.toBeInstanceOf(StaffRoleError);
+    await expect(role.execute(ADMIN, 's1', 'technician')).rejects.toBeInstanceOf(StaffRoleError);
+    expect((await role.execute(ADMIN, eng.id, 'engineer')).role).toBe('engineer');
+    expect(s.writes).toBe(before);
   });
 });
