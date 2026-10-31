@@ -1,5 +1,7 @@
 #!/bin/sh
 # Deja la demo en su estado inicial: hitos m2, m3, m5 y m6 pendientes, sin eventos ni facturas nuevas, las lecturas de telemetría que llegaron por la API de ingesta o el simulador (id > 4200; las 4.200 del Excel no se tocan) y solo los 4 usuarios de demostración con su rol, en español y con el tema «system».
+#   ./scripts/reset-demo.sh              demo BASE (la que usan las pruebas y el guion: sin nómina, deudas, órdenes ni cobros)
+#   ./scripts/reset-demo.sh --examples   demo base + unos pocos ejemplos por la API real (scripts/seed-examples.mjs) para que ninguna pantalla se vea vacía
 # Solo toca los datos de DEMOSTRACIÓN. Usa el superusuario de PostgreSQL del contenedor local.
 set -e
 cd "$(dirname "$0")/.."
@@ -34,3 +36,8 @@ IFS=$OLDIFS
 psqlc projects "$TEAM"
 psqlc analytics "$FACTS"
 echo "Demo reiniciada: 4 hitos pendientes (m2, m3, m5, m6) y 2 facturas emitidas (INV-0101, INV-0102)."
+case "${1:-}" in
+  --examples) echo "Cargando ejemplos…"; node scripts/seed-examples.mjs ;;
+  "") ;;
+  *) echo "Opción desconocida: $1 (usa --examples o nada)"; exit 2 ;;
+esac
