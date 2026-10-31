@@ -73,6 +73,11 @@ export class SessionService {
     return { accessToken: access.token, expiresIn: access.expiresIn, user: { email: user.email, name: user.name, role: user.role, staffId: user.staffId, language: user.language, theme: user.theme }, refreshToken: next.token };
   }
 
+  /** Cierra TODAS las sesiones de una persona (todos sus dispositivos). El token de acceso que ya tenga sigue valiendo hasta 15 minutos: es lo que dura. */
+  async endAll(userId: string): Promise<number> {
+    return this.store.revokeAllForUser(userId, this.clock());
+  }
+
   /** Cierra la sesión entera (todos los tokens de su familia). Si el token no existe o ya no sirve, no hay nada que hacer: no es un error. */
   async end(raw: string | undefined): Promise<void> {
     if (!raw || !REFRESH_TOKEN_PATTERN.test(raw)) return;

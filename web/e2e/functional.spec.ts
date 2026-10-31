@@ -2487,3 +2487,29 @@ test('My work: an engineer and a technician sign in and see only their own load 
     await expect(manager.page.getByText(/the account belongs to a person and does not change role/)).toBeVisible();
   } finally { for (const w of [manager, eng, tech]) await w.ctx.close(); }
 });
+
+test('Sessions: «Sign out on all my devices» closes the session here AND on the other device, and the password still signs in again', async ({ browser, baseURL, page }) => {
+  const email = 'camila.soto@nexus.example';
+  const password = process.env.DEMO_PASSWORD ?? 'demo-password-1';
+  const signIn = async () => {
+    await waitForLoginCapacity(page.request);
+    const ctx = await browser.newContext({ baseURL });
+    const p = await ctx.newPage();
+    await p.goto('/');
+    await p.getByLabel('Correo').fill(email); await p.getByLabel('Contraseña').fill(password);
+    await p.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+    await expect(p.getByRole('button', { name: 'Facturas', exact: true })).toBeVisible();
+    return { ctx, p };
+  };
+  const laptop = await signIn(); const phone = await signIn();
+  const renew = (c: typeof laptop.ctx) => c.request.post('/auth/refresh', { headers: { 'X-Requested-With': 'erp-web' } });
+  expect((await renew(phone.ctx)).status()).toBe(200); // la otra sesión está viva
+  await profileButton(laptop.p, 'Camila Soto', 'Ventas', 'es').click();
+  await laptop.p.getByRole('dialog', { name: 'Mi perfil' }).getByRole('button', { name: 'Cerrar sesión en todos mis dispositivos', exact: true }).click();
+  await expect(laptop.p.getByLabel('Correo')).toBeVisible(); // volvió al inicio de sesión
+  expect((await renew(phone.ctx)).status()).toBe(401); // y la sesión del otro dispositivo ya no renueva
+  expect((await renew(laptop.ctx)).status()).toBe(401);
+  await laptop.ctx.close(); await phone.ctx.close();
+  const again = await signIn(); // la contraseña sigue sirviendo
+  await again.ctx.close();
+});

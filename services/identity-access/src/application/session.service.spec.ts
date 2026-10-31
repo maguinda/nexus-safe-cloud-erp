@@ -24,6 +24,7 @@ class FakeStore implements RefreshTokenStore {
   }
   async find(h: string) { this.queries++; return this.rows.find((x) => x.hash === h) ?? null; }
   async revokeFamily(familyId: string, now: Date) { for (const r of this.rows) if (r.familyId === familyId && !r.revokedAt) r.revokedAt = now; }
+  async revokeAllForUser(userId: string, now: Date) { let n = 0; for (const r of this.rows) if (r.userId === userId && !r.revokedAt) { r.revokedAt = now; n++; } return n; }
   async purge() { this.purged++; return 0; }
 }
 
@@ -172,5 +173,20 @@ describe('SessionService.end', () => {
     await expect(svc.end('garbage')).resolves.toBeUndefined();
     await expect(svc.end('A'.repeat(43))).resolves.toBeUndefined();
     expect(store.queries).toBeLessThanOrEqual(1);
+  });
+  it('endAll closes every session of THAT person (all devices) and leaves other people alone', async () => {
+    const other: User = { ...diana, id: 'u-other', email: 'otra@nexus.example' };
+    const { svc, store } = build({ users: [{ ...diana }, other] });
+    const a1 = await svc.start('u-diana'); const a2 = await svc.start('u-diana'); const b = await svc.start('u-other');
+    const r = await svc.renew(a2); // una sesión con dos tokens: el gastado y el nuevo
+    expect(await svc.endAll('u-diana')).toBe(3);
+    await expect(svc.renew(a1)).rejects.toBeInstanceOf(InvalidSessionError);
+    await expect(svc.renew(r.refreshToken)).rejects.toBeInstanceOf(InvalidSessionError);
+    await expect(svc.renew(b)).resolves.toBeDefined();
+    expect(store.rows.filter((x) => x.userId === 'u-diana').every((x) => x.revokedAt)).toBe(true);
+  });
+  it('endAll on a person with no sessions revokes nothing and is not an error', async () => {
+    const { svc } = build();
+    expect(await svc.endAll('u-diana')).toBe(0);
   });
 });

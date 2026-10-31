@@ -6,13 +6,13 @@ import { LoginUseCase } from './application/login.use-case';
 import { SessionService } from './application/session.service';
 import { SetLanguageUseCase } from './application/set-language.use-case';
 import { SetThemeUseCase } from './application/set-theme.use-case';
-import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase } from './application/user-admin.use-cases';
+import { ChangeRoleUseCase, CreateUserUseCase, ListUsersUseCase, RevokeUserSessionsUseCase } from './application/user-admin.use-cases';
 import { AUTH_OPTIONS, JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 import { loadConfig } from './config';
 import { AuthController, COOKIE_SECURE, LOGIN_USE_CASE, SESSION_SERVICE } from './http/auth.controller';
 import { HealthController } from './http/health.controller';
 import { MeController, SET_LANGUAGE_USE_CASE, SET_THEME_USE_CASE } from './http/me.controller';
-import { CHANGE_ROLE_USE_CASE, CREATE_USER_USE_CASE, LIST_USERS_USE_CASE, UsersController } from './http/users.controller';
+import { CHANGE_ROLE_USE_CASE, CREATE_USER_USE_CASE, LIST_USERS_USE_CASE, REVOKE_SESSIONS_USE_CASE, UsersController } from './http/users.controller';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
 import { PrismaRefreshTokenStore } from './infrastructure/prisma-refresh-token.store';
 import { PrismaUserAdminStore } from './infrastructure/prisma-user-admin.store';
@@ -41,6 +41,11 @@ const prisma = new PrismaClient();
         const cfg = loadConfig();
         return new SessionService(new PrismaRefreshTokenStore(prisma), new PrismaUserRepository(prisma), new Rs256TokenIssuer(cfg), { idleMs: cfg.refreshIdleMinutes * 60_000, maxMs: cfg.sessionMaxHours * 3_600_000 });
       },
+    },
+    {
+      provide: REVOKE_SESSIONS_USE_CASE,
+      inject: [SESSION_SERVICE],
+      useFactory: (sessions: SessionService) => new RevokeUserSessionsUseCase(new PrismaUserAdminStore(prisma), new PrismaUserRepository(prisma), sessions),
     },
     { provide: COOKIE_SECURE, useFactory: () => loadConfig().cookieSecure },
     {

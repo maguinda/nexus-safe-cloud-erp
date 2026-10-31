@@ -64,6 +64,8 @@ export interface RefreshTokenStore {
   find(tokenHash: string): Promise<import('./refresh-token').RefreshRecord & { familyId: string } | null>;
   /** Revoca todos los tokens de la familia (cierre de sesión, o sospecha de robo). */
   revokeFamily(familyId: string, now: Date): Promise<void>;
+  /** Revoca TODAS las sesiones de una persona (cierre en todos los dispositivos, o un gerente que la expulsa). Devuelve cuántos tokens revocó. */
+  revokeAllForUser(userId: string, now: Date): Promise<number>;
   /** Borra las sesiones cuyo tope venció antes de `before` (limpieza; no cambia ninguna regla). */
   purge(before: Date): Promise<number>;
 }

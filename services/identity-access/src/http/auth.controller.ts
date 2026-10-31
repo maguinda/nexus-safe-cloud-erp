@@ -5,7 +5,8 @@ import type { Request, Response } from 'express';
 import { LoginUseCase } from '../application/login.use-case';
 import { SessionService } from '../application/session.service';
 import { InvalidSessionError } from '../domain/errors';
-import { Public } from '../auth/auth.guard';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { AuthUser, Public } from '../auth/auth.guard';
 import { LoginDto } from './login.dto';
 import { clearedRefreshCookie, readRefreshCookie, refreshCookie, REQUESTED_WITH_HEADER, REQUESTED_WITH_VALUE } from './session-cookie';
 
@@ -80,5 +81,17 @@ export class AuthController {
     requireRequestedWith(req);
     await this.sessions.end(readRefreshCookie(req.headers.cookie));
     res.setHeader('Set-Cookie', clearedRefreshCookie({ secure: this.secure }));
+  }
+
+  @Post('logout-all')
+  @HttpCode(204)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sign out EVERYWHERE: revokes every session of the signed-in person (all devices) and clears this renewal cookie. Access tokens already issued last up to 15 minutes' })
+  @ApiResponse({ status: 204, description: 'All sessions revoked' })
+  @ApiResponse({ status: 401, description: 'Missing, invalid or expired token' })
+  async logoutAll(@Req() req: Request & { user: AuthUser }, @Res({ passthrough: true }) res: Response) {
+    await this.sessions.endAll(req.user.id); // la persona sale del token firmado, jamás del cuerpo
+    res.setHeader('Set-Cookie', clearedRefreshCookie({ secure: this.secure }));
+    res.setHeader('Cache-Control', 'no-store');
   }
 }
