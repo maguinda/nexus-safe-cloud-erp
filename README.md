@@ -1,6 +1,6 @@
-# Nexus Safe-Cloud ERP (MVP)
+# Nexus Safe-Cloud ERP (versión 1.0)
 
-MVP de la materia Arquitectura de Software (Equipo 2, Velocity Softworks). **Ocho servicios** detrás de un solo gateway
+Sistema de la materia Arquitectura de Software (Equipo 2, Velocity Softworks), en su **versión 1.0**: cubre todo el flujo del negocio y todavía le faltan mejoras (el siguiente párrafo dice dónde está lo que NO está). **Ocho servicios** detrás de un solo gateway
 (identity-access, projects, billing-receivables, analytics, notifications, technical-capacity, operations, procurement),
 un frontend en React con **siete roles**, PostgreSQL (una base por servicio) y RabbitMQ (eventos con outbox transaccional).
 
