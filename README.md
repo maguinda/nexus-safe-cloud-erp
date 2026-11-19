@@ -1,40 +1,67 @@
 # Nexus Safe-Cloud ERP (MVP)
 
-MVP for the Software Architecture course (Equipo 2, Velocity Softworks). **Eight services** behind one gateway
+MVP de la materia Arquitectura de Software (Equipo 2, Velocity Softworks). **Ocho servicios** detrás de un solo gateway
 (identity-access, projects, billing-receivables, analytics, notifications, technical-capacity, operations, procurement),
-a React frontend with **seven roles**, PostgreSQL (one database per service) and RabbitMQ (events with a transactional outbox).
+un frontend en React con **siete roles**, PostgreSQL (una base por servicio) y RabbitMQ (eventos con outbox transaccional).
 
-**What it covers today (2026-11-01):** quote → approval creates the project, milestones and contract → each milestone has an
-engineer in charge who creates activities and assigns them to technicians → invoicing, payments and overdue detection → staff
-and capacity (nobody over 100 %) → purchasing, stock, installation and a physical count → maintenance work orders (not part of any
-project; they do spend capacity) → payroll, payables, cash flow and real cost against the quote → sensors and network data.
-The electronic invoice and the payroll are **tests/sandbox, without legal validity**. It is ready to deploy on one server
-(`docs/DEPLOY.md`) but it has not been deployed. The full, honest scope (and what is NOT there) is in `../corte_3/estado_del_sistema.md`.
+**Qué cubre hoy (2026-11-01):** una cotización aprobada crea el proyecto, los hitos y el contrato → cada hito tiene un ingeniero
+responsable que crea actividades y las asigna a técnicos → facturación, pagos y detección de facturas vencidas → personal y
+capacidad (nadie pasa de 100 %) → compras, inventario, instalación y conteo físico → órdenes de mantenimiento (no son parte de ningún
+proyecto y sí gastan capacidad) → nómina, cuentas por pagar, flujo de caja y costo real contra lo cotizado → datos de sensores y de red.
+La factura electrónica y la nómina son **de prueba (sandbox), sin validez legal**. Está listo para desplegarse en un servidor
+(`docs/DEPLOY.md`), pero **no se ha desplegado**, y la plataforma en AWS (EKS, Istio, Kinesis) es un diseño, no algo que corra hoy.
+El alcance completo y honesto (y lo que NO está) está en `CLAUDE.md` y en el documento SAD de la entrega (secciones 6 y 7).
 
-| Folder | What it is |
+## Arquitectura en una página
+
+```
+ Navegador (React, 7 roles)
+        │ HTTPS
+        ▼
+ Gateway nginx  ──(mTLS + JWT RS256)──►  8 microservicios NestJS (núcleo hexagonal)
+ (único puerto 8080)                      identity · projects · billing · analytics ·
+                                          notifications · technical-capacity · operations · procurement
+                                                │ una base PostgreSQL por servicio (Prisma)
+                                                ▼
+                                   RabbitMQ topic exchange «erp.events»
+                                   (outbox transaccional → relé → colas por consumidor + cola de mensajes muertos)
+```
+
+- **Un servicio por contexto delimitado**, cada uno con su base y su propio rol de base de datos; entre servicios se referencian
+  los datos por valor, nunca con llaves foráneas.
+- **Eventos con outbox:** el servicio guarda el cambio y el evento en la misma transacción; un relé lo publica después. La entrega es
+  al menos una vez y los consumidores son idempotentes. Contrato de cada evento en `docs/events.md`.
+- **Zero Trust:** cada servicio verifica un JWT RS256 (emisor, audiencia y rol) y exige el certificado del gateway (mTLS).
+- **Núcleo hexagonal:** la lógica de negocio no depende del framework ni de la base de datos y se prueba sin ellos.
+- **Objetivo en AWS (diseño):** EKS en tres zonas, RDS PostgreSQL Multi-AZ, RabbitMQ dentro de EKS, Kinesis para telemetría y API Gateway. El
+  documento completo (SAD) tiene la topología, el presupuesto en USD/COP y los ADR.
+
+## Qué hay en cada carpeta
+
+| Carpeta | Qué es |
 |---|---|
-| `services/identity-access` | Login, JWT issuing, session renewal and sign-out everywhere, seven roles, user administration for the manager (`GET/POST /users`, `PATCH /users/:id/role`); publishes `UserCreated` and `RoleChanged` |
-| `services/projects` | Projects, milestones, approval (writes the event to an outbox), sales quotes, the engineer in charge of each milestone and its activities for technicians |
-| `services/billing-receivables` | Consumes `MilestoneApproved` and creates draft invoices; publishes `InvoiceDrafted` and `InvoiceIssued` |
-| `services/analytics` | Read models built from the business events and the manager dashboard (`GET /dashboard`) |
-| `services/operations` | Operations & Telemetry: the Nexus network and IoT data from the course folder (`GET /telemetry/*`, `GET /network/*`), the telemetry ingestion API (service key) and the decision advisor (`POST /advisor/brief`). It publishes `ThresholdBreached` when a sensor gets worse. Own database, mTLS, port 4107 |
-| `services/procurement` | Suppliers, purchase orders and stock of equipment and spare parts. An order only moves the stock when it is received (once, under row locks); stock never goes below 0; it suggests spare parts when a sensor goes into alert. Own database, mTLS, port 4108 |
-| `services/notifications` | Messenger: turns alert events (overdue invoices, sensor thresholds, over-allocation) into in-app notifications per role, with a read mark per person (the bell in the web). Own database, mTLS, port 4105 |
-| `services/technical-capacity` | Engineers, skills and allocations by period. Nobody goes over 100% load on any day (row lock + re-read inside the lock); the manager can allow it on purpose, which publishes `OverAllocationDetected`. Own database, mTLS, port 4106 |
-| `web` | React + TypeScript frontend |
-| `infra` | Infrastructure files (Postgres init script, later Terraform/Helm) |
-| `docs` | `openapi.yaml` (API contract) and `events.md` (event contract) |
+| `services/identity-access` | Inicio de sesión, emisión del JWT, renovación y cierre de sesión en todas partes, siete roles y administración de usuarios para el gerente (`GET/POST /users`, `PATCH /users/:id/role`); publica `UserCreated` y `RoleChanged` |
+| `services/projects` | Proyectos, hitos, aprobación (escribe el evento en el outbox), cotizaciones de ventas, el ingeniero responsable de cada hito y sus actividades para técnicos |
+| `services/billing-receivables` | Consume `MilestoneApproved` y crea facturas borrador; publica `InvoiceDrafted` e `InvoiceIssued`; pagos, conciliación y facturas vencidas |
+| `services/analytics` | Modelos de lectura construidos con los eventos de negocio y el tablero del gerente (`GET /dashboard`) |
+| `services/operations` | Operaciones y telemetría: los datos de red e IoT de Nexus de la carpeta de la materia (`GET /telemetry/*`, `GET /network/*`), la ingesta de telemetría (clave de servicio) y el asesor de decisiones (`POST /advisor/brief`). Publica `ThresholdBreached` cuando un sensor empeora. Base propia, mTLS, puerto 4107 |
+| `services/procurement` | Proveedores, órdenes de compra e inventario de equipos y repuestos. Una orden solo mueve el inventario al recibirse (una sola vez, con bloqueo de filas); el stock nunca baja de 0; sugiere repuestos cuando un sensor entra en alerta. Base propia, mTLS, puerto 4108 |
+| `services/notifications` | Mensajero: convierte los eventos de alerta (facturas vencidas, umbrales de sensores, sobreasignación) en notificaciones dentro de la app por rol, con marca de lectura por persona (la campana de la web). Base propia, mTLS, puerto 4105 |
+| `services/technical-capacity` | Ingenieros, habilidades y asignaciones por período. Nadie pasa de 100 % de carga en ningún día (bloqueo de fila y relectura dentro del bloqueo); el gerente puede permitirlo a propósito y eso publica `OverAllocationDetected`. Base propia, mTLS, puerto 4106 |
+| `web` | Frontend en React y TypeScript |
+| `infra` | Archivos de infraestructura (gateway, certificados, llaves, producción) |
+| `docs` | `openapi.yaml` (contrato de la API), `events.md` (contrato de los eventos) y `DEPLOY.md` (despliegue) |
 
 ## Correr la demo en tu equipo (paso a paso, para el equipo)
 
 Todo corre en tu computador con Docker; no necesitas AWS ni pagar nada. Las llaves y los certificados no están en Git: cada persona los genera con dos scripts.
 
 **Antes de empezar necesitas**
-- **Git** y acceso al repositorio (es privado: pídele a Marlon que te invite como colaborador).
+- **Git** (el repositorio es público: https://github.com/maguinda/nexus-safe-cloud-erp).
 - **Docker** con `docker compose`: Docker Desktop (Mac o Windows) o Colima (Mac). En Mac con Colima, clona dentro de tu carpeta personal (`$HOME`); fuera de ella no puede montar las llaves.
 - **Node 20 o más nuevo**, solo para el script de comprobación del paso 7 (la demo en sí no lo necesita).
 - **Windows:** corre todo dentro de WSL (Ubuntu), porque los scripts son de shell (`sh`, `bash`) y clona el repo dentro del disco de Linux de WSL.
-- Los puertos **8080** (la app) y 4101-4104 (Swagger) deben estar libres.
+- Los puertos **8080** (la app) y 4101-4108 (Swagger) deben estar libres.
 
 **Pasos** (en una terminal, copia y pega uno por uno)
 ```sh
@@ -49,7 +76,7 @@ sh infra/certs/gen-certs.sh
 # 3. Crear tu archivo de configuración (Git lo ignora; los valores de ejemplo sirven para la demo local)
 cp .env.example .env
 
-# 4. Levantar todo: base de datos, RabbitMQ, 4 servicios, la web y el gateway
+# 4. Levantar todo: base de datos, RabbitMQ, los 8 servicios, la web y el gateway
 #    (la primera vez descarga imágenes y compila: puede tardar varios minutos; después tarda segundos)
 docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d --build
 
@@ -73,7 +100,7 @@ Si el paso 6 muestra un error 502, espera unos segundos y, si sigue, corre `dock
 | `ana.torres@nexus.example` | engineer | «Mi trabajo»: su carga, sus asignaciones (seleccionables), sus hitos y las actividades que asigna a técnicos |
 | `hugo.salazar@nexus.example` | technician | «Mi trabajo»: su carga, sus asignaciones, sus actividades y sus órdenes de mantenimiento |
 
-**Recorrido corto de la demo** (el guion completo con tiempos está en `corte_2/`, en el archivo de pitch y demo)
+**Recorrido corto de la demo** (el recorrido con tiempos se muestra en el video y en la presentación de la entrega)
 1. Entra como Laura y abre **Projects**.
 2. Pulsa **Approve milestone** en un hito pendiente: la respuesta es inmediata y, unos segundos después, aparece una factura borrador en **Invoices**.
 3. En otra pestaña entra como Diana: el **Dashboard** se actualiza solo por los eventos. Más abajo está el panel **Network & IoT** con los datos de Nexus que dejó la docente: 21 dispositivos y 4.200 lecturas (21 / 21 en línea, 39 advertencias, 3 alertas), una tabla por oficina, las últimas alertas y todos los dispositivos.
@@ -213,85 +240,105 @@ La interfaz está en **español por defecto** y cada persona puede pasarla a ing
 - **En la web:** `web/src/i18n/` (diccionarios `es/` y `en/` por área, con las mismas claves: si falta una en un idioma, no compila) y el menú `ProfileMenu`. Los avisos que manda el servidor en inglés se traducen en pantalla (`i18n/server.ts`); si uno no se reconoce, se muestra el original.
 - `./scripts/reset-demo.sh` deja a los 4 usuarios de la demo en español.
 
-## Where things live
+
+## Dónde vive cada cosa
 
 ```
 erp/
-├─ services/                  the 4 microservices; each one is its own program with its own database
-│  ├─ identity-access/        login and token
-│  ├─ projects/               projects, milestones, approval
-│  ├─ billing-receivables/    invoices, IVA, reconciliation
-│  └─ analytics/              read models and the manager dashboard
-├─ web/                       the screen (React)
-├─ infra/                     everything that is not business code
-│  ├─ gateway/nginx.conf      the gateway
-│  ├─ certs/gen-certs.sh      the mTLS certificates
-│  └─ keys/gen-keys.sh        the JWT keys
-├─ docs/                      the API contract (openapi.yaml) and the event contract (events.md)
-├─ scripts/                   test scripts and the demo reset
-└─ docker-compose.yml         starts everything together
+├─ services/                  los 8 microservicios; cada uno es un programa propio con su propia base de datos
+│  ├─ identity-access/        inicio de sesión y token
+│  ├─ projects/               proyectos, hitos, cotizaciones, aprobación
+│  ├─ billing-receivables/    facturas, IVA, pagos, conciliación
+│  ├─ analytics/              modelos de lectura y tablero del gerente
+│  ├─ notifications/          alertas por rol
+│  ├─ technical-capacity/     ingenieros, asignaciones y nómina
+│  ├─ operations/             red, IoT, telemetría y órdenes de trabajo
+│  └─ procurement/            compras, inventario y cuentas por pagar
+├─ web/                       la pantalla (React)
+├─ infra/                     todo lo que no es código de negocio
+│  ├─ gateway/nginx.conf      el gateway
+│  ├─ certs/gen-certs.sh      los certificados de mTLS
+│  └─ keys/gen-keys.sh        las llaves del JWT
+├─ docs/                      contrato de la API (openapi.yaml), de los eventos (events.md) y el despliegue (DEPLOY.md)
+├─ scripts/                   scripts de prueba, de la demo, respaldo y rotación
+└─ docker-compose.yml         levanta todo junto
 ```
 
-Inside every service the code is split in layers, so a rule never depends on the framework or the database:
+Dentro de cada servicio el código se divide en capas, para que una regla de negocio nunca dependa del framework ni de la base de datos:
 
 ```
-services/<name>/
+services/<nombre>/
 ├─ src/
-│  ├─ http/            receives the request and answers (routes + controllers, no logic)
-│  ├─ application/     one use case per action: the story of what happens
-│  ├─ domain/          the business rules, plain functions with their unit tests
-│  ├─ infrastructure/  the database, RabbitMQ and other tools
-│  ├─ auth/            the guard: verifies the JWT and the role
-│  └─ tls.ts           mTLS: requires the caller's certificate
-├─ prisma/             schema, migrations and demo seed
-├─ test/               end-to-end tests against real PostgreSQL and RabbitMQ
+│  ├─ http/            recibe la petición y responde (rutas y controladores, sin lógica)
+│  ├─ application/     un caso de uso por acción: la historia de lo que pasa
+│  ├─ domain/          las reglas de negocio, funciones puras con sus pruebas unitarias
+│  ├─ infrastructure/  la base de datos, RabbitMQ y otras herramientas
+│  ├─ auth/            el guardia: verifica el JWT y el rol
+│  └─ tls.ts           mTLS: exige el certificado de quien llama
+├─ prisma/             esquema, migraciones y datos de demo
+├─ test/               pruebas de extremo a extremo contra PostgreSQL y RabbitMQ reales
 └─ Dockerfile
 ```
 
-### Where the mTLS lives
+### Dónde vive el mTLS
 
-| What | Where |
+| Qué | Dónde |
 |---|---|
-| Create the certificates | `infra/certs/gen-certs.sh` |
-| Require the caller's certificate in each service | `services/*/src/tls.ts` (the same file in the three services) |
-| Start with TLS | `services/*/src/main.ts` |
-| Handshake tests | `services/*/test/mtls.e2e.ts` |
-| The gateway presenting its certificate | `infra/gateway/nginx.conf` |
-| Pass everything to the containers | `docker-compose.yml` |
+| Crear los certificados | `infra/certs/gen-certs.sh` |
+| Exigir el certificado de quien llama en cada servicio | `services/*/src/tls.ts` (el mismo archivo en todos los servicios) |
+| Arrancar con TLS | `services/*/src/main.ts` |
+| Pruebas del handshake | `services/*/test/mtls.e2e.ts` |
+| El gateway presentando su certificado | `infra/gateway/nginx.conf` |
+| Pasar todo a los contenedores | `docker-compose.yml` |
 
-## Run the whole stack (containers + gateway)
-
-```sh
-sh infra/keys/gen-keys.sh                 # once: JWT key pair (git-ignored)
-sh infra/certs/gen-certs.sh               # once: internal CA + mTLS certificates (git-ignored)
-cp .env.example .env                      # then change the passwords
-docker compose up -d --build              # postgres, rabbitmq, 3 services, nginx gateway
-./scripts/reset-demo.sh                   # demo data back to its initial state
-node scripts/e2e-flow.mjs                 # whole flow through the gateway
-```
-
-### mTLS between the gateway and the services
-The services are **not** reachable over plain HTTP. Each one serves HTTPS and requires a client certificate signed by the internal CA (`infra/certs/gen-certs.sh`) **and** whose name is in its allow-list (`TLS_ALLOWED_CLIENTS`: the gateway, plus the service itself for its healthcheck). A compromised service cannot call another one, even from inside the network. The JWT is still verified on every route: mTLS proves *which service* is calling, the JWT proves *which user*.
-
-`docker-compose.docs.yml` (demo only) opens a second plain-HTTP port per service on `127.0.0.1` so Swagger opens in a browser; the JWT stays mandatory there. Without that file the door does not exist. After recreating a service container, run `docker compose restart gateway` (nginx caches the upstream addresses).
-
-The only published port is the gateway, `127.0.0.1:8080`. Services have no published ports; the gateway exposes just
-`POST /auth/login`, `/users`, `/projects`, `/milestones`, `/invoices`, `/dashboard`, `/telemetry`, `/health`. It does not authenticate: every service verifies the JWT again.
-For the demo, Swagger of each service: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d`
-then http://localhost:4101/docs (identity), :4102/docs (projects), :4103/docs (billing) and :4104/docs (analytics). Each service documents only its own routes; the JWT is the same for all (log in once on :4101 and press Authorize in the others). The whole contract is in `docs/openapi.yaml`.
-
-The web app is served by the same gateway: open http://localhost:8080. Tests: `cd web && npm run test:e2e` (see `web/README.md`).
-
-Demo logins (password in `.env`, `DEMO_PASSWORD`): `laura.rios@nexus.example` (project lead),
-`andres.mora@nexus.example` (billing analyst), `camila.soto@nexus.example` (sales), `diana.vega@nexus.example` (manager: reads the Analytics dashboard and administers users in the Users tab, 403 everywhere else). `scripts/reset-demo.sh` removes any user created in the demo and restores these four roles.
-
-## Run the infrastructure locally
+## Levantar todo (contenedores + gateway)
 
 ```sh
-cp .env.example .env      # then change the passwords
-docker compose up -d      # PostgreSQL 16 and RabbitMQ 3.13
-docker compose ps         # both should be "healthy"
+sh infra/keys/gen-keys.sh                 # una vez: par de llaves del JWT (Git las ignora)
+sh infra/certs/gen-certs.sh               # una vez: CA interna y certificados de mTLS (Git los ignora)
+cp .env.example .env                      # y luego cambia las contraseñas
+docker compose up -d --build              # postgres, rabbitmq, los 8 servicios, la web y el gateway nginx
+./scripts/reset-demo.sh                   # deja los datos de la demo como al inicio
+node scripts/e2e-flow.mjs                 # recorre todo el flujo a través del gateway
 ```
 
-Ports are published on `127.0.0.1` only. RabbitMQ management UI: http://localhost:15672.
-Never commit `.env` or any `*.pem` / `*.key` file.
+### mTLS entre el gateway y los servicios
+Los servicios **no** son alcanzables por HTTP plano. Cada uno atiende HTTPS y exige un certificado de cliente firmado por la CA interna
+(`infra/certs/gen-certs.sh`) **y** cuyo nombre esté en su lista de permitidos (`TLS_ALLOWED_CLIENTS`: el gateway y, para su chequeo de salud, el
+propio servicio). Un servicio comprometido no puede llamar a otro, ni siquiera desde dentro de la red. El JWT se sigue verificando en cada ruta:
+el mTLS prueba *qué servicio* llama; el JWT prueba *qué persona*.
+
+`docker-compose.docs.yml` (solo para la demo) abre un segundo puerto HTTP plano por servicio en `127.0.0.1` para que Swagger abra en un navegador;
+el JWT sigue siendo obligatorio allí. Sin ese archivo la puerta no existe. Después de recrear el contenedor de un servicio, corre
+`docker compose restart gateway` (nginx guarda en caché las direcciones).
+
+El único puerto publicado es el del gateway, `127.0.0.1:8080`. Los servicios no publican puertos; el gateway solo expone las rutas
+necesarias (`POST /auth/login`, `/users`, `/projects`, `/milestones`, `/invoices`, `/dashboard`, `/telemetry`, `/health`, entre otras). El gateway
+no autentica: cada servicio verifica el JWT otra vez.
+Para el Swagger de cada servicio: `docker compose -f docker-compose.yml -f docker-compose.docs.yml up -d` y luego http://localhost:4101/docs
+(identity), :4102/docs (projects), :4103/docs (billing), :4104/docs (analytics), :4105/docs (notifications), :4106/docs (capacity),
+:4107/docs (operations) y :4108/docs (procurement). Cada servicio documenta solo sus rutas; el JWT es el mismo (inicia sesión una vez en :4101 y
+pulsa Authorize en los demás). El contrato completo está en `docs/openapi.yaml`.
+
+La aplicación web la sirve el mismo gateway: abre http://localhost:8080. Pruebas de navegador: `cd web && npm run test:e2e` (ver `web/README.md`).
+
+Usuarios de la demo (la contraseña está en `.env`, `DEMO_PASSWORD`): ver la tabla de usuarios más arriba.
+
+## Despliegue
+
+- **En un servidor propio con Docker** (lo que está listo): `docs/DEPLOY.md` explica los archivos de producción, el respaldo y la restauración
+  (`scripts/backup.sh`, `scripts/restore.sh`), la rotación de llaves y certificados y la verificación previa (`scripts/prod-preflight.sh`,
+  `scripts/prod-smoke.sh`). **No se ha desplegado en un servidor real.**
+- **En AWS (diseño, no implementado):** EKS en tres zonas de disponibilidad, RDS PostgreSQL Multi-AZ, RabbitMQ dentro de EKS, Kinesis para la
+  telemetría y API Gateway; el presupuesto mensual estimado (≈ US$ 456) y los ADR están en el documento SAD de la entrega.
+
+## Solo la infraestructura
+
+```sh
+cp .env.example .env      # y luego cambia las contraseñas
+docker compose up -d      # PostgreSQL 16 y RabbitMQ 3.13
+docker compose ps         # ambos deben estar «healthy»
+```
+
+Los puertos se publican solo en `127.0.0.1`. Consola de RabbitMQ: http://localhost:15672.
+Nunca subas a Git el `.env` ni ningún archivo `*.pem` o `*.key`.
